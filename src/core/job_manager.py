@@ -53,22 +53,29 @@ class JobManager:
         crud.log_add(db_session, run.id, "INFO", "init", f"Iniciando Job: {job.name} (Motor: {job.db_type})")
 
         try:
-            # 3. Simular Extracción / Dump de BD
-            crud.log_add(db_session, run.id, "INFO", "dump", f"Simulando volcado de la BD '{job.db_name}'...")
+            # 3. Extracción de BD (Dump)
+            crud.log_add(db_session, run.id, "INFO", "dump", f"Iniciando volcado de la BD '{job.db_name}' usando conector {job.db_type}...")
             
-            # Simulamos el delay de un dump real
-            await asyncio.sleep(2) 
+            # Crear un archivo temporal donde el conector guardará el volcado SQL
+            fd, dump_path_str = tempfile.mkstemp(suffix=".sql")
+            os.close(fd)
+            dump_path = Path(dump_path_str)
             
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".sql", mode="w", encoding="utf-8") as tmp_sql:
-                tmp_sql.write("-- SolbaBackups Simulated SQL Dump\n")
-                tmp_sql.write(f"CREATE DATABASE {job.db_name};\n")
-                tmp_sql.write("USE " + job.db_name + ";\n")
-                for i in range(1, 101):
-                    tmp_sql.write(f"INSERT INTO dummy_table (id, valor) VALUES ({i}, 'Dato Simulado {i}');\n")
+            # Seleccionar y ejecutar conector
+            if job.db_type == "postgresql":
+                from src.connectors.postgresql import PostgreSQLConnector
+                connector = PostgreSQLConnector()
+            elif job.db_type == "mysql":
+                from src.connectors.mysql import MySQLConnector
+                connector = MySQLConnector()
+            else:
+                raise NotImplementedError(f"El conector para el motor '{job.db_type}' no está implementado aún.")
                 
-                dump_path = Path(tmp_sql.name)
+            # Llamada asíncrona a la extracción (capturará errores por subprocess stderr)
+            await connector.extract(job, dump_path)
             
-            crud.log_add(db_session, run.id, "INFO", "dump", f"Dump simulado completado: {dump_path.name}")
+            dump_size = dump_path.stat().st_size
+            crud.log_add(db_session, run.id, "INFO", "dump", f"Volcado completado: {dump_path.name} ({dump_size} bytes)")
 
             # 4. Comprimir el Archivo
             crud.log_add(db_session, run.id, "INFO", "compress", "Iniciando compresión en formato ZIP...")
