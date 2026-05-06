@@ -73,6 +73,10 @@ class Job(Base):
     db_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     db_name: Mapped[str] = mapped_column(String(255), nullable=False)
     db_user: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    db_password: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Contraseña temporal en texto plano (MVP)"
+    )
     db_password_enc: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Contraseña encriptada con Fernet (src.processors.encryptor)"
@@ -89,6 +93,10 @@ class Job(Base):
         comment="zip | gz"
     )
     encrypt: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    encrypt_password: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Contraseña de encriptación en texto plano (MVP)"
+    )
     encrypt_password_enc: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="Contraseña de encriptación del backup, encriptada con Fernet"

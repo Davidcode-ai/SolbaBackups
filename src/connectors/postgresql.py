@@ -5,6 +5,7 @@ src/connectors/postgresql.py — Conector para PostgreSQL.
 import asyncio
 import logging
 import os
+import subprocess
 from pathlib import Path
 
 from src.connectors.base import BaseConnector
@@ -14,7 +15,7 @@ log = logging.getLogger(__name__)
 
 class PostgreSQLConnector(BaseConnector):
     """
-    Implementa la extracción de PostgreSQL usando pg_dump mediante subprocesos.
+    Implementa la extracción de PostgreSQL usando pg_dump mediante subprocesos en threads.
     """
     
     async def extract(self, job: Job, output_file_path: Path) -> bool:
@@ -40,23 +41,31 @@ class PostgreSQLConnector(BaseConnector):
         env = os.environ.copy()
         
         # TODO: En la implementación final, si la password está encriptada (Fernet),
-        # se debe desencriptar aquí. Para este MVP, asumimos que db_password_enc
-        # tiene la contraseña en texto plano inyectada temporalmente.
-        if getattr(job, "db_password_enc", None):
-            env["PGPASSWORD"] = job.db_password_enc
+        # se debe desencriptar aquí. Para este MVP, verificamos ambas columnas.
+        password = getattr(job, "db_password", None) or getattr(job, "db_password_enc", None)
+        if password:
+            env["PGPASSWORD"] = password
             
-        # Ejecutar subproceso
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        def _run_dump():
+            try:
+                subprocess.run(
+                    cmd,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() if e.stderr else str(e)
+                raise Exception(f"pg_dump falló con código {e.returncode}:\n{error_msg}")
         
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            error_msg = stderr.decode('utf-8', errors='replace').strip()
-            raise Exception(f"pg_dump falló con código {process.returncode}:\n{error_msg}")
+        # Ejecutar en hilo separado para sortear las limitaciones del Event Loop en Windows
+        try:
+            await asyncio.to_thread(_run_dump)
+        except FileNotFoundError:
+            raise Exception(
+                "El comando 'pg_dump' no se encuentra en el sistema. "
+                "Asegúrate de que PostgreSQL está instalado y añadido al PATH de Windows."
+            )
             
         return True
