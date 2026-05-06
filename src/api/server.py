@@ -1,29 +1,32 @@
-"""
-src/api/server.py — Fábrica de la Aplicación FastAPI.
-
-Este módulo define la función ``create_app`` que construye y configura
-la instancia principal de FastAPI. Sigue el patrón Application Factory
-para facilitar los tests (cada test puede crear su propia instancia limpia).
-
-Responsabilidades:
-    - Registrar todos los routers de la API bajo el prefijo ``/api/v1``.
-    - Montar los archivos estáticos del frontend en la ruta raíz ``/``.
-    - Configurar middleware de CORS para peticiones desde localhost.
-    - Definir los eventos de ciclo de vida (startup / shutdown):
-        * Startup:  Crear tablas en BD, iniciar APScheduler, cargar jobs activos.
-        * Shutdown: Detener el scheduler, cerrar conexiones de BD.
-    - Añadir un handler 404 que redirige al ``index.html`` del SPA para
-      soportar la navegación del lado del cliente (client-side routing).
-"""
-
-import logging
-from contextlib import asynccontextmanager
-from pathlib import Path
-
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+feature/integracion-frontend
+import os
+
+app = FastAPI(title="SolbaBackups API")
+
+# Calculamos las rutas relativas basadas en la ubicación de este archivo (src/api/server.py)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+FRONTEND_DIR = os.path.join(BASE_DIR, "src", "frontend")
+
+# =====================================================================
+# AQUÍ VAN LOS ROUTERS DE LA API (Endpoints)
+# =====================================================================
+# IMPORTANTE: Asegúrate de que los routers de la API se incluyan 
+# ANTES de montar el directorio estático para que las rutas no choquen.
+#
+# Ejemplo de cómo incluiría los endpoints tu compañero:
+# from src.api.routes import jobs_router
+# app.include_router(jobs_router, prefix="/api/v1")
+
+
+# =====================================================================
+# MONTAJE DEL FRONTEND
+# =====================================================================
+# Montamos la carpeta src/frontend en la ruta raíz (/).
+# El parámetro html=True permite que al acceder a "/" se sirva "index.html" automáticamente.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+=======
 
 from src.api.routers import history, jobs, logs, settings
 
@@ -112,3 +115,4 @@ def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
         FileNotFoundError: Si el directorio ``frontend_path`` no existe.
     """
     pass
+main

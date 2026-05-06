@@ -1,72 +1,143 @@
 /**
- * api.js — Capa de comunicación con la API REST de FastAPI.
- *
- * Centraliza todas las llamadas fetch hacia /api/v1/ para que los
- * componentes no tengan que conocer las URLs ni gestionar errores HTTP.
- *
- * Patrón: objeto global `API` con métodos async por recurso.
- * Uso: await API.jobs.list()  |  await API.jobs.create(data)
+ * ApiClient para manejar la comunicación con el backend (FastAPI).
+ * Esta clase proporciona métodos limpios y asíncronos para interactuar con la API REST.
  */
+class ApiClient {
+    constructor(baseUrl = '/api/v1') {
+        this.baseUrl = baseUrl;
+    }
 
-const API_BASE = '/api/v1';
+    /**
+     * Obtiene la lista de trabajos (jobs) desde el servidor.
+     * @returns {Promise<Array>} Lista de trabajos
+     */
+    async getJobs() {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs`);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getJobs:', error);
+            throw error;
+        }
+    }
 
-/**
- * Wrapper base de fetch con manejo de errores y parsing JSON automático.
- * @param {string} url - Ruta relativa a API_BASE.
- * @param {RequestInit} options - Opciones de fetch.
- * @returns {Promise<any>} - Respuesta JSON parseada.
- * @throws {Error} - Con mensaje del servidor si el status >= 400.
- */
-async function apiFetch(url, options = {}) {
-  const defaults = {
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-  };
-  const response = await fetch(API_BASE + url, { ...defaults, ...options });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(err.detail || `HTTP ${response.status}`);
-  }
-  if (response.status === 204) return null;
-  return response.json();
+    /**
+     * Crea un nuevo trabajo enviando los datos al servidor.
+     * @param {Object} jobData - Datos del formulario del nuevo trabajo
+     * @returns {Promise<Object>} El trabajo creado
+     */
+    async createJob(jobData) {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(jobData)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en createJob:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Ejecuta un trabajo específico por su ID.
+     * @param {string|number} jobId - El ID del trabajo a ejecutar
+     * @returns {Promise<Object>} Resultado de la ejecución
+     */
+    async runJob(jobId) {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs/${jobId}/run`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`Error en runJob (ID: ${jobId}):`, error);
+            throw error;
+        }
+    }
 }
 
-/** API de Jobs */
-const API = {
-  jobs: {
-    /** @returns {Promise<Array>} Lista de todos los jobs */
-    list:   (params = {}) => apiFetch('/jobs?' + new URLSearchParams(params)),
-    /** @param {Object} data - JobCreate payload */
-    create: (data) => apiFetch('/jobs', { method: 'POST', body: JSON.stringify(data) }),
-    /** @param {number} id */
-    get:    (id)   => apiFetch(`/jobs/${id}`),
-    /** @param {number} id @param {Object} data - JobUpdate payload */
-    update: (id, data) => apiFetch(`/jobs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    /** @param {number} id */
-    delete: (id)   => apiFetch(`/jobs/${id}`, { method: 'DELETE' }),
-    /** @param {number} id - Dispara ejecución manual, devuelve { run_id } */
-    run:    (id)   => apiFetch(`/jobs/${id}/run`, { method: 'POST' }),
-    enable: (id)   => apiFetch(`/jobs/${id}/enable`, { method: 'POST' }),
-    disable:(id)   => apiFetch(`/jobs/${id}/disable`, { method: 'POST' }),
-  },
+// Instancia global para ser usada en otros archivos JS de la aplicación
+const api = new ApiClient();
 
-  history: {
-    list:       (params = {}) => apiFetch('/history?' + new URLSearchParams(params)),
-    listByJob:  (jobId, params = {}) => apiFetch(`/history/job/${jobId}?` + new URLSearchParams(params)),
-    get:        (runId) => apiFetch(`/history/run/${runId}`),
-    deleteRun:  (runId) => apiFetch(`/history/run/${runId}`, { method: 'DELETE' }),
-  },
+/*
+ ==============================================================================
+ EJEMPLO DE CÓMO CAPTURAR EVENTOS DEL FORMULARIO HTML (Para futura referencia)
+ ==============================================================================
 
-  logs: {
-    get:    (runId, params = {}) => apiFetch(`/logs/${runId}?` + new URLSearchParams(params)),
-    /** Devuelve un EventSource para SSE (no usa apiFetch) */
-    stream: (runId) => new EventSource(`${API_BASE}/logs/${runId}/stream`),
-  },
-
-  settings: {
-    get:       () => apiFetch('/settings'),
-    update:    (data) => apiFetch('/settings', { method: 'PUT', body: JSON.stringify(data) }),
-    testEmail: () => apiFetch('/settings/test-email', { method: 'POST' }),
-  },
-};
-
-window.API = API;
+ // 1. Esperamos a que el DOM esté completamente cargado para asegurarnos de que
+ //    todos los elementos HTML (como el formulario) existan en la página.
+ document.addEventListener('DOMContentLoaded', () => {
+     
+     // 2. Seleccionamos el formulario de creación (asumiendo que tiene id="jobForm")
+     const jobForm = document.getElementById('jobForm');
+     
+     if (jobForm) {
+         // 3. Escuchamos el evento 'submit' del formulario
+         jobForm.addEventListener('submit', async (event) => {
+             // Prevenimos que la página se recargue (comportamiento por defecto del form)
+             event.preventDefault();
+             
+             // 4. Extraemos los datos del formulario
+             const formData = new FormData(jobForm);
+             
+             // Convertimos FormData a un objeto plano (jobData)
+             const jobData = {
+                 name: formData.get('name'),
+                 schedule: formData.get('schedule'),
+                 // ... otros campos del formulario
+             };
+             
+             try {
+                 // 5. Usamos nuestra instancia global 'api' para enviar los datos al backend
+                 const result = await api.createJob(jobData);
+                 console.log('Trabajo creado con éxito:', result);
+                 
+                 // Opcional: limpiar el formulario y dar feedback al usuario
+                 jobForm.reset();
+                 alert('Trabajo creado correctamente!');
+                 
+                 // loadJobsList(); // Aquí llamaríamos a la función para refrescar la lista de trabajos
+                 
+             } catch (error) {
+                 // Manejo de errores en caso de que falle la petición
+                 console.error('Hubo un error al crear el trabajo', error);
+                 alert('Hubo un error al crear el trabajo. Revisa la consola.');
+             }
+         });
+     }
+     
+     // -------------------------------------------------------------------------
+     // EJEMPLO: Botón para ejecutar un job 
+     // Asumiendo que en la tabla hay botones con class="btn-run" y un atributo data-id="123"
+     // -------------------------------------------------------------------------
+     // document.querySelectorAll('.btn-run').forEach(button => {
+     //     button.addEventListener('click', async (e) => {
+     //         const jobId = e.target.dataset.id; // Obtenemos el ID desde el atributo data-id
+     //         try {
+     //             await api.runJob(jobId);
+     //             alert(`Trabajo ${jobId} ejecutado con éxito!`);
+     //         } catch (error) {
+     //             alert('Error al intentar ejecutar el trabajo.');
+     //         }
+     //     });
+     // });
+ });
+*/
