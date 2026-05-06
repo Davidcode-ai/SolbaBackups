@@ -1,0 +1,131 @@
+# Configuración de ejemplo para SolbaBackups
+# Copia este archivo como config.yaml y ajusta los valores
+
+# ---------------------------------------------------------------------------
+# Ajustes generales
+# ---------------------------------------------------------------------------
+backup_dir: "./backups"
+log_level: "INFO"           # DEBUG | INFO | WARNING | ERROR
+compression: "zip"          # zip | tar.gz | none
+encryption: false
+retention_days: 30          # Días que se guardan las copias locales
+
+# ---------------------------------------------------------------------------
+# Bases de datos a respaldar
+# ---------------------------------------------------------------------------
+databases:
+  # --- SQLite ---
+  - type: sqlite
+    name: "bd_local"
+    db_path: "/ruta/a/mi_base.db"
+
+  # --- PostgreSQL ---
+  - type: postgresql
+    name: "bd_produccion"
+    host: "localhost"
+    port: 5432
+    database: "nombre_bd"
+    user: "postgres"
+    password: ""            # Reemplaza o usa variable de entorno
+
+  # --- MySQL / MariaDB ---
+  - type: mysql
+    name: "bd_mysql"
+    host: "localhost"
+    port: 3306
+    database: "nombre_bd"
+    user: "root"
+    password: ""
+
+  # --- SQL Server ---
+  - type: sqlserver
+    name: "bd_sqlserver"
+    host: "192.168.1.10"
+    port: 1433
+    database: "AdventureWorks"
+    user: "sa"
+    password: ""
+    server_backup_path: ""  # Ruta local en el servidor SQL Server (opcional)
+
+  # --- MDB / Microsoft Access ---
+  - type: mdb
+    name: "bd_access"
+    db_path: "/ruta/a/datos.mdb"
+    password: ""
+
+# ---------------------------------------------------------------------------
+# Carpetas a respaldar
+# ---------------------------------------------------------------------------
+folders:
+  - name: "documentos"
+    source_dir: "/home/usuario/Documentos"
+    incremental: false
+    exclude_patterns:
+      - "*.tmp"
+      - "~$*"
+
+  - name: "proyecto_web"
+    source_dir: "/var/www/html"
+    incremental: true
+    exclude_patterns:
+      - "node_modules"
+      - ".git"
+      - "*.log"
+
+# ---------------------------------------------------------------------------
+# Google Drive
+# ---------------------------------------------------------------------------
+google_drive:
+  enabled: false
+  credentials_file: "credentials.json"
+  token_file: "token.json"
+  folder_id: ""             # ID de la carpeta raíz en Google Drive
+
+# ---------------------------------------------------------------------------
+# Sincronización de carpetas
+# ---------------------------------------------------------------------------
+sync:
+  enabled: false
+  pairs:
+    - source: "/ruta/origen"
+      destination: "/ruta/destino"
+      mode: "update"        # update | mirror
+      exclude_patterns:
+        - "*.tmp"
+
+# ---------------------------------------------------------------------------
+# Tareas programadas
+# ---------------------------------------------------------------------------
+schedules:
+  - name: "backup_nocturno_sqlite"
+    frequency: "daily"      # daily | weekly | monthly | weekdays | interval
+    at_time: "02:00"
+    type: sqlite
+    db_path: "/ruta/a/mi_base.db"
+
+  - name: "backup_semanal_postgres"
+    frequency: "weekly"
+    at_time: "03:00"
+    days: ["monday"]
+    type: postgresql
+    host: "localhost"
+    database: "nombre_bd"
+    user: "postgres"
+    password: ""
+
+  - name: "backup_dias_especificos"
+    frequency: "weekdays"
+    at_time: "23:00"
+    days: ["lunes", "miercoles", "viernes"]
+    type: folder
+    source_dir: "/home/usuario/Documentos"
+
+  - name: "backup_mensual_mysql"
+    frequency: "monthly"
+    at_time: "01:00"
+    day_of_month: 1         # Día 1 de cada mes
+    type: mysql
+    host: "localhost"
+    database: "nombre_bd"
+    user: "root"
+    password: ""

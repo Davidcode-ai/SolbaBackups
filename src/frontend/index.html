@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolbaBackups - Dashboard</title>
+    <!-- Tailwind CSS vía CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fuentes Google -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Iconos FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' },
+                        surface: { 50: '#f8fafc', 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar para tema oscuro */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-surface-950 text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- 1. LEFT SIDEBAR (JOBS) -->
+    <aside class="w-72 bg-surface-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
+        <!-- Header Sidebar -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-800">
+            <div class="flex items-center gap-3 text-white">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-database text-sm"></i>
+                </div>
+                <span class="font-bold text-lg tracking-tight">SolbaBackups</span>
+            </div>
+        </div>
+
+        <!-- Botón Nuevo Job -->
+        <div class="p-4">
+            <button class="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow shadow-brand-500/10">
+                <i class="fa-solid fa-plus"></i> Nuevo Job
+            </button>
+        </div>
+
+        <!-- Lista de Jobs -->
+        <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+            <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2">Mis Jobs</p>
+            
+            <!-- Job Activo Seleccionado -->
+            <button class="w-full flex items-center gap-3 px-3 py-2.5 bg-brand-500/10 text-brand-400 rounded-lg group transition-colors text-left border border-brand-500/20">
+                <i class="fa-solid fa-server w-4 text-center"></i>
+                <div class="flex-1 truncate">
+                    <p class="text-sm font-medium text-brand-400">Backup Producción</p>
+                    <p class="text-xs text-brand-400/70">PostgreSQL • Diario</p>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+            </button>
+
+            <!-- Otro Job -->
+            <button class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
+                <i class="fa-solid fa-box-archive w-4 text-center group-hover:text-slate-300"></i>
+                <div class="flex-1 truncate">
+                    <p class="text-sm font-medium">Backup Contabilidad</p>
+                    <p class="text-xs text-slate-500">SQL Server • Semanal</p>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
+            </button>
+
+             <!-- Otro Job Manual -->
+             <button class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
+                <i class="fa-solid fa-folder-tree w-4 text-center group-hover:text-slate-300"></i>
+                <div class="flex-1 truncate">
+                    <p class="text-sm font-medium">Archivos Locales</p>
+                    <p class="text-xs text-slate-500">Local • Manual</p>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
+            </button>
+        </div>
+
+        <!-- Footer Sidebar -->
+        <div class="p-4 border-t border-slate-800">
+            <button class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
+                <i class="fa-solid fa-gear w-4 text-center"></i> Configuración
+            </button>
+        </div>
+    </aside>
+
+    <!-- 2. MAIN AREA (CONFIGURACIÓN DEL JOB) -->
+    <main class="flex-1 flex flex-col min-w-0 bg-surface-950 relative">
+        <!-- Topbar -->
+        <header class="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-surface-950/80 backdrop-blur-md sticky top-0 z-10">
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-semibold text-white">Backup Producción</h2>
+                <span class="px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                    Activo
+                </span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button class="bg-surface-800 hover:bg-surface-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700">
+                    <i class="fa-solid fa-play mr-1.5"></i> Ejecutar Ahora
+                </button>
+                <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa-solid fa-floppy-disk mr-1.5"></i> Guardar
+                </button>
+                <!-- Botón toggle panel derecho para móvil -->
+                <button id="toggleRightPanelBtn" class="ml-2 w-9 h-9 rounded-lg border border-slate-800 bg-surface-900 text-slate-400 hover:text-white flex items-center justify-center transition-colors lg:hidden">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area: Tarjetas de Configuración -->
+        <div class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-4xl mx-auto space-y-6">
+
+                <!-- TARJETA 1: Conexión BD -->
+                <div class="bg-surface-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-3 bg-surface-800/30">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                            <i class="fa-solid fa-database"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Conexión a Base de Datos</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Motor de Base de Datos</label>
+                                <div class="relative">
+                                    <select class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 appearance-none">
+                                        <option value="postgresql" selected>PostgreSQL</option>
+                                        <option value="mysql">MySQL / MariaDB</option>
+                                        <option value="sqlserver">Microsoft SQL Server</option>
+                                        <option value="sqlite">SQLite</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Host / IP</label>
+                                <input type="text" value="127.0.0.1" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 placeholder-slate-600">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Puerto</label>
+                                <input type="number" value="5432" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 placeholder-slate-600">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Usuario</label>
+                                <input type="text" value="postgres" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 placeholder-slate-600">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Contraseña</label>
+                                <input type="password" value="********" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 placeholder-slate-600">
+                            </div>
+                            
+                            <div class="md:col-span-2 pt-2">
+                                <button class="text-sm text-brand-400 hover:text-brand-300 font-medium flex items-center gap-2">
+                                    <i class="fa-solid fa-plug"></i> Probar Conexión
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TARJETA 2: Destinos -->
+                <div class="bg-surface-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-surface-800/30">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <h3 class="text-base font-semibold text-white">Destinos</h3>
+                        </div>
+                        <button class="text-xs font-medium text-brand-400 hover:text-brand-300 bg-brand-500/10 px-3 py-1.5 rounded-md border border-brand-500/20 transition-colors">
+                            + Añadir Destino
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        
+                        <!-- Drive Item -->
+                        <div class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg bg-surface-950">
+                            <i class="fa-brands fa-google-drive text-2xl text-slate-400 mt-1"></i>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <h4 class="text-sm font-medium text-white">Google Drive</h4>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-green-400 bg-green-400/10 px-2 py-0.5 rounded border border-green-500/20">Conectado</span>
+                                        <button class="text-slate-500 hover:text-red-400 ml-2 transition-colors"><i class="fa-solid fa-trash-can"></i></button>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-slate-400 mb-3">Carpeta: /SolbaBackups/Produccion</p>
+                                
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-400">Retención:</label>
+                                    <select class="bg-surface-900 border border-slate-700 text-white text-xs rounded-md focus:ring-brand-500 focus:border-brand-500 p-1.5 outline-none">
+                                        <option value="30" selected>30 días</option>
+                                        <option value="90">90 días</option>
+                                        <option value="0">Sin límite</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Local Item -->
+                        <div class="flex items-start gap-4 p-4 border border-slate-700 rounded-lg bg-surface-950">
+                            <i class="fa-solid fa-hard-drive text-2xl text-slate-400 mt-1"></i>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-1">
+                                    <h4 class="text-sm font-medium text-white">Carpeta Local / Red</h4>
+                                    <div class="flex items-center gap-2">
+                                        <button class="text-slate-500 hover:text-red-400 ml-2 transition-colors"><i class="fa-solid fa-trash-can"></i></button>
+                                    </div>
+                                </div>
+                                <div class="mt-2 mb-3 relative">
+                                     <input type="text" value="Z:\Backups\Prod" class="w-full bg-surface-900 border border-slate-700 text-white text-xs rounded-md focus:ring-brand-500 focus:border-brand-500 block p-2 outline-none">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-400">Retención:</label>
+                                    <select class="bg-surface-900 border border-slate-700 text-white text-xs rounded-md focus:ring-brand-500 focus:border-brand-500 p-1.5 outline-none">
+                                        <option value="7" selected>7 días</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- TARJETA 3: Compresión y Encriptación -->
+                <div class="bg-surface-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-3 bg-surface-800/30">
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Seguridad y Compresión</h3>
+                    </div>
+                    <div class="p-6 space-y-6">
+                        
+                        <!-- Compresión -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-medium text-white">Comprimir archivo (ZIP)</h4>
+                                <p class="text-xs text-slate-400 mt-1">Reduce el tamaño del dump generado antes de subirlo.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" value="" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                            </label>
+                        </div>
+
+                        <hr class="border-slate-800">
+
+                        <!-- Encriptación -->
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h4 class="text-sm font-medium text-white">Encriptar archivo (AES-256)</h4>
+                                    <p class="text-xs text-slate-400 mt-1">Protege el backup con contraseña usando encriptación grado militar.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" value="" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                                </label>
+                            </div>
+                            <div class="bg-surface-950 p-4 rounded-lg border border-slate-700">
+                                <label class="block text-xs font-medium text-slate-400 mb-2">Contraseña de Encriptación</label>
+                                <div class="relative">
+                                    <input type="password" value="mysecretpassword" class="w-full bg-surface-900 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-2.5 outline-none">
+                                    <button class="absolute inset-y-0 right-0 px-4 flex items-center text-slate-400 hover:text-white">
+                                        <i class="fa-solid fa-eye text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- TARJETA 4: Programación -->
+                <div class="bg-surface-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                    <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-3 bg-surface-800/30">
+                        <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+                            <i class="fa-solid fa-calendar-check"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Programación (Schedule)</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Frecuencia</label>
+                                <div class="relative">
+                                    <select class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 appearance-none">
+                                        <option value="daily" selected>Diaria</option>
+                                        <option value="weekly">Semanal</option>
+                                        <option value="manual">Solo Manual</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Hora de Ejecución</label>
+                                <input type="time" value="02:00" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-3 outline-none [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert opacity-90">
+                            </div>
+                            
+                            <div class="md:col-span-2 bg-surface-950 rounded-lg p-3 border border-slate-800 flex items-center gap-3">
+                                <i class="fa-solid fa-circle-info text-brand-400"></i>
+                                <p class="text-sm text-slate-400">Próxima ejecución automática: <span class="text-white font-medium">Mañana a las 02:00 AM</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- 3. RIGHT PANEL: Historial y Logs -->
+    <aside id="rightPanel" class="w-80 bg-surface-900 border-l border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute lg:relative right-0 h-full shadow-2xl lg:shadow-none hidden lg:flex">
+        <!-- Header Panel -->
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-surface-900">
+            <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> Historial y Logs
+            </h3>
+            <button id="closeRightPanelBtn" class="lg:hidden text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <!-- History List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+            
+            <!-- Success Run -->
+            <div class="bg-surface-800 border border-slate-700 rounded-lg p-3 cursor-pointer hover:border-brand-500 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-300">Hoy, 02:00 AM</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase tracking-wide">Éxito</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-slate-400">
+                    <div class="flex items-center gap-1.5"><i class="fa-regular fa-clock"></i> 45s</div>
+                    <div class="flex items-center gap-1.5"><i class="fa-solid fa-file-zipper"></i> 142 MB</div>
+                </div>
+            </div>
+
+            <!-- Failed Run -->
+            <div class="bg-surface-800 border border-red-500/30 rounded-lg p-3 cursor-pointer hover:border-red-500 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-300">Ayer, 02:00 AM</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase tracking-wide">Fallo</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-slate-400 mb-2">
+                    <div class="flex items-center gap-1.5"><i class="fa-regular fa-clock"></i> 12s</div>
+                    <div class="flex items-center gap-1.5"><i class="fa-solid fa-file-zipper"></i> --</div>
+                </div>
+                <p class="text-[11px] text-red-400 truncate">Error: Connection refused to 127.0.0.1</p>
+            </div>
+
+            <!-- Success Run -->
+            <div class="bg-surface-800 border border-slate-700 rounded-lg p-3 cursor-pointer hover:border-brand-500 transition-colors">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-300">Mar 10, 02:00 AM</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase tracking-wide">Éxito</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-slate-400">
+                    <div class="flex items-center gap-1.5"><i class="fa-regular fa-clock"></i> 43s</div>
+                    <div class="flex items-center gap-1.5"><i class="fa-solid fa-file-zipper"></i> 141 MB</div>
+                </div>
+            </div>
+            
+            <button class="w-full py-2 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors">
+                Ver historial completo
+            </button>
+        </div>
+
+        <!-- Terminal / Logs View -->
+        <div class="h-64 border-t border-slate-800 bg-surface-950 flex flex-col shrink-0">
+            <div class="px-4 py-2 border-b border-slate-800 flex justify-between items-center bg-surface-900/50">
+                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Logs (Hoy, 02:00 AM)</span>
+                <button class="text-slate-500 hover:text-white transition-colors"><i class="fa-solid fa-expand text-xs"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3 font-mono text-[10px] text-slate-400 leading-relaxed bg-[#0a0f1c]">
+                <div class="text-brand-400">[02:00:01] [INFO] Starting Job: Backup Producción</div>
+                <div>[02:00:01] [INFO] Connecting to PostgreSQL (127.0.0.1:5432)...</div>
+                <div>[02:00:02] [INFO] Connection successful.</div>
+                <div>[02:00:02] [INFO] Dumping database 'mi_base_de_datos'...</div>
+                <div>[02:00:30] [INFO] Dump finished (1.2 GB).</div>
+                <div>[02:00:30] [INFO] Compressing to ZIP...</div>
+                <div>[02:00:40] [INFO] Compression finished (142 MB).</div>
+                <div>[02:00:40] [INFO] Encrypting with AES-256...</div>
+                <div>[02:00:42] [INFO] Uploading to Google Drive...</div>
+                <div class="text-green-400 font-medium">[02:00:45] [SUCCESS] Backup completed successfully.</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Overlay móvil para Right Panel -->
+    <div id="rightPanelOverlay" class="fixed inset-0 bg-surface-950/80 backdrop-blur-sm z-20 hidden lg:hidden"></div>
+
+    <script>
+        // Lógica de UI para abrir/cerrar el panel derecho en pantallas pequeñas
+        const rightPanel = document.getElementById('rightPanel');
+        const toggleBtn = document.getElementById('toggleRightPanelBtn');
+        const closeBtn = document.getElementById('closeRightPanelBtn');
+        const overlay = document.getElementById('rightPanelOverlay');
+
+        function togglePanel() {
+            rightPanel.classList.toggle('hidden');
+            overlay.classList.toggle('hidden');
+        }
+
+        if (toggleBtn) toggleBtn.addEventListener('click', togglePanel);
+        if (closeBtn) closeBtn.addEventListener('click', togglePanel);
+        if (overlay) overlay.addEventListener('click', togglePanel);
+    </script>
+</body>
+</html>

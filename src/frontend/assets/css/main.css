@@ -1,0 +1,72 @@
+/**
+ * assets/css/main.css — Estilos globales de SolbaBackups.
+ * Complementa Tailwind CSS (cargado via CDN en index.html).
+ */
+
+/* Scrollbar oscuro */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e1e2e; }
+::-webkit-scrollbar-thumb { background: #3f3f5c; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+
+/* Nav link sidebar */
+.nav-link {
+  display: flex; align-items: center; gap: .625rem;
+  padding: .5rem .75rem; border-radius: .5rem;
+  font-size: .875rem; font-weight: 500;
+  color: #94a3b8; text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.nav-link:hover { background: #2a2a3e; color: #fff; }
+.nav-link.active { background: #6366f1; color: #fff; }
+
+/* Badges */
+.badge { display:inline-flex; align-items:center; gap:.25rem; padding:.125rem .625rem; border-radius:9999px; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.025em; }
+.badge-success { background:rgba(34,197,94,.15);  color:#22c55e; }
+.badge-warning { background:rgba(245,158,11,.15); color:#f59e0b; }
+.badge-danger  { background:rgba(239,68,68,.15);  color:#ef4444; }
+.badge-running { background:rgba(99,102,241,.15); color:#818cf8; }
+.badge-muted   { background:rgba(148,163,184,.15);color:#94a3b8; }
+
+/* Log viewer */
+#log-viewer { background:#0d0d1a; border:1px solid #3f3f5c; border-radius:.5rem; font-family:'JetBrains Mono',monospace; font-size:.8125rem; line-height:1.6; padding:1rem; min-height:400px; max-height:600px; overflow-y:auto; }
+.log-line { display:flex; gap:1rem; padding:.0625rem 0; }
+.log-time  { color:#4a4a6a; flex-shrink:0; width:8rem; }
+.log-level { flex-shrink:0; width:5rem; font-weight:600; }
+.log-level-INFO    { color:#22c55e; } .log-level-WARNING { color:#f59e0b; } .log-level-ERROR { color:#ef4444; } .log-level-DEBUG { color:#6366f1; }
+.log-stage { color:#6366f1; flex-shrink:0; width:7rem; }
+.log-msg   { color:#cbd5e1; word-break:break-all; }
+
+/* Tabla */
+.data-table { width:100%; border-collapse:collapse; }
+.data-table th { padding:.75rem 1rem; text-align:left; font-size:.75rem; font-weight:600; color:#94a3b8; text-transform:uppercase; border-bottom:1px solid #3f3f5c; }
+.data-table td { padding:.875rem 1rem; font-size:.875rem; color:#e2e8f0; border-bottom:1px solid #2a2a3e; }
+.data-table tr:hover td { background:rgba(99,102,241,.05); }
+
+/* Inputs */
+.form-input { width:100%; background:#1e1e2e; border:1px solid #3f3f5c; border-radius:.5rem; padding:.625rem .75rem; font-size:.875rem; color:#e2e8f0; outline:none; transition:border-color .15s, box-shadow .15s; }
+.form-input:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.2); }
+.form-input::placeholder { color:#4a4a6a; }
+
+/* Botones */
+.btn { display:inline-flex; align-items:center; gap:.375rem; padding:.5rem 1rem; border-radius:.5rem; font-size:.875rem; font-weight:500; transition:all .15s; cursor:pointer; border:none; }
+.btn-primary { background:#6366f1; color:#fff; } .btn-primary:hover { background:#4f46e5; }
+.btn-danger  { background:rgba(239,68,68,.15); color:#ef4444; border:1px solid rgba(239,68,68,.3); } .btn-danger:hover  { background:rgba(239,68,68,.25); }
+.btn-ghost   { background:transparent; color:#94a3b8; border:1px solid #3f3f5c; } .btn-ghost:hover   { background:#2a2a3e; color:#fff; }
+
+/* Toast */
+.toast { display:flex; align-items:center; gap:.75rem; padding:.875rem 1rem; border-radius:.75rem; border:1px solid transparent; pointer-events:all; animation:slideInRight .3s ease; min-width:280px; max-width:400px; box-shadow:0 10px 25px rgba(0,0,0,.5); }
+.toast-success { background:rgba(34,197,94,.1);  border-color:rgba(34,197,94,.3);  color:#22c55e; }
+.toast-error   { background:rgba(239,68,68,.1);  border-color:rgba(239,68,68,.3);  color:#ef4444; }
+.toast-info    { background:rgba(99,102,241,.1); border-color:rgba(99,102,241,.3); color:#818cf8; }
+
+/* Stat card */
+.stat-card { background:#2a2a3e; border:1px solid #3f3f5c; border-radius:.75rem; padding:1.25rem; transition:border-color .2s; }
+.stat-card:hover { border-color:#6366f1; }
+
+/* Animaciones */
+@keyframes slideInRight { from { opacity:0; transform:translateX(1rem); } to { opacity:1; transform:translateX(0); } }
+@keyframes fadeIn       { from { opacity:0; transform:translateY(.5rem); } to { opacity:1; transform:translateY(0); } }
+@keyframes spin         { to { transform:rotate(360deg); } }
+.animate-fade-in { animation:fadeIn .2s ease; }
+.spinner { width:1rem; height:1rem; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
