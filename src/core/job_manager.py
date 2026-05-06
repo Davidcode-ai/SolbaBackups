@@ -83,24 +83,52 @@ class JobManager:
             file_size = compressed_path.stat().st_size
             crud.log_add(db_session, run.id, "INFO", "compress", f"Compresión exitosa. Tamaño final: {file_size} bytes.")
 
-            # 5. Mover a destino local (carpeta backups/)
-            backups_dir = Path.cwd() / "backups"
-            backups_dir.mkdir(parents=True, exist_ok=True)
+            # 5. Mover a destino (Carpeta local o red / Google Drive)
+            crud.log_add(db_session, run.id, "INFO", "upload", f"Preparando transferencia a destino '{job.dest_type}'...")
             
+            if job.dest_type == "local":
+                from src.destinations.local import LocalDestination
+                destination = LocalDestination()
+                # Ruta de destino: si el usuario no especificó, usamos cwd()/backups por defecto
+                dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
+            elif job.dest_type == "google_drive":
+                raise NotImplementedError("Google Drive no está implementado aún.")
+            else:
+                raise NotImplementedError(f"Destino '{job.dest_type}' no implementado aún.")
+                
+            # Formatear el nombre del archivo para que sea único
             timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
             final_name = f"{job.name}_{timestamp}.sql.zip"
-            final_dest = backups_dir / final_name
             
-            crud.log_add(db_session, run.id, "INFO", "upload", f"Moviendo archivo seguro a destino local: {final_dest}")
-            shutil.move(str(compressed_path), str(final_dest))
+            # Renombramos el comprimido temporalmente al nombre final antes de subirlo
+            final_temp_path = compressed_path.parent / final_name
+            compressed_path = compressed_path.rename(final_temp_path)
             
-            # Limpieza del dump original (si no se movió/borró durante la compresión)
+            # Subir el archivo
+            await destination.upload(compressed_path, dest_path_str)
+            final_dest = str(Path(dest_path_str) / final_name)
+            crud.log_add(db_session, run.id, "INFO", "upload", f"Transferencia exitosa a: {final_dest}")
+            
+            # Limpieza del dump original si no se borró
             if dump_path.exists():
                 dump_path.unlink()
+                
+            # Limpieza del archivo comprimido temporal si la carga copió en lugar de mover
+            if compressed_path.exists():
+                compressed_path.unlink()
+
+            # 6. Política de Retención
+            if job.dest_retention_days and job.dest_retention_days > 0:
+                crud.log_add(db_session, run.id, "INFO", "cleanup", f"Ejecutando política de retención ({job.dest_retention_days} días)...")
+                deleted = await destination.clean_old_backups(dest_path_str, job.dest_retention_days)
+                if deleted > 0:
+                    crud.log_add(db_session, run.id, "INFO", "cleanup", f"Borrados {deleted} backups antiguos exitosamente.")
+                else:
+                    crud.log_add(db_session, run.id, "INFO", "cleanup", "No se encontraron backups antiguos que borrar.")
 
             crud.log_add(db_session, run.id, "INFO", "done", "Backup almacenado y pipeline completado.")
 
-            # 6. Actualizar RunHistory a 'SUCCESS'
+            # 7. Actualizar RunHistory a 'SUCCESS'
             crud.run_finish(
                 db_session, 
                 run.id, 
