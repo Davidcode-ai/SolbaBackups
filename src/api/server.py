@@ -88,7 +88,11 @@ def _register_routers(app: FastAPI) -> None:
     Args:
         app: Instancia de FastAPI en la que registrar los routers.
     """
-    pass
+    app.include_router(jobs.router, prefix="/api/v1")
+    # Cuando implementemos history, logs y settings, se añadirán aquí:
+    # app.include_router(history.router, prefix="/api/v1")
+    # app.include_router(logs.router, prefix="/api/v1")
+    # app.include_router(settings.router, prefix="/api/v1")
 
 
 def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
