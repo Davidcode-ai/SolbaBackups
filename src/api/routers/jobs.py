@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 
 from src.core import models
 from src.db import crud
-from src.api.dependencies import get_db, get_job_manager
+from src.api.dependencies import get_db, get_job_manager, get_scheduler
 from src.core.job_manager import JobManager
+from src.core.job_scheduler import JobScheduler
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -27,11 +28,13 @@ def list_jobs(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=models.JobRead, status_code=status.HTTP_201_CREATED)
-def create_job(job_in: models.JobCreate, db: Session = Depends(get_db)):
+def create_job(
+    job_in: models.JobCreate,
+    db: Session = Depends(get_db),
+    scheduler: JobScheduler = Depends(get_scheduler),
+):
     """
-    Crea un nuevo Job de backup.
-
-    Verifica que el nombre sea único antes de delegar la creación al CRUD.
+    Crea un nuevo Job de backup y lo programa automáticamente si tiene schedule.
     """
     existing_job = crud.job_get_by_name(db, name=job_in.name)
     if existing_job:
@@ -40,9 +43,38 @@ def create_job(job_in: models.JobCreate, db: Session = Depends(get_db)):
             detail="Ya existe un Job con ese nombre.",
         )
 
-    # Extraemos el diccionario del modelo Pydantic para pasarlo al CRUD
     job_data = job_in.model_dump(exclude_unset=True)
     new_job = crud.job_create(db, job_data)
+
+    # Registrar en el scheduler si tiene schedule automático
+    if new_job.schedule_type and new_job.schedule_type.lower() not in ("manual", "none", ""):
+        scheduler.add_job(new_job)
+
+    return new_job
+
+
+@router.post("", response_model=models.JobRead, status_code=status.HTTP_201_CREATED)
+def create_job(
+    job_in: models.JobCreate,
+    db: Session = Depends(get_db),
+    scheduler: JobScheduler = Depends(get_scheduler),
+):
+    """
+    Crea un nuevo Job de backup y lo programa automáticamente si tiene schedule.
+    """
+    existing_job = crud.job_get_by_name(db, name=job_in.name)
+    if existing_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ya existe un Job con ese nombre.",
+        )
+
+    job_data = job_in.model_dump(exclude_unset=True)
+    new_job = crud.job_create(db, job_data)
+
+    # Registrar en el scheduler si tiene schedule automático
+    if new_job.schedule_type and new_job.schedule_type.lower() not in ("manual", "none", ""):
+        scheduler.add_job(new_job)
 
     return new_job
 
@@ -61,10 +93,14 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{job_id}", response_model=models.JobRead)
-def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_db)):
+def update_job(
+    job_id: int,
+    job_in: models.JobUpdate,
+    db: Session = Depends(get_db),
+    scheduler: JobScheduler = Depends(get_scheduler),
+):
     """
-    Actualiza la configuración de un Job existente de forma parcial.
-    Solo se actualizan los campos enviados en el payload.
+    Actualiza la configuración de un Job y reprograma su schedule si cambió.
     """
     job = crud.job_get_by_id(db, job_id)
     if not job:
@@ -72,7 +108,6 @@ def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_
             status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
 
-    # Verificar colisión de nombres si se está cambiando el nombre
     if job_in.name and job_in.name != job.name:
         existing = crud.job_get_by_name(db, name=job_in.name)
         if existing:
@@ -84,20 +119,30 @@ def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_
     job_data = job_in.model_dump(exclude_unset=True)
     updated_job = crud.job_update(db, job_id, job_data)
 
+    # Reprogramar en tiempo real (remove + add con la nueva config)
+    if updated_job.schedule_type and updated_job.schedule_type.lower() not in ("manual", "none", ""):
+        scheduler.add_job(updated_job)   # add_job ya hace remove internamente
+    else:
+        scheduler.remove_job(job_id)     # Si el usuario quitó el schedule, cancelar
+
     return updated_job
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_job(job_id: int, db: Session = Depends(get_db)):
+def delete_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    scheduler: JobScheduler = Depends(get_scheduler),
+):
     """
-    Elimina un Job y todo su historial de ejecuciones asociadas.
+    Elimina un Job, su historial y lo desprograma del scheduler.
     """
+    scheduler.remove_job(job_id)  # Cancelar si estaba programado
     success = crud.job_delete(db, job_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
-    # 204 No Content no devuelve body
     return None
 
 

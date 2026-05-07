@@ -72,7 +72,8 @@ async function loadJobs(isSilent = false) {
                     <button class="btn-edit-job w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 bg-surface-800 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
                             data-id="${jobId}"
                             data-name="${job.name || ''}"
-                            data-schedule="${job.schedule_type || ''}"
+                            data-description="${job.description || ''}"
+                            data-schedule="${job.schedule_type || 'manual'}"
                             data-db-type="${job.db_type || ''}"
                             data-db-host="${job.db_host || ''}"
                             data-db-port="${job.db_port || ''}"
@@ -126,13 +127,13 @@ async function handleRunJob(event) {
     try {
         // Llama al endpoint de ejecución manual
         await api.runJob(jobId);
-        
+
         // Alerta de éxito
         showToast(`¡Job ${jobId} ejecutado con éxito!`, 'success');
-        
+
         // Refrescar el historial para ver la nueva ejecución
         loadHistory();
-        
+
     } catch (error) {
         console.error(`Error al ejecutar el job ${jobId}:`, error);
         showToast(`Hubo un error al ejecutar el Job ${jobId}.`, 'error');
@@ -166,14 +167,14 @@ async function loadHistory(isSilent = false) {
         // Pintamos cada registro del historial
         historyData.forEach(record => {
             const isSuccess = record.status === 'SUCCESS';
-            
+
             // Clases dinámicas dependiendo del estado
-            const statusClass = isSuccess 
-                ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+            const statusClass = isSuccess
+                ? 'bg-green-500/10 text-green-400 border-green-500/20'
                 : 'bg-red-500/10 text-red-400 border-red-500/20';
-            
-            const borderClass = isSuccess 
-                ? 'border-slate-700 hover:border-brand-500' 
+
+            const borderClass = isSuccess
+                ? 'border-slate-700 hover:border-brand-500'
                 : 'border-red-500/30 hover:border-red-500';
 
             // Formatear la fecha
@@ -186,7 +187,7 @@ async function loadHistory(isSilent = false) {
             const historyItem = document.createElement('div');
             historyItem.className = `bg-surface-800 border rounded-lg p-3 cursor-pointer transition-colors ${borderClass}`;
             if (runId) historyItem.dataset.runId = runId;
-            
+
             historyItem.innerHTML = `
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-semibold text-slate-300">${dateStr}</span>
@@ -225,7 +226,7 @@ async function loadHistory(isSilent = false) {
                     openLogViewer(runId, dateStr);
                 });
             }
-            
+
             container.appendChild(historyItem);
         });
 
@@ -242,18 +243,17 @@ async function loadHistory(isSilent = false) {
  * Soporta modo CREACIÓN (POST) y modo EDICIÓN (PUT).
  */
 function initJobFormValidation() {
-    const form               = document.getElementById('createJobForm');
-    const btnSave            = document.getElementById('btnSaveJob');
-    const jobName            = document.getElementById('jobName');
-    const dbType             = document.getElementById('dbType');
-    const dbHost             = document.getElementById('dbHost');
-    const dbPort             = document.getElementById('dbPort');
-    const dbName             = document.getElementById('dbName');
-    const dbUser             = document.getElementById('dbUser');
-    const dbPassword         = document.getElementById('dbPassword');
-    const scheduleType       = document.getElementById('scheduleType');
-    const scheduleIntervalEl = document.getElementById('scheduleIntervalMinutes');
-    const scheduleCronEl     = document.getElementById('scheduleCron');
+    const form = document.getElementById('createJobForm');
+    const btnSave = document.getElementById('btnSaveJob');
+    const jobName = document.getElementById('jobName');
+    const dbType = document.getElementById('dbType');
+    const jobDesc = document.getElementById('jobDescription');
+    const jobSched = document.getElementById('jobSchedule');
+    const dbHost = document.getElementById('dbHost');
+    const dbPort = document.getElementById('dbPort');
+    const dbName = document.getElementById('dbName');
+    const dbUser = document.getElementById('dbUser');
+    const dbPassword = document.getElementById('dbPassword');
 
     if (!form || !btnSave) return;
 
@@ -293,31 +293,30 @@ function initJobFormValidation() {
         const editingId = form.dataset.editingId || null;
 
         // ── Recoger campos de schedule ──────────────────────────────────
-        const scheduleVal     = scheduleType     ? scheduleType.value                        : 'manual';
+        const scheduleVal = scheduleType ? scheduleType.value : 'manual';
         const intervalMinutes = scheduleIntervalEl && scheduleVal === 'interval'
             ? (parseInt(scheduleIntervalEl.value) || null)
             : null;
-        const cronExpr        = scheduleCronEl && scheduleVal === 'cron'
+        const cronExpr = scheduleCronEl && scheduleVal === 'cron'
             ? (scheduleCronEl.value.trim() || null)
             : null;
 
         // ── Payload PLANO según esquema del backend ────────────────────────
-        const jobData   = {
-            name:                      jobName.value.trim(),
-            db_type:                   dbType.value || 'postgresql',
-            db_host:                   dbHost     ? dbHost.value.trim()   || null : null,
-            db_port:                   dbPort     ? parseInt(dbPort.value) || null : null,
-            db_name:                   dbName     ? dbName.value.trim()   || null : null,
-            db_user:                   dbUser     ? dbUser.value.trim()   || null : null,
-            db_password:               dbPassword && dbPassword.value ? dbPassword.value : undefined,
-            schedule:                  scheduleVal,
-            schedule_interval_minutes: intervalMinutes,   // int o null
-            schedule_cron:             cronExpr,          // string o null
+        const jobData = {
+            name: jobName.value.trim(),
+            description: jobDesc ? jobDesc.value.trim() || null : null,
+            db_type: dbType.value || 'postgresql',
+            db_host: dbHost ? dbHost.value.trim() || null : null,
+            db_port: dbPort ? parseInt(dbPort.value) || null : null,
+            db_name: dbName ? dbName.value.trim() || null : null,
+            db_user: dbUser ? dbUser.value.trim() || null : null,
+            db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
+            schedule: jobSched ? jobSched.value : 'manual',
         };
         // Limpiar claves con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
 
-        btnSave.disabled  = true;
+        btnSave.disabled = true;
         btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
 
         try {
@@ -336,7 +335,7 @@ function initJobFormValidation() {
         } catch (error) {
             showToast('Error al guardar el Job. Revisa la consola.', 'error');
         } finally {
-            btnSave.disabled  = false;
+            btnSave.disabled = false;
             btnSave.innerHTML = editingId
                 ? '<i class="fa-solid fa-floppy-disk"></i> Actualizar Job'
                 : '<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración';
@@ -349,19 +348,19 @@ function initJobFormValidation() {
  * @param {Event} event
  */
 function handleEditJob(event) {
-    const btn  = event.currentTarget;
-    const id   = btn.dataset.id;
+    const btn = event.currentTarget;
+    const id = btn.dataset.id;
     const name = btn.dataset.name;
-    const sch  = btn.dataset.schedule;
+    const sch = btn.dataset.schedule;
     // Leer todos los campos extra del dataset
     const extra = {
-        db_type:                   btn.dataset.dbType             || '',
-        db_host:                   btn.dataset.dbHost             || '',
-        db_port:                   btn.dataset.dbPort             || '',
-        db_name:                   btn.dataset.dbName             || '',
-        db_user:                   btn.dataset.dbUser             || '',
-        schedule_interval_minutes: btn.dataset.scheduleIntervalMinutes || '',
-        schedule_cron:             btn.dataset.scheduleCron       || '',
+        db_type: btn.dataset.dbType || '',
+        db_host: btn.dataset.dbHost || '',
+        db_port: btn.dataset.dbPort || '',
+        db_name: btn.dataset.dbName || '',
+        db_user: btn.dataset.dbUser || '',
+        description: btn.dataset.description || '',
+        schedule_type: btn.dataset.schedule || 'manual',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -376,9 +375,9 @@ function handleEditJob(event) {
  * @param {Event} event
  */
 function handleDeleteJob(event) {
-    const btn    = event.currentTarget;
-    const jobId  = btn.dataset.id;
-    const name   = btn.dataset.name || `Job ${jobId}`;
+    const btn = event.currentTarget;
+    const jobId = btn.dataset.id;
+    const name = btn.dataset.name || `Job ${jobId}`;
     showDeleteConfirm(jobId, name);
 }
 
@@ -387,18 +386,18 @@ function handleDeleteJob(event) {
  * y guarda el ID del job que se está editando.
  */
 function setFormEditMode(id, name, extra = {}, schedule) {
-    const form               = document.getElementById('createJobForm');
-    const jobName            = document.getElementById('jobName');
-    const dbType             = document.getElementById('dbType');
-    const dbHost             = document.getElementById('dbHost');
-    const dbPort             = document.getElementById('dbPort');
-    const dbName             = document.getElementById('dbName');
-    const dbUser             = document.getElementById('dbUser');
-    const scheduleType       = document.getElementById('scheduleType');
+    const form = document.getElementById('createJobForm');
+    const jobName = document.getElementById('jobName');
+    const dbType = document.getElementById('dbType');
+    const dbHost = document.getElementById('dbHost');
+    const dbPort = document.getElementById('dbPort');
+    const dbName = document.getElementById('dbName');
+    const dbUser = document.getElementById('dbUser');
+    const scheduleType = document.getElementById('scheduleType');
     const scheduleIntervalEl = document.getElementById('scheduleIntervalMinutes');
-    const scheduleCronEl     = document.getElementById('scheduleCron');
-    const btnSave            = document.getElementById('btnSaveJob');
-    const heading            = form ? form.querySelector('h3') : null;
+    const scheduleCronEl = document.getElementById('scheduleCron');
+    const btnSave = document.getElementById('btnSaveJob');
+    const heading = form ? form.querySelector('h3') : null;
 
     if (!form) return;
 
@@ -406,19 +405,21 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     form.dataset.editingId = id;
 
     // Rellenar campos básicos de BD
-    if (jobName) jobName.value  = name;
-    if (dbType)  dbType.value   = extra.db_type  || '';
-    if (dbHost)  dbHost.value   = extra.db_host  || '';
-    if (dbPort)  dbPort.value   = extra.db_port  || '';
-    if (dbName)  dbName.value   = extra.db_name  || '';
-    if (dbUser)  dbUser.value   = extra.db_user  || '';
+    if (jobName) jobName.value = name;
+    if (dbType) dbType.value = extra.db_type || '';
+    if (jobDesc) jobDesc.value = extra.description || '';
+    if (jobSched) jobSched.value = extra.schedule_type || 'manual';
+    if (dbHost) dbHost.value = extra.db_host || '';
+    if (dbPort) dbPort.value = extra.db_port || '';
+    if (dbName) dbName.value = extra.db_name || '';
+    if (dbUser) dbUser.value = extra.db_user || '';
     // La contraseña NO se precarga por seguridad
 
     // Rellenar y mostrar/ocultar los campos de schedule
     const schedVal = schedule || 'manual';
-    if (scheduleType)       scheduleType.value       = schedVal;
+    if (scheduleType) scheduleType.value = schedVal;
     if (scheduleIntervalEl) scheduleIntervalEl.value = extra.schedule_interval_minutes || '';
-    if (scheduleCronEl)     scheduleCronEl.value     = extra.schedule_cron             || '';
+    if (scheduleCronEl) scheduleCronEl.value = extra.schedule_cron || '';
     updateScheduleFields(schedVal);
 
     // Cambiar título con badge
@@ -441,8 +442,8 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     // Añadir botón «Cancelar» si no existe ya
     if (!form.querySelector('#btnCancelEdit')) {
         const cancelBtn = document.createElement('button');
-        cancelBtn.id        = 'btnCancelEdit';
-        cancelBtn.type      = 'button';
+        cancelBtn.id = 'btnCancelEdit';
+        cancelBtn.type = 'button';
         cancelBtn.className = 'ml-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-600 text-slate-300 hover:bg-surface-800 transition-colors';
         cancelBtn.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Cancelar';
         btnSave.parentElement.appendChild(cancelBtn);
@@ -453,7 +454,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
  * Resetea el formulario a modo creación (limpia todo el estado de edición).
  */
 function resetFormToCreateMode() {
-    const form    = document.getElementById('createJobForm');
+    const form = document.getElementById('createJobForm');
     const btnSave = document.getElementById('btnSaveJob');
     const heading = form ? form.querySelector('h3') : null;
 
@@ -469,7 +470,7 @@ function resetFormToCreateMode() {
     // Restaurar botón guardar
     if (btnSave) {
         btnSave.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración';
-        btnSave.classList.replace('bg-amber-500',      'bg-brand-500');
+        btnSave.classList.replace('bg-amber-500', 'bg-brand-500');
         btnSave.classList.replace('hover:bg-amber-600', 'hover:bg-brand-600');
     }
 
@@ -489,9 +490,9 @@ function resetFormToCreateMode() {
  */
 function updateScheduleFields(value) {
     const intervalWrap = document.getElementById('scheduleIntervalWrap');
-    const cronWrap     = document.getElementById('scheduleCronWrap');
+    const cronWrap = document.getElementById('scheduleCronWrap');
     if (intervalWrap) intervalWrap.classList.toggle('hidden', value !== 'interval');
-    if (cronWrap)     cronWrap.classList.toggle('hidden',     value !== 'cron');
+    if (cronWrap) cronWrap.classList.toggle('hidden', value !== 'cron');
 }
 
 /**
@@ -508,7 +509,7 @@ function showDeleteConfirm(jobId, name) {
     if (document.getElementById('toast-delete-confirm')) return;
 
     const toast = document.createElement('div');
-    toast.id        = 'toast-delete-confirm';
+    toast.id = 'toast-delete-confirm';
     toast.className = 'toast';
     toast.style.cssText = [
         'background:#1e293b',
@@ -573,13 +574,13 @@ function showDeleteConfirm(jobId, name) {
  */
 function showError(inputElement, message) {
     inputElement.classList.add('input-error');
-    
+
     // Crear el elemento del mensaje de error
     const errorText = document.createElement('div');
     errorText.className = 'error-message';
     // Le añadimos un pequeño icono de alerta
     errorText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${message}`;
-    
+
     // Lo insertamos justo después del input (al final del div contenedor)
     inputElement.parentElement.appendChild(errorText);
 }
@@ -589,7 +590,7 @@ function showError(inputElement, message) {
  */
 function clearErrors(inputElement) {
     inputElement.classList.remove('input-error');
-    
+
     // Buscar si ya existe un mensaje de error y borrarlo
     const existingError = inputElement.parentElement.querySelector('.error-message');
     if (existingError) {
@@ -628,8 +629,8 @@ function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
 
-    const icon = type === 'success' 
-        ? '<i class="fa-solid fa-circle-check text-lg"></i>' 
+    const icon = type === 'success'
+        ? '<i class="fa-solid fa-circle-check text-lg"></i>'
         : '<i class="fa-solid fa-circle-exclamation text-lg"></i>';
 
     toast.innerHTML = `
@@ -685,8 +686,8 @@ function initLogViewer() {
  */
 async function openLogViewer(runId, dateStr = '') {
     const backdrop = document.getElementById('log-modal-backdrop');
-    const title    = document.getElementById('log-modal-title');
-    const output   = document.getElementById('log-output');
+    const title = document.getElementById('log-modal-title');
+    const output = document.getElementById('log-output');
 
     if (!backdrop || !output) return;
 
@@ -755,10 +756,10 @@ function renderLogs(outputEl, rawLogs) {
         const safe = escapeHtml(line);
         const upper = line.toUpperCase();
 
-        if (upper.includes('[SUCCESS]') || upper.includes('SUCCESS'))  return `<span class="log-line-success">${safe}</span>`;
-        if (upper.includes('[ERROR]')   || upper.includes('ERROR'))    return `<span class="log-line-error">${safe}</span>`;
-        if (upper.includes('[WARN]')    || upper.includes('WARNING'))  return `<span class="log-line-warn">${safe}</span>`;
-        if (upper.includes('[INFO]')    || upper.includes('[DEBUG]'))  return `<span class="log-line-info">${safe}</span>`;
+        if (upper.includes('[SUCCESS]') || upper.includes('SUCCESS')) return `<span class="log-line-success">${safe}</span>`;
+        if (upper.includes('[ERROR]') || upper.includes('ERROR')) return `<span class="log-line-error">${safe}</span>`;
+        if (upper.includes('[WARN]') || upper.includes('WARNING')) return `<span class="log-line-warn">${safe}</span>`;
+        if (upper.includes('[INFO]') || upper.includes('[DEBUG]')) return `<span class="log-line-info">${safe}</span>`;
         return `<span class="log-line-default">${safe}</span>`;
     }).join('\n');
 
@@ -774,11 +775,11 @@ function renderLogs(outputEl, rawLogs) {
  */
 function escapeHtml(str) {
     return str
-        .replace(/&/g,  '&amp;')
-        .replace(/</g,  '&lt;')
-        .replace(/>/g,  '&gt;')
-        .replace(/"/g,  '&quot;')
-        .replace(/'/g,  '&#39;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 /* =============================================================================
@@ -790,11 +791,11 @@ function escapeHtml(str) {
  * Llama una única vez al cargar el DOM.
  */
 function initSettingsModal() {
-    const openBtn   = document.getElementById('openSettingsBtn');
-    const backdrop  = document.getElementById('settings-backdrop');
-    const closeBtn  = document.getElementById('settings-close-btn');
+    const openBtn = document.getElementById('openSettingsBtn');
+    const backdrop = document.getElementById('settings-backdrop');
+    const closeBtn = document.getElementById('settings-close-btn');
     const cancelBtn = document.getElementById('settings-cancel-btn');
-    const saveBtn   = document.getElementById('settings-save-btn');
+    const saveBtn = document.getElementById('settings-save-btn');
 
     if (!backdrop) return; // El modal no está en el DOM — salir silenciosamente
 
@@ -803,7 +804,7 @@ function initSettingsModal() {
 
     // ── Cerrar modal ─────────────────────────────────────────
     const closeModal = () => closeSettingsModal();
-    if (closeBtn)  closeBtn.addEventListener('click',  closeModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
     // Clic en el fondo oscuro cierra el modal
@@ -888,20 +889,20 @@ function populateSettingsForm(s) {
     };
 
     // ── General ───────────────────────────────────────────
-    set('s-app-name',          s.app_name);
-    set('s-admin-email',       s.admin_email);
-    set('s-timezone',          s.timezone);
-    set('s-notify-email',      s.notify_email);
-    set('s-notify-errors-only',s.notify_errors_only);
-    set('s-log-retention',     s.log_retention_days);
+    set('s-app-name', s.app_name);
+    set('s-admin-email', s.admin_email);
+    set('s-timezone', s.timezone);
+    set('s-notify-email', s.notify_email);
+    set('s-notify-errors-only', s.notify_errors_only);
+    set('s-log-retention', s.log_retention_days);
 
     // ── Google Drive ─────────────────────────────────────
     set('s-gdrive-credentials', s.gdrive_credentials_path);
-    set('s-gdrive-folder',      s.gdrive_folder_id);
-    set('s-gdrive-scope',       s.gdrive_scope);
+    set('s-gdrive-folder', s.gdrive_folder_id);
+    set('s-gdrive-scope', s.gdrive_scope);
     set('s-gdrive-auto-upload', s.gdrive_auto_upload);
-    set('s-gdrive-delete-local',s.gdrive_delete_local);
-    set('s-gdrive-max-files',   s.gdrive_max_files);
+    set('s-gdrive-delete-local', s.gdrive_delete_local);
+    set('s-gdrive-max-files', s.gdrive_max_files);
 }
 
 /**
@@ -921,27 +922,27 @@ async function handleSaveSettings() {
     // Construir payload tipado
     const payload = {
         // General
-        app_name:             get('s-app-name')          || undefined,
-        admin_email:          get('s-admin-email')        || undefined,
-        timezone:             get('s-timezone')           || undefined,
-        notify_email:         get('s-notify-email'),
-        notify_errors_only:   get('s-notify-errors-only'),
-        log_retention_days:   Number(get('s-log-retention'))  || undefined,
+        app_name: get('s-app-name') || undefined,
+        admin_email: get('s-admin-email') || undefined,
+        timezone: get('s-timezone') || undefined,
+        notify_email: get('s-notify-email'),
+        notify_errors_only: get('s-notify-errors-only'),
+        log_retention_days: Number(get('s-log-retention')) || undefined,
 
         // Google Drive
         gdrive_credentials_path: get('s-gdrive-credentials') || undefined,
-        gdrive_folder_id:        get('s-gdrive-folder')      || undefined,
-        gdrive_scope:            get('s-gdrive-scope')        || undefined,
-        gdrive_auto_upload:      get('s-gdrive-auto-upload'),
-        gdrive_delete_local:     get('s-gdrive-delete-local'),
-        gdrive_max_files:        Number(get('s-gdrive-max-files')) || undefined,
+        gdrive_folder_id: get('s-gdrive-folder') || undefined,
+        gdrive_scope: get('s-gdrive-scope') || undefined,
+        gdrive_auto_upload: get('s-gdrive-auto-upload'),
+        gdrive_delete_local: get('s-gdrive-delete-local'),
+        gdrive_max_files: Number(get('s-gdrive-max-files')) || undefined,
     };
 
     // Eliminar claves undefined para no enviar campos vacíos innecesarios
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
     // Estado de carga
-    saveBtn.disabled  = true;
+    saveBtn.disabled = true;
     saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
 
     try {
@@ -952,7 +953,7 @@ async function handleSaveSettings() {
         console.error('Error al guardar los ajustes:', err);
         showToast('Error al guardar los ajustes. Revisa la consola.', 'error');
     } finally {
-        saveBtn.disabled  = false;
+        saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar cambios';
     }
 }

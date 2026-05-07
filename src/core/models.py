@@ -10,7 +10,7 @@ que Pydantic lea datos directamente de objetos SQLAlchemy).
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -71,15 +71,24 @@ class JobBase(BaseModel):
     dest_retention_days: int | None = Field(None, description="Días de retención")
     dest_gdrive_folder_id: str | None = None
     
+    # Programación (Schedule) plana
+    schedule_type: Optional[str] = None
+    schedule_interval_minutes: Optional[int] = None
+    schedule_cron: Optional[str] = None
+    
     @model_validator(mode='before')
     @classmethod
     def empty_strings_to_none(cls, data: Any) -> Any:
         if isinstance(data, dict):
             new_data = {k: (None if v == "" else v) for k, v in data.items()}
-            if isinstance(new_data.get('schedule'), str):
-                new_data['schedule'] = {"schedule_type": new_data['schedule'].lower()}
+            # Si el frontend envía 'schedule' como string, lo mapeamos al campo plano 'schedule_type'
+            if 'schedule' in new_data:
+                sched_val = new_data.pop('schedule')
+                if isinstance(sched_val, str):
+                    new_data['schedule_type'] = sched_val.lower()
             return new_data
         return data
+
 
     @field_validator("db_type")
     @classmethod
@@ -98,7 +107,6 @@ class JobCreate(JobBase):
     # y el router/backend las encriptará antes de guardarlas en BD.
     db_password: str | None = None
     encrypt_password: str | None = None
-    schedule: ScheduleConfig | None = None
 
 
 class JobUpdate(BaseModel):
@@ -128,15 +136,20 @@ class JobUpdate(BaseModel):
     dest_retention_days: int | str | None = None
     dest_gdrive_folder_id: str | None = None
     
-    schedule: ScheduleConfig | None = None
+    schedule_type: Optional[str] = None
+    schedule_interval_minutes: Optional[int] = None
+    schedule_cron: Optional[str] = None
 
     @model_validator(mode='before')
     @classmethod
     def empty_strings_to_none(cls, data: Any) -> Any:
         if isinstance(data, dict):
             new_data = {k: (None if v == "" else v) for k, v in data.items()}
-            if isinstance(new_data.get('schedule'), str):
-                new_data['schedule'] = {"schedule_type": new_data['schedule'].lower()}
+            # Si el frontend envía 'schedule' como string, lo mapeamos al campo plano 'schedule_type'
+            if 'schedule' in new_data:
+                sched_val = new_data.pop('schedule')
+                if isinstance(sched_val, str):
+                    new_data['schedule_type'] = sched_val.lower()
             return new_data
         return data
 

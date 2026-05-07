@@ -6,6 +6,7 @@ los Jobs de backup en el Event Loop de FastAPI sin bloquear el servidor.
 """
 
 import logging
+from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -68,18 +69,33 @@ class JobScheduler:
         # Eliminar si ya existía para asegurar que reemplazamos la configuración
         self.remove_job(job.id)
 
+        # Normalizar valores del frontend (español) al formato interno
+        ALIASES = {
+            "diario":   "daily",
+            "daily":    "daily",
+            "semanal":  "weekly",
+            "weekly":   "weekly",
+            "mensual":  "monthly",
+            "monthly":  "monthly",
+            "interval": "interval",
+            "cron":     "cron",
+        }
+        schedule_type = ALIASES.get((job.schedule_type or "").lower())
+
         trigger = None
-        # Mapeo de frecuencias basado en lo que envía el Frontend
-        if job.schedule_type == "daily":
-            # Por defecto a las 02:00 AM todos los días (puedes parametrizarlo en el futuro)
+        if schedule_type == "daily":
+            # Por defecto a las 02:00 AM todos los días
             trigger = CronTrigger(hour=2, minute=0)
-        elif job.schedule_type == "weekly":
+        elif schedule_type == "weekly":
             # Por defecto Domingos a las 02:00 AM
             trigger = CronTrigger(day_of_week='sun', hour=2, minute=0)
-        elif job.schedule_type == "interval":
+        elif schedule_type == "monthly":
+            # Por defecto el día 1 de cada mes a las 02:00 AM
+            trigger = CronTrigger(day=1, hour=2, minute=0)
+        elif schedule_type == "interval":
             minutes = job.schedule_interval_minutes or 60
             trigger = IntervalTrigger(minutes=minutes)
-        elif job.schedule_type == "cron":
+        elif schedule_type == "cron":
             if not job.schedule_cron:
                 log.error(f"El Job {job.id} es 'cron' pero no tiene 'schedule_cron' definido.")
                 return False
@@ -89,14 +105,13 @@ class JobScheduler:
                 log.error(f"Error parseando cron ({job.schedule_cron}) para el Job {job.id}: {e}")
                 return False
         else:
-            log.warning(f"El schedule_type '{job.schedule_type}' no es programable.")
+            log.warning(f"El schedule_type '{job.schedule_type}' no es programable (se requiere daily/weekly/monthly/interval/cron).")
             return False
 
         try:
             # Añadir la tarea al scheduler
-            # max_instances=1: Seguridad crítica -> Si un backup tarda mucho,
-            # no se lanzará otra instancia del mismo job en paralelo.
-            self.scheduler.add_job(
+            # max_instances=1: Seguridad crítica
+            job_obj = self.scheduler.add_job(
                 self._execute_job,
                 trigger=trigger,
                 id=job_id_str,
@@ -105,7 +120,7 @@ class JobScheduler:
                 coalesce=True, # Si el servidor estuvo apagado y se perdieron ejecuciones, corre solo 1 vez
                 name=f"Backup {job.name}"
             )
-            log.info(f"Job {job.id} programado con éxito: {trigger}")
+            log.info(f"Job {job.id} programado con éxito. Próxima ejecución: {job_obj.next_run_time}")
             return True
         except Exception as e:
             log.error(f"Error al añadir el Job {job.id} al scheduler: {e}")

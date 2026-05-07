@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Iconos FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -27,33 +28,69 @@
     </script>
     <style>
         /* Custom scrollbar para tema oscuro */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
 
         /* Animación de "Shake" para el botón cuando hay error */
         @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-6px); }
-            50% { transform: translateX(6px); }
-            75% { transform: translateX(-6px); }
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-6px);
+            }
+
+            50% {
+                transform: translateX(6px);
+            }
+
+            75% {
+                transform: translateX(-6px);
+            }
         }
+
         .animate-shake {
-            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
         }
 
         /* Bordes y sombras rojos brillantes para los inputs inválidos */
         .input-error {
-            border-color: #ef4444 !important; /* Tailwind Red 500 */
+            border-color: #ef4444 !important;
+            /* Tailwind Red 500 */
             box-shadow: 0 0 0 1px #ef4444 !important;
         }
 
         /* Estilo y animación de aparición del texto de error */
         @keyframes slideDownFade {
-            from { opacity: 0; transform: translateY(-4px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         .error-message {
             color: #ef4444;
             font-size: 0.75rem;
@@ -91,12 +128,14 @@
         }
 
         .toast.toast-success {
-            background-color: #10b981; /* Tailwind emerald-500 */
+            background-color: #10b981;
+            /* Tailwind emerald-500 */
             border: 1px solid #059669;
         }
 
         .toast.toast-error {
-            background-color: #ef4444; /* Tailwind red-500 */
+            background-color: #ef4444;
+            /* Tailwind red-500 */
             border: 1px solid #dc2626;
         }
 
@@ -105,13 +144,27 @@
         }
 
         @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
         @keyframes fadeOutRight {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
         }
 
         /* =============================================
@@ -135,8 +188,13 @@
         }
 
         @keyframes fadeInBackdrop {
-            from { opacity: 0; }
-            to   { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         #log-modal {
@@ -157,8 +215,15 @@
         }
 
         @keyframes slideUpModal {
-            from { opacity: 0; transform: translateY(24px) scale(0.97); }
-            to   { opacity: 1; transform: translateY(0)   scale(1); }
+            from {
+                opacity: 0;
+                transform: translateY(24px) scale(0.97);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         /* Barra de título del terminal */
@@ -184,9 +249,17 @@
             border-radius: 50%;
         }
 
-        .dot-close  { background: #ff5f57; }
-        .dot-min    { background: #ffbd2e; }
-        .dot-max    { background: #28c840; }
+        .dot-close {
+            background: #ff5f57;
+        }
+
+        .dot-min {
+            background: #ffbd2e;
+        }
+
+        .dot-max {
+            background: #28c840;
+        }
 
         #log-modal-title {
             font-family: 'Courier New', monospace;
@@ -224,7 +297,8 @@
             font-family: 'Courier New', Courier, monospace;
             font-size: 0.78rem;
             line-height: 1.7;
-            color: #86efac;   /* green-300 */
+            color: #86efac;
+            /* green-300 */
             background: #050d05;
             position: relative;
         }
@@ -234,21 +308,39 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent,
-                transparent 2px,
-                rgba(0,0,0,0.07) 2px,
-                rgba(0,0,0,0.07) 4px
-            );
+            background: repeating-linear-gradient(to bottom,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.07) 2px,
+                    rgba(0, 0, 0, 0.07) 4px);
             pointer-events: none;
         }
 
-        #log-output .log-line-info    { color: #86efac; }   /* verde */
-        #log-output .log-line-success { color: #4ade80; font-weight: bold; }
-        #log-output .log-line-error   { color: #f87171; font-weight: bold; }   /* rojo */
-        #log-output .log-line-warn    { color: #facc15; }   /* amarillo */
-        #log-output .log-line-default { color: #d1fae5; opacity: 0.75; }
+        #log-output .log-line-info {
+            color: #86efac;
+        }
+
+        /* verde */
+        #log-output .log-line-success {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        #log-output .log-line-error {
+            color: #f87171;
+            font-weight: bold;
+        }
+
+        /* rojo */
+        #log-output .log-line-warn {
+            color: #facc15;
+        }
+
+        /* amarillo */
+        #log-output .log-line-default {
+            color: #d1fae5;
+            opacity: 0.75;
+        }
 
         /* Estado de carga dentro del modal */
         #log-modal-loader {
@@ -262,8 +354,15 @@
         }
 
         @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50%       { opacity: 0; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
         }
 
         .terminal-cursor {
@@ -290,7 +389,10 @@
             padding: 1.5rem;
             animation: fadeInBackdrop 0.2s ease forwards;
         }
-        #settings-backdrop.hidden { display: none; }
+
+        #settings-backdrop.hidden {
+            display: none;
+        }
 
         #settings-modal {
             width: 100%;
@@ -299,7 +401,7 @@
             background: #0f172a;
             border: 1px solid #1e293b;
             border-radius: 14px;
-            box-shadow: 0 0 0 1px #1e293b, 0 32px 80px rgba(0,0,0,0.7);
+            box-shadow: 0 0 0 1px #1e293b, 0 32px 80px rgba(0, 0, 0, 0.7);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -345,7 +447,11 @@
             border-radius: 6px;
             transition: color 0.15s, background 0.15s;
         }
-        #settings-close-btn:hover { color: #f8fafc; background: #1e293b; }
+
+        #settings-close-btn:hover {
+            color: #f8fafc;
+            background: #1e293b;
+        }
 
         /* Tab bar */
         .s-tabs {
@@ -368,7 +474,11 @@
             gap: 0.4rem;
             white-space: nowrap;
         }
-        .s-tab-btn:hover { color: #cbd5e1; }
+
+        .s-tab-btn:hover {
+            color: #cbd5e1;
+        }
+
         .s-tab-btn.active {
             color: #818cf8;
             border-bottom-color: #818cf8;
@@ -382,13 +492,19 @@
             background: #0f172a;
         }
 
-        .s-tab-panel { display: none; }
-        .s-tab-panel.active { display: block; }
+        .s-tab-panel {
+            display: none;
+        }
+
+        .s-tab-panel.active {
+            display: block;
+        }
 
         /* Field groups */
         .s-field-group {
             margin-bottom: 1.5rem;
         }
+
         .s-section-title {
             font-size: 0.7rem;
             font-weight: 600;
@@ -399,9 +515,11 @@
             padding-bottom: 0.5rem;
             border-bottom: 1px solid #1e293b;
         }
+
         .s-field {
             margin-bottom: 1rem;
         }
+
         .s-label {
             display: block;
             font-size: 0.8rem;
@@ -409,11 +527,13 @@
             color: #94a3b8;
             margin-bottom: 0.4rem;
         }
+
         .s-hint {
             font-size: 0.72rem;
             color: #475569;
             margin-top: 0.3rem;
         }
+
         .s-input {
             width: 100%;
             background: #020617;
@@ -425,11 +545,15 @@
             outline: none;
             transition: border-color 0.15s, box-shadow 0.15s;
         }
+
         .s-input:focus {
             border-color: #818cf8;
-            box-shadow: 0 0 0 3px rgba(129,140,248,0.15);
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
         }
-        .s-input::placeholder { color: #334155; }
+
+        .s-input::placeholder {
+            color: #334155;
+        }
 
         /* Toggle switch */
         .s-toggle-row {
@@ -440,37 +564,62 @@
             padding: 0.75rem 0;
             border-bottom: 1px solid #1e293b;
         }
-        .s-toggle-row:last-child { border-bottom: none; }
+
+        .s-toggle-row:last-child {
+            border-bottom: none;
+        }
+
         .s-toggle-info .s-toggle-label {
             font-size: 0.83rem;
             font-weight: 500;
             color: #cbd5e1;
         }
+
         .s-toggle-info .s-toggle-desc {
             font-size: 0.72rem;
             color: #475569;
             margin-top: 0.1rem;
         }
-        .s-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
-        .s-switch input { opacity: 0; width: 0; height: 0; }
+
+        .s-switch {
+            position: relative;
+            width: 38px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .s-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
         .s-slider {
-            position: absolute; inset: 0;
+            position: absolute;
+            inset: 0;
             background: #1e293b;
             border-radius: 99px;
             cursor: pointer;
             transition: background 0.2s;
         }
+
         .s-slider:before {
             content: '';
             position: absolute;
-            width: 16px; height: 16px;
-            left: 3px; bottom: 3px;
+            width: 16px;
+            height: 16px;
+            left: 3px;
+            bottom: 3px;
             background: #475569;
             border-radius: 50%;
             transition: transform 0.2s, background 0.2s;
         }
-        .s-switch input:checked + .s-slider { background: #4f46e5; }
-        .s-switch input:checked + .s-slider:before {
+
+        .s-switch input:checked+.s-slider {
+            background: #4f46e5;
+        }
+
+        .s-switch input:checked+.s-slider:before {
             transform: translateX(16px);
             background: #fff;
         }
@@ -485,6 +634,7 @@
             gap: 0.75rem;
             flex-shrink: 0;
         }
+
         .s-btn-cancel {
             padding: 0.55rem 1.1rem;
             border-radius: 8px;
@@ -496,7 +646,12 @@
             cursor: pointer;
             transition: background 0.15s, color 0.15s;
         }
-        .s-btn-cancel:hover { background: #1e293b; color: #e2e8f0; }
+
+        .s-btn-cancel:hover {
+            background: #1e293b;
+            color: #e2e8f0;
+        }
+
         .s-btn-save {
             padding: 0.55rem 1.1rem;
             border-radius: 8px;
@@ -511,18 +666,29 @@
             align-items: center;
             gap: 0.4rem;
         }
-        .s-btn-save:hover { background: #4338ca; }
-        .s-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .s-btn-save:hover {
+            background: #4338ca;
+        }
+
+        .s-btn-save:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
-<body class="bg-surface-950 text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
+
+<body
+    class="bg-surface-950 text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
 
     <!-- 1. LEFT SIDEBAR (JOBS) -->
-    <aside class="w-72 bg-surface-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
+    <aside
+        class="w-72 bg-surface-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
         <!-- Header Sidebar -->
         <div class="h-16 flex items-center px-6 border-b border-slate-800">
             <div class="flex items-center gap-3 text-white">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+                <div
+                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
                     <i class="fa-solid fa-database text-sm"></i>
                 </div>
                 <span class="font-bold text-lg tracking-tight">SolbaBackups</span>
@@ -531,7 +697,8 @@
 
         <!-- Botón Nuevo Job -->
         <div class="p-4">
-            <button class="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow shadow-brand-500/10">
+            <button
+                class="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow shadow-brand-500/10">
                 <i class="fa-solid fa-plus"></i> Nuevo Job
             </button>
         </div>
@@ -539,9 +706,10 @@
         <!-- Lista de Jobs -->
         <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1">
             <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2">Mis Jobs</p>
-            
+
             <!-- Job Activo Seleccionado -->
-            <button class="w-full flex items-center gap-3 px-3 py-2.5 bg-brand-500/10 text-brand-400 rounded-lg group transition-colors text-left border border-brand-500/20">
+            <button
+                class="w-full flex items-center gap-3 px-3 py-2.5 bg-brand-500/10 text-brand-400 rounded-lg group transition-colors text-left border border-brand-500/20">
                 <i class="fa-solid fa-server w-4 text-center"></i>
                 <div class="flex-1 truncate">
                     <p class="text-sm font-medium text-brand-400">Backup Producción</p>
@@ -551,7 +719,8 @@
             </button>
 
             <!-- Otro Job -->
-            <button class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
+            <button
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
                 <i class="fa-solid fa-box-archive w-4 text-center group-hover:text-slate-300"></i>
                 <div class="flex-1 truncate">
                     <p class="text-sm font-medium">Backup Contabilidad</p>
@@ -560,8 +729,9 @@
                 <div class="w-2 h-2 rounded-full bg-slate-600"></div>
             </button>
 
-             <!-- Otro Job Manual -->
-             <button class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
+            <!-- Otro Job Manual -->
+            <button
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
                 <i class="fa-solid fa-folder-tree w-4 text-center group-hover:text-slate-300"></i>
                 <div class="flex-1 truncate">
                     <p class="text-sm font-medium">Archivos Locales</p>
@@ -573,7 +743,8 @@
 
         <!-- Footer Sidebar -->
         <div class="p-4 border-t border-slate-800">
-            <button id="openSettingsBtn" class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
+            <button id="openSettingsBtn"
+                class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
                 <i class="fa-solid fa-gear w-4 text-center"></i> Configuración
             </button>
         </div>
@@ -582,22 +753,27 @@
     <!-- 2. MAIN AREA (CONFIGURACIÓN DEL JOB) -->
     <main class="flex-1 flex flex-col min-w-0 bg-surface-950 relative">
         <!-- Topbar -->
-        <header class="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-surface-950/80 backdrop-blur-md sticky top-0 z-10">
+        <header
+            class="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-surface-950/80 backdrop-blur-md sticky top-0 z-10">
             <div class="flex items-center gap-4">
                 <h2 class="text-xl font-semibold text-white">Backup Producción</h2>
-                <span class="px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                <span
+                    class="px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
                     Activo
                 </span>
             </div>
             <div class="flex items-center gap-3">
-                <button class="bg-surface-800 hover:bg-surface-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700">
+                <button
+                    class="bg-surface-800 hover:bg-surface-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700">
                     <i class="fa-solid fa-play mr-1.5"></i> Ejecutar Ahora
                 </button>
-                <button class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+                <button
+                    class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
                     <i class="fa-solid fa-floppy-disk mr-1.5"></i> Guardar
                 </button>
                 <!-- Botón toggle panel derecho para móvil -->
-                <button id="toggleRightPanelBtn" class="ml-2 w-9 h-9 rounded-lg border border-slate-800 bg-surface-900 text-slate-400 hover:text-white flex items-center justify-center transition-colors lg:hidden">
+                <button id="toggleRightPanelBtn"
+                    class="ml-2 w-9 h-9 rounded-lg border border-slate-800 bg-surface-900 text-slate-400 hover:text-white flex items-center justify-center transition-colors lg:hidden">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                 </button>
             </div>
@@ -605,9 +781,10 @@
 
         <!-- Content Area: Listado de Jobs Dinámico -->
         <div class="flex-1 overflow-y-auto p-8">
-            
+
             <!-- Formulario de Creación de Job -->
-            <form id="createJobForm" class="bg-surface-900 border border-slate-800 rounded-xl p-6 max-w-4xl mx-auto space-y-6 mb-8 shadow-sm">
+            <form id="createJobForm"
+                class="bg-surface-900 border border-slate-800 rounded-xl p-6 max-w-4xl mx-auto space-y-6 mb-8 shadow-sm">
                 <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
                     <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-400 flex items-center justify-center">
                         <i class="fa-solid fa-plus"></i>
@@ -618,99 +795,88 @@
                 <!-- Contenedor Nombre del Job -->
                 <div class="relative form-group">
                     <label for="jobName" class="block text-sm font-medium text-slate-400 mb-2">Nombre del Job</label>
-                    <input type="text" id="jobName" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500" placeholder="Ej: Backup Base de Datos Producción">
+                    <input type="text" id="jobName"
+                        class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        placeholder="Ej: Backup Base de Datos Producción">
                 </div>
 
                 <!-- Contenedor Base de Datos -->
                 <div class="relative form-group">
-                    <label for="dbType" class="block text-sm font-medium text-slate-400 mb-2">Motor de Base de Datos</label>
+                    <label for="dbType" class="block text-sm font-medium text-slate-400 mb-2">Motor de Base de
+                        Datos</label>
                     <div class="relative">
-                        <select id="dbType" class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                        <select id="dbType"
+                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
                             <option value="">Selecciona un tipo...</option>
                             <option value="postgresql">PostgreSQL</option>
                             <option value="mysql">MySQL / MariaDB</option>
                             <option value="sqlserver">Microsoft SQL Server</option>
                         </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
                             <i class="fa-solid fa-chevron-down text-xs"></i>
                         </div>
                     </div>
                 </div>
 
-                <!-- ── Sección: Programación de la Tarea ─────────────────── -->
-                <div class="space-y-4">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Programación de la Tarea</p>
+                <!-- Descripción del Job -->
+                <div class="relative form-group">
+                    <label for="jobDescription" class="block text-sm font-medium text-slate-400 mb-2">Descripción <span
+                            class="text-slate-600 font-normal">(opcional)</span></label>
+                    <input type="text" id="jobDescription"
+                        class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        placeholder="Ej: Backup nocturno de la BD de producción">
+                </div>
 
-                    <!-- Select: Tipo de Schedule -->
-                    <div class="relative form-group">
-                        <label for="scheduleType" class="block text-sm font-medium text-slate-400 mb-2">Frecuencia</label>
-                        <div class="relative">
-                            <select id="scheduleType"
-                                    class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
-                                <option value="manual">Manual</option>
-                                <option value="daily">Diario</option>
-                                <option value="weekly">Semanal</option>
-                                <option value="monthly">Mensual</option>
-                                <option value="interval">Intervalo</option>
-                                <option value="cron">Cron</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                                <i class="fa-solid fa-chevron-down text-xs"></i>
-                            </div>
+                <!-- Programación (Schedule) -->
+                <div class="relative form-group">
+                    <label for="jobSchedule" class="block text-sm font-medium text-slate-400 mb-2">Programación</label>
+                    <div class="relative">
+                        <select id="jobSchedule"
+                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                            <option value="manual">Manual (solo bajo demanda)</option>
+                            <option value="daily">Diario (02:00 AM)</option>
+                            <option value="weekly">Semanal (Domingos 02:00 AM)</option>
+                            <option value="monthly">Mensual (Día 1, 02:00 AM)</option>
+                            <option value="interval">Por intervalo (minutos)</option>
+                            <option value="cron">Expresión Cron personalizada</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
                         </div>
-                    </div>
-
-                    <!-- Campo condicional: Intervalo en minutos (visible solo con "interval") -->
-                    <div id="scheduleIntervalWrap" class="relative form-group hidden">
-                        <label for="scheduleIntervalMinutes" class="block text-sm font-medium text-slate-400 mb-2">
-                            <i class="fa-solid fa-clock mr-1.5 text-brand-400"></i>
-                            Intervalo (minutos)
-                        </label>
-                        <input type="number" id="scheduleIntervalMinutes" min="1"
-                               class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                               placeholder="Ej: 60  →  cada hora">
-                        <p class="text-xs text-slate-500 mt-1.5">El job se ejecutará cada N minutos de forma continua.</p>
-                    </div>
-
-                    <!-- Campo condicional: Expresión Cron (visible solo con "cron") -->
-                    <div id="scheduleCronWrap" class="relative form-group hidden">
-                        <label for="scheduleCron" class="block text-sm font-medium text-slate-400 mb-2">
-                            <i class="fa-solid fa-terminal mr-1.5 text-brand-400"></i>
-                            Expresión Cron
-                        </label>
-                        <input type="text" id="scheduleCron"
-                               class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 font-mono"
-                               placeholder="Ej: 0 2 * * *  →  cada día a las 02:00">
-                        <p class="text-xs text-slate-500 mt-1.5">Formato estándar UNIX cron: <code class="text-brand-400/80">minuto hora día-mes mes día-semana</code></p>
                     </div>
                 </div>
 
                 <!-- Sección: Conexión a la Base de Datos -->
                 <div class="space-y-4">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Conexión a la Base de Datos</p>
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Conexión a la Base de
+                        Datos</p>
 
                     <!-- Fila Host + Puerto -->
                     <div class="grid grid-cols-3 gap-3">
                         <div class="col-span-2 relative form-group">
-                            <label for="dbHost" class="block text-sm font-medium text-slate-400 mb-2">Host / IP del Servidor</label>
+                            <label for="dbHost" class="block text-sm font-medium text-slate-400 mb-2">Host / IP del
+                                Servidor</label>
                             <input type="text" id="dbHost"
-                                   class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                   placeholder="Ej: 127.0.0.1 o mi-servidor.local">
+                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                placeholder="Ej: 127.0.0.1 o mi-servidor.local">
                         </div>
                         <div class="relative form-group">
                             <label for="dbPort" class="block text-sm font-medium text-slate-400 mb-2">Puerto</label>
                             <input type="number" id="dbPort"
-                                   class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                   placeholder="5432">
+                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                placeholder="5432">
                         </div>
                     </div>
 
                     <!-- Nombre de la BD -->
                     <div class="relative form-group">
-                        <label for="dbName" class="block text-sm font-medium text-slate-400 mb-2">Nombre de la Base de Datos</label>
+                        <label for="dbName" class="block text-sm font-medium text-slate-400 mb-2">Nombre de la Base de
+                            Datos</label>
                         <input type="text" id="dbName"
-                               class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                               placeholder="Ej: mi_base_de_datos">
+                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            placeholder="Ej: mi_base_de_datos">
                     </div>
 
                     <!-- Fila Usuario + Contraseña -->
@@ -718,21 +884,23 @@
                         <div class="relative form-group">
                             <label for="dbUser" class="block text-sm font-medium text-slate-400 mb-2">Usuario</label>
                             <input type="text" id="dbUser"
-                                   class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                   placeholder="Ej: postgres">
+                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                placeholder="Ej: postgres">
                         </div>
                         <div class="relative form-group">
-                            <label for="dbPassword" class="block text-sm font-medium text-slate-400 mb-2">Contraseña</label>
+                            <label for="dbPassword"
+                                class="block text-sm font-medium text-slate-400 mb-2">Contraseña</label>
                             <input type="password" id="dbPassword"
-                                   class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                   placeholder="••••••••" autocomplete="new-password">
+                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                placeholder="••••••••" autocomplete="new-password">
                         </div>
                     </div>
                 </div>
 
                 <!-- Botón de Guardar -->
                 <div class="pt-4 border-t border-slate-800 flex justify-end">
-                    <button id="btnSaveJob" type="submit" class="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2">
+                    <button id="btnSaveJob" type="submit"
+                        class="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2">
                         <i class="fa-solid fa-floppy-disk"></i> Guardar Configuración
                     </button>
                 </div>
@@ -745,7 +913,8 @@
     </main>
 
     <!-- 3. RIGHT PANEL: Historial y Logs -->
-    <aside id="rightPanel" class="w-80 bg-surface-900 border-l border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute lg:relative right-0 h-full shadow-2xl lg:shadow-none hidden lg:flex">
+    <aside id="rightPanel"
+        class="w-80 bg-surface-900 border-l border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute lg:relative right-0 h-full shadow-2xl lg:shadow-none hidden lg:flex">
         <!-- Header Panel -->
         <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-surface-900">
             <h3 class="text-sm font-semibold text-white flex items-center gap-2">
@@ -764,8 +933,10 @@
         <!-- Terminal / Logs View -->
         <div class="h-64 border-t border-slate-800 bg-surface-950 flex flex-col shrink-0">
             <div class="px-4 py-2 border-b border-slate-800 flex justify-between items-center bg-surface-900/50">
-                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Logs (Hoy, 02:00 AM)</span>
-                <button class="text-slate-500 hover:text-white transition-colors"><i class="fa-solid fa-expand text-xs"></i></button>
+                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Logs (Hoy, 02:00
+                    AM)</span>
+                <button class="text-slate-500 hover:text-white transition-colors"><i
+                        class="fa-solid fa-expand text-xs"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto p-3 font-mono text-[10px] text-slate-400 leading-relaxed bg-[#0a0f1c]">
                 <div class="text-brand-400">[02:00:01] [INFO] Starting Job: Backup Producción</div>
@@ -838,18 +1009,12 @@
 
                 <!-- Pestañas -->
                 <nav class="s-tabs" role="tablist" aria-label="Secciones de configuración">
-                    <button class="s-tab-btn active"
-                            id="tab-general-btn"
-                            role="tab"
-                            aria-selected="true"
-                            aria-controls="tab-general">
+                    <button class="s-tab-btn active" id="tab-general-btn" role="tab" aria-selected="true"
+                        aria-controls="tab-general">
                         <i class="fa-solid fa-circle-info"></i> General
                     </button>
-                    <button class="s-tab-btn"
-                            id="tab-gdrive-btn"
-                            role="tab"
-                            aria-selected="false"
-                            aria-controls="tab-gdrive">
+                    <button class="s-tab-btn" id="tab-gdrive-btn" role="tab" aria-selected="false"
+                        aria-controls="tab-gdrive">
                         <i class="fa-brands fa-google-drive"></i> Google Drive
                     </button>
                 </nav>
@@ -867,20 +1032,18 @@
                         <div class="s-field">
                             <label for="s-app-name" class="s-label">Nombre de la aplicación</label>
                             <input id="s-app-name" type="text" class="s-input"
-                                   placeholder="Ej: SolbaBackups Producción">
+                                placeholder="Ej: SolbaBackups Producción">
                         </div>
 
                         <div class="s-field">
                             <label for="s-admin-email" class="s-label">Email del administrador</label>
-                            <input id="s-admin-email" type="email" class="s-input"
-                                   placeholder="admin@empresa.com">
+                            <input id="s-admin-email" type="email" class="s-input" placeholder="admin@empresa.com">
                             <p class="s-hint">Se usará para enviar alertas de errores críticos.</p>
                         </div>
 
                         <div class="s-field">
                             <label for="s-timezone" class="s-label">Zona horaria</label>
-                            <input id="s-timezone" type="text" class="s-input"
-                                   placeholder="Ej: Europe/Madrid">
+                            <input id="s-timezone" type="text" class="s-input" placeholder="Ej: Europe/Madrid">
                         </div>
                     </div>
 
@@ -916,7 +1079,7 @@
                         <div class="s-field">
                             <label for="s-log-retention" class="s-label">Días de retención de historial</label>
                             <input id="s-log-retention" type="number" min="1" max="365" class="s-input"
-                                   placeholder="30">
+                                placeholder="30">
                             <p class="s-hint">Los registros más antiguos se eliminarán automáticamente.</p>
                         </div>
                     </div>
@@ -931,26 +1094,26 @@
                         <div class="s-field">
                             <label for="s-gdrive-credentials" class="s-label">Ruta al archivo credentials.json</label>
                             <input id="s-gdrive-credentials" type="text" class="s-input"
-                                   placeholder="/ruta/absoluta/credentials.json">
+                                placeholder="/ruta/absoluta/credentials.json">
                             <p class="s-hint">
                                 Descarga el archivo desde
                                 <a href="https://console.cloud.google.com/" target="_blank" rel="noopener"
-                                   style="color:#818cf8">Google Cloud Console</a>.
+                                    style="color:#818cf8">Google Cloud Console</a>.
                             </p>
                         </div>
 
                         <div class="s-field">
                             <label for="s-gdrive-folder" class="s-label">ID de carpeta de destino</label>
                             <input id="s-gdrive-folder" type="text" class="s-input"
-                                   placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OGAK">
+                                placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OGAK">
                             <p class="s-hint">El ID aparece al final de la URL de la carpeta en Drive.</p>
                         </div>
 
                         <div class="s-field">
                             <label for="s-gdrive-scope" class="s-label">Scope de acceso</label>
                             <input id="s-gdrive-scope" type="text" class="s-input"
-                                   placeholder="https://www.googleapis.com/auth/drive.file"
-                                   value="https://www.googleapis.com/auth/drive.file">
+                                placeholder="https://www.googleapis.com/auth/drive.file"
+                                value="https://www.googleapis.com/auth/drive.file">
                         </div>
                     </div>
 
@@ -980,9 +1143,10 @@
                         </div>
 
                         <div class="s-field" style="margin-top:1rem">
-                            <label for="s-gdrive-max-files" class="s-label">Máximo de archivos por carpeta en Drive</label>
+                            <label for="s-gdrive-max-files" class="s-label">Máximo de archivos por carpeta en
+                                Drive</label>
                             <input id="s-gdrive-max-files" type="number" min="1" max="999" class="s-input"
-                                   placeholder="10">
+                                placeholder="10">
                             <p class="s-hint">Los archivos más antiguos se eliminarán para no superar este límite.</p>
                         </div>
                     </div>
@@ -993,7 +1157,7 @@
             <!-- Footer con acciones -->
             <div id="settings-footer">
                 <button class="s-btn-cancel" id="settings-cancel-btn">Cancelar</button>
-                <button class="s-btn-save"  id="settings-save-btn">
+                <button class="s-btn-save" id="settings-save-btn">
                     <i class="fa-solid fa-floppy-disk"></i> Guardar cambios
                 </button>
             </div>
@@ -1019,4 +1183,5 @@
         if (overlay) overlay.addEventListener('click', togglePanel);
     </script>
 </body>
+
 </html>
