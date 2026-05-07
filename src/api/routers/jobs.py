@@ -6,7 +6,6 @@ La validación de entrada/salida la realiza Pydantic usando los modelos
 de ``src.core.models``.
 """
 
-from src.core.job_manager import JobManager
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -99,23 +98,3 @@ def delete_job(job_id: int, db: Session = Depends(get_db)):
         )
     # 204 No Content no devuelve body
     return None
-
-
-@router.post("/{job_id}/run")
-async def run_job_manually(job_id: int, db: Session = Depends(get_db)):
-    """
-    Ejecuta un Job manualmente bajo demanda.
-    Nota: Al usar `await`, la respuesta HTTP esperará a que el backup termine.
-    """
-    job = crud.job_get_by_id(db, job_id)
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
-        )
-
-    manager = JobManager()
-    
-    # Inicia la ejecución síncrona/esperada
-    await manager.run_job(job_id, db, trigger="manual")
-
-    return {"message": f"Backup del Job {job_id} en ejecución"}

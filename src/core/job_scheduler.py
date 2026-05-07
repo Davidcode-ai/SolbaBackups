@@ -124,9 +124,4 @@ class JobScheduler:
         cuando llegue la hora.
         """
         log.info(f"Desencadenando ejecución programada (automática) para el Job {job_id}.")
-        # El scheduler corre en background, necesita su propia conexión a la BD
-        db = SessionLocal()
-        try:
-            await self.job_manager.run_job(job_id, db, trigger="scheduled")
-        finally:
-            db.close()
+        await self.job_manager.run_job(job_id, trigger="scheduled")
