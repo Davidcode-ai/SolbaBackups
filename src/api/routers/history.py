@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
-from src.core.models import RunHistoryRead
+from src.core.models import RunHistoryRead, LogEntryRead
 from src.db import crud
 
 log = logging.getLogger(__name__)
@@ -163,3 +163,40 @@ def delete_run(
         
     crud.run_delete(db, run_id)
     return None
+
+
+@router.get(
+    "/{run_id}/logs",
+    summary="Logs detallados de una ejecución",
+)
+def get_run_logs(
+    run_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Devuelve todas las entradas de log de una ejecución en formato legible
+    para el visor de terminal del frontend.
+
+    Devuelve un objeto ``{"logs": [...]}`` donde cada elemento es una línea
+    formateada: ``[HH:MM:SS] [LEVEL] mensaje``.
+
+    Raises:
+        HTTPException 404: Si la ejecución no existe.
+    """
+    run = crud.run_get_by_id(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Ejecución no encontrada.")
+
+    entries = crud.log_get_by_run(db, run_id)
+
+    if not entries:
+        # Devolver un log mínimo con el estado final del run
+        return {"logs": [f"[INFO] La ejecución finalizó con estado: {run.status.upper()}. No hay entradas de log detalladas."]}
+
+    # Formatear cada entrada como una línea de terminal: [HH:MM:SS] [LEVEL] stage: mensaje
+    lines = []
+    for entry in entries:
+        time_str = entry.timestamp.strftime("%H:%M:%S") if entry.timestamp else "??:??:??"
+        lines.append(f"[{time_str}] [{entry.level}] {entry.stage}: {entry.message}")
+
+    return {"logs": lines}

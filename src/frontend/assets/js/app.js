@@ -72,8 +72,12 @@ async function loadJobs(isSilent = false) {
                     <button class="btn-edit-job w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 bg-surface-800 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
                             data-id="${jobId}"
                             data-name="${job.name || ''}"
-                            data-description="${job.description || ''}"
-                            data-schedule="${job.schedule || ''}"
+                            data-schedule="${job.schedule_type || ''}"
+                            data-db-type="${job.db_type || ''}"
+                            data-db-host="${job.db_host || ''}"
+                            data-db-port="${job.db_port || ''}"
+                            data-db-name="${job.db_name || ''}"
+                            data-db-user="${job.db_user || ''}"
                             title="Editar Job">
                         <i class="fa-solid fa-pen text-xs"></i>
                     </button>
@@ -238,10 +242,15 @@ async function loadHistory(isSilent = false) {
  * Soporta modo CREACIÓN (POST) y modo EDICIÓN (PUT).
  */
 function initJobFormValidation() {
-    const form    = document.getElementById('createJobForm');
-    const btnSave = document.getElementById('btnSaveJob');
-    const jobName = document.getElementById('jobName');
-    const dbType  = document.getElementById('dbType');
+    const form       = document.getElementById('createJobForm');
+    const btnSave    = document.getElementById('btnSaveJob');
+    const jobName    = document.getElementById('jobName');
+    const dbType     = document.getElementById('dbType');
+    const dbHost     = document.getElementById('dbHost');
+    const dbPort     = document.getElementById('dbPort');
+    const dbName     = document.getElementById('dbName');
+    const dbUser     = document.getElementById('dbUser');
+    const dbPassword = document.getElementById('dbPassword');
 
     if (!form || !btnSave) return;
 
@@ -275,9 +284,16 @@ function initJobFormValidation() {
         const editingId = form.dataset.editingId || null;
         const jobData   = {
             name:        jobName.value.trim(),
-            db_type:     dbType.value,
+            db_type:     dbType.value || 'postgresql',
+            db_host:     dbHost  ? dbHost.value.trim()  || null : null,
+            db_port:     dbPort  ? parseInt(dbPort.value) || null : null,
+            db_name:     dbName  ? dbName.value.trim()  || null : null,
+            db_user:     dbUser  ? dbUser.value.trim()  || null : null,
+            db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
             schedule:    form.dataset.editingSchedule || 'Manual'
         };
+        // Limpiar campos con undefined (no enviar la clave si está vacía)
+        Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
 
         btnSave.disabled  = true;
         btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
@@ -314,10 +330,17 @@ function handleEditJob(event) {
     const btn  = event.currentTarget;
     const id   = btn.dataset.id;
     const name = btn.dataset.name;
-    const desc = btn.dataset.description;
     const sch  = btn.dataset.schedule;
+    // Leer todos los campos extra del dataset
+    const extra = {
+        db_type:  btn.dataset.dbType  || '',
+        db_host:  btn.dataset.dbHost  || '',
+        db_port:  btn.dataset.dbPort  || '',
+        db_name:  btn.dataset.dbName  || '',
+        db_user:  btn.dataset.dbUser  || '',
+    };
 
-    setFormEditMode(id, name, desc, sch);
+    setFormEditMode(id, name, extra, sch);
 
     // Scroll suave hasta el formulario
     const form = document.getElementById('createJobForm');
@@ -339,22 +362,31 @@ function handleDeleteJob(event) {
  * Activa el formulario en modo edición: cambia el título, el botón
  * y guarda el ID del job que se está editando.
  */
-function setFormEditMode(id, name, description, schedule) {
-    const form    = document.getElementById('createJobForm');
-    const jobName = document.getElementById('jobName');
-    const dbType  = document.getElementById('dbType');
-    const btnSave = document.getElementById('btnSaveJob');
-    const heading = form ? form.querySelector('h3') : null;
+function setFormEditMode(id, name, extra = {}, schedule) {
+    const form       = document.getElementById('createJobForm');
+    const jobName    = document.getElementById('jobName');
+    const dbType     = document.getElementById('dbType');
+    const dbHost     = document.getElementById('dbHost');
+    const dbPort     = document.getElementById('dbPort');
+    const dbName     = document.getElementById('dbName');
+    const dbUser     = document.getElementById('dbUser');
+    const btnSave    = document.getElementById('btnSaveJob');
+    const heading    = form ? form.querySelector('h3') : null;
 
     if (!form) return;
 
-    // Guardar ID y schedule (el select solo tiene el tipo de BD)
+    // Guardar ID y schedule
     form.dataset.editingId       = id;
     form.dataset.editingSchedule = schedule;
 
-    // Rellenar campos
-    if (jobName) jobName.value = name;
-    if (dbType)  dbType.value  = description; // description guarda el motor de BD
+    // Rellenar campos básicos
+    if (jobName) jobName.value  = name;
+    if (dbType)  dbType.value   = extra.db_type  || '';
+    if (dbHost)  dbHost.value   = extra.db_host  || '';
+    if (dbPort)  dbPort.value   = extra.db_port  || '';
+    if (dbName)  dbName.value   = extra.db_name  || '';
+    if (dbUser)  dbUser.value   = extra.db_user  || '';
+    // La contraseña NO se precarga por seguridad
 
     // Cambiar título con badge
     if (heading) {
