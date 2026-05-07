@@ -12,7 +12,7 @@ que Pydantic lea datos directamente de objetos SQLAlchemy).
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # ===========================================================================
@@ -24,14 +24,21 @@ class ScheduleConfig(BaseModel):
     Submodelo para la configuración de programación del Job.
     Mapea a los campos ``schedule_*`` en la base de datos.
     """
-    schedule_type: str = Field(..., description="'cron', 'interval' o 'manual'")
+    schedule_type: str = Field("manual", description="'cron', 'interval' o 'manual'")
     cron_expression: str | None = Field(None, description="Expresión cron, ej. '0 2 * * *'")
     interval_minutes: int | None = Field(None, description="Minutos entre ejecuciones")
 
+    @model_validator(mode='before')
+    @classmethod
+    def empty_strings_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: (None if v == "" else v) for k, v in data.items()}
+        return data
+
     @field_validator("schedule_type")
     @classmethod
-    def validate_type(cls, v: str) -> str:
-        if v not in ("cron", "interval", "manual"):
+    def validate_type(cls, v: str | None) -> str | None:
+        if v and v not in ("cron", "interval", "manual"):
             raise ValueError("schedule_type debe ser 'cron', 'interval' o 'manual'")
         return v
 
@@ -46,27 +53,39 @@ class JobBase(BaseModel):
     description: str | None = None
     
     # Base de Datos
-    db_type: str = Field(..., description="'postgresql', 'mysql', 'sqlserver', 'sqlite'")
+    db_type: str | None = Field("postgresql", description="'postgresql', 'mysql', 'sqlserver', 'sqlite'")
     db_host: str | None = None
     db_port: int | None = None
-    db_name: str
+    db_name: str | None = None
     db_user: str | None = None
     db_extra_params: str | None = None
     
     # Procesadores
-    compress: bool = True
-    compress_format: str = "zip"
-    encrypt: bool = False
+    compress: bool | None = True
+    compress_format: str | None = "zip"
+    encrypt: bool | None = False
     
     # Destino
-    dest_type: str = Field(..., description="'local', 'google_drive'")
+    dest_type: str | None = Field("local", description="'local', 'google_drive'")
     dest_local_path: str | None = None
     dest_retention_days: int | None = Field(None, description="Días de retención")
     dest_gdrive_folder_id: str | None = None
     
+    @model_validator(mode='before')
+    @classmethod
+    def empty_strings_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            new_data = {k: (None if v == "" else v) for k, v in data.items()}
+            if isinstance(new_data.get('schedule'), str):
+                new_data['schedule'] = {"schedule_type": new_data['schedule'].lower()}
+            return new_data
+        return data
+
     @field_validator("db_type")
     @classmethod
-    def validate_db_type(cls, v: str) -> str:
+    def validate_db_type(cls, v: str | None) -> str | None:
+        if v is None:
+            return "postgresql"
         allowed = ("postgresql", "mysql", "sqlserver", "sqlite")
         if v not in allowed:
             raise ValueError(f"db_type debe ser uno de: {allowed}")
@@ -106,10 +125,20 @@ class JobUpdate(BaseModel):
     
     dest_type: str | None = None
     dest_local_path: str | None = None
-    dest_retention_days: int | None = None
+    dest_retention_days: int | str | None = None
     dest_gdrive_folder_id: str | None = None
     
     schedule: ScheduleConfig | None = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_strings_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            new_data = {k: (None if v == "" else v) for k, v in data.items()}
+            if isinstance(new_data.get('schedule'), str):
+                new_data['schedule'] = {"schedule_type": new_data['schedule'].lower()}
+            return new_data
+        return data
 
 
 class JobRead(JobBase):
@@ -182,4 +211,15 @@ class AppSettingsRead(BaseModel):
 
 class AppSettingsUpdate(BaseModel):
     """Payload para actualizar múltiples configuraciones globales."""
-    settings: dict[str, Any]
+    settings: dict[str, Any] | None = None
+    
+    # El Frontend puede estar enviando los datos planos en lugar de dentro de 'settings'
+    # Hacemos que acepte cualquier campo extra.
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_strings_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: (None if v == "" else v) for k, v in data.items()}
+        return data

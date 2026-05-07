@@ -19,6 +19,22 @@ class PostgreSQLConnector(BaseConnector):
     """
     
     async def extract(self, job: Job, output_file_path: Path) -> bool:
+        # --- VALIDACIÓN DE CAMPOS CRÍTICOS ---
+        campos_faltantes = []
+        if not job.db_name:
+            campos_faltantes.append("Nombre de BD (db_name)")
+        if not job.db_host:
+            campos_faltantes.append("Host del servidor (db_host)")
+        if not job.db_user:
+            campos_faltantes.append("Usuario de la BD (db_user)")
+        if campos_faltantes:
+            raise ValueError(
+                f"Faltan datos críticos para ejecutar la extracción: "
+                f"{', '.join(campos_faltantes)}. "
+                f"Por favor, edita el Job y completa la configuración."
+            )
+        # --- FIN VALIDACIÓN ---
+        
         log.info(f"Iniciando volcado de PostgreSQL (BD: {job.db_name})")
         
         # El comando base
