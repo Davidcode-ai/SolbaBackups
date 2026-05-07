@@ -113,6 +113,406 @@
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
+
+        /* =============================================
+           LOG VIEWER MODAL — Terminal Style
+        ============================================= */
+        #log-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(6px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            animation: fadeInBackdrop 0.2s ease forwards;
+        }
+
+        #log-modal-backdrop.hidden {
+            display: none;
+        }
+
+        @keyframes fadeInBackdrop {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        #log-modal {
+            width: 100%;
+            max-width: 860px;
+            max-height: 80vh;
+            background: #050d05;
+            border: 1px solid #1a3a1a;
+            border-radius: 10px;
+            box-shadow:
+                0 0 0 1px #0f2a0f,
+                0 0 40px rgba(34, 197, 94, 0.08),
+                0 30px 80px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUpModal 0.25s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
+        }
+
+        @keyframes slideUpModal {
+            from { opacity: 0; transform: translateY(24px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0)   scale(1); }
+        }
+
+        /* Barra de título del terminal */
+        #log-modal-titlebar {
+            background: #0a1a0a;
+            border-bottom: 1px solid #1a3a1a;
+            padding: 0.65rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .terminal-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-close  { background: #ff5f57; }
+        .dot-min    { background: #ffbd2e; }
+        .dot-max    { background: #28c840; }
+
+        #log-modal-title {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: #4ade80;
+            letter-spacing: 0.05em;
+            flex: 1;
+            text-align: center;
+            opacity: 0.8;
+        }
+
+        #log-modal-close-btn {
+            background: transparent;
+            border: 1px solid #1e4a1e;
+            border-radius: 5px;
+            color: #4ade80;
+            font-size: 0.7rem;
+            font-family: 'Courier New', monospace;
+            padding: 0.2rem 0.6rem;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+
+        #log-modal-close-btn:hover {
+            background: #1a3a1a;
+            border-color: #4ade80;
+        }
+
+        /* Zona de logs */
+        #log-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 1.25rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.78rem;
+            line-height: 1.7;
+            color: #86efac;   /* green-300 */
+            background: #050d05;
+            position: relative;
+        }
+
+        /* Efecto scanlines sutil */
+        #log-modal-body::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent,
+                transparent 2px,
+                rgba(0,0,0,0.07) 2px,
+                rgba(0,0,0,0.07) 4px
+            );
+            pointer-events: none;
+        }
+
+        #log-output .log-line-info    { color: #86efac; }   /* verde */
+        #log-output .log-line-success { color: #4ade80; font-weight: bold; }
+        #log-output .log-line-error   { color: #f87171; font-weight: bold; }   /* rojo */
+        #log-output .log-line-warn    { color: #facc15; }   /* amarillo */
+        #log-output .log-line-default { color: #d1fae5; opacity: 0.75; }
+
+        /* Estado de carga dentro del modal */
+        #log-modal-loader {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            color: #4ade80;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            padding: 0.5rem 0;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+
+        .terminal-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 14px;
+            background: #4ade80;
+            vertical-align: middle;
+            animation: blink 0.9s step-end infinite;
+        }
+
+        /* =============================================
+           SETTINGS MODAL — Ajustes Globales
+        ============================================= */
+        #settings-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.80);
+            backdrop-filter: blur(8px);
+            z-index: 110;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            animation: fadeInBackdrop 0.2s ease forwards;
+        }
+        #settings-backdrop.hidden { display: none; }
+
+        #settings-modal {
+            width: 100%;
+            max-width: 640px;
+            max-height: 85vh;
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 14px;
+            box-shadow: 0 0 0 1px #1e293b, 0 32px 80px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUpModal 0.25s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
+        }
+
+        /* Header */
+        #settings-header {
+            padding: 1.25rem 1.5rem 0;
+            border-bottom: 1px solid #1e293b;
+            background: #0f172a;
+            flex-shrink: 0;
+        }
+
+        #settings-header .s-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        #settings-header h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        #settings-header h2 i {
+            color: #818cf8;
+            font-size: 1rem;
+        }
+
+        #settings-close-btn {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 6px;
+            transition: color 0.15s, background 0.15s;
+        }
+        #settings-close-btn:hover { color: #f8fafc; background: #1e293b; }
+
+        /* Tab bar */
+        .s-tabs {
+            display: flex;
+            gap: 0;
+        }
+
+        .s-tab-btn {
+            padding: 0.65rem 1.2rem;
+            font-size: 0.83rem;
+            font-weight: 500;
+            color: #64748b;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            white-space: nowrap;
+        }
+        .s-tab-btn:hover { color: #cbd5e1; }
+        .s-tab-btn.active {
+            color: #818cf8;
+            border-bottom-color: #818cf8;
+        }
+
+        /* Body */
+        #settings-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: #0f172a;
+        }
+
+        .s-tab-panel { display: none; }
+        .s-tab-panel.active { display: block; }
+
+        /* Field groups */
+        .s-field-group {
+            margin-bottom: 1.5rem;
+        }
+        .s-section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.9rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #1e293b;
+        }
+        .s-field {
+            margin-bottom: 1rem;
+        }
+        .s-label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+        }
+        .s-hint {
+            font-size: 0.72rem;
+            color: #475569;
+            margin-top: 0.3rem;
+        }
+        .s-input {
+            width: 100%;
+            background: #020617;
+            border: 1px solid #1e293b;
+            color: #e2e8f0;
+            font-size: 0.83rem;
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .s-input:focus {
+            border-color: #818cf8;
+            box-shadow: 0 0 0 3px rgba(129,140,248,0.15);
+        }
+        .s-input::placeholder { color: #334155; }
+
+        /* Toggle switch */
+        .s-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #1e293b;
+        }
+        .s-toggle-row:last-child { border-bottom: none; }
+        .s-toggle-info .s-toggle-label {
+            font-size: 0.83rem;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        .s-toggle-info .s-toggle-desc {
+            font-size: 0.72rem;
+            color: #475569;
+            margin-top: 0.1rem;
+        }
+        .s-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+        .s-switch input { opacity: 0; width: 0; height: 0; }
+        .s-slider {
+            position: absolute; inset: 0;
+            background: #1e293b;
+            border-radius: 99px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .s-slider:before {
+            content: '';
+            position: absolute;
+            width: 16px; height: 16px;
+            left: 3px; bottom: 3px;
+            background: #475569;
+            border-radius: 50%;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .s-switch input:checked + .s-slider { background: #4f46e5; }
+        .s-switch input:checked + .s-slider:before {
+            transform: translateX(16px);
+            background: #fff;
+        }
+
+        /* Footer del modal */
+        #settings-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #1e293b;
+            background: #0f172a;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            flex-shrink: 0;
+        }
+        .s-btn-cancel {
+            padding: 0.55rem 1.1rem;
+            border-radius: 8px;
+            border: 1px solid #1e293b;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 0.83rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .s-btn-cancel:hover { background: #1e293b; color: #e2e8f0; }
+        .s-btn-save {
+            padding: 0.55rem 1.1rem;
+            border-radius: 8px;
+            border: none;
+            background: #4f46e5;
+            color: #fff;
+            font-size: 0.83rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, opacity 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .s-btn-save:hover { background: #4338ca; }
+        .s-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
 </head>
 <body class="bg-surface-950 text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
@@ -173,7 +573,7 @@
 
         <!-- Footer Sidebar -->
         <div class="p-4 border-t border-slate-800">
-            <button class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
+            <button id="openSettingsBtn" class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
                 <i class="fa-solid fa-gear w-4 text-center"></i> Configuración
             </button>
         </div>
@@ -293,8 +693,220 @@
     <!-- Overlay móvil para Right Panel -->
     <div id="rightPanelOverlay" class="fixed inset-0 bg-surface-950/80 backdrop-blur-sm z-20 hidden lg:hidden"></div>
 
+    <!-- ============================================================
+         LOG VIEWER MODAL — Visor de Logs estilo Terminal/Consola
+    ============================================================ -->
+    <div id="log-modal-backdrop" class="hidden" role="dialog" aria-modal="true" aria-labelledby="log-modal-title">
+        <div id="log-modal">
+
+            <!-- Barra de título estilo macOS terminal -->
+            <div id="log-modal-titlebar">
+                <div class="terminal-dots" aria-hidden="true">
+                    <span class="dot-close"></span>
+                    <span class="dot-min"></span>
+                    <span class="dot-max"></span>
+                </div>
+
+                <span id="log-modal-title">solba-backups — run logs</span>
+
+                <button id="log-modal-close-btn" aria-label="Cerrar visor de logs">
+                    [ESC] Cerrar
+                </button>
+            </div>
+
+            <!-- Cuerpo del terminal: aquí se inyectan los logs -->
+            <div id="log-modal-body">
+                <!-- Estado inicial: vacío; se reemplaza en JS -->
+                <pre id="log-output"></pre>
+            </div>
+
+        </div>
+    </div>
+
     <!-- Contenedor para notificaciones Toast -->
     <div id="toast-container"></div>
+
+    <!-- ============================================================
+         SETTINGS MODAL — Ajustes Globales con pestañas
+    ============================================================ -->
+    <div id="settings-backdrop" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <div id="settings-modal">
+
+            <!-- Header con pestañas -->
+            <div id="settings-header">
+                <div class="s-title-row">
+                    <h2 id="settings-modal-title">
+                        <i class="fa-solid fa-sliders"></i>
+                        Ajustes Globales
+                    </h2>
+                    <button id="settings-close-btn" aria-label="Cerrar ajustes">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Pestañas -->
+                <nav class="s-tabs" role="tablist" aria-label="Secciones de configuración">
+                    <button class="s-tab-btn active"
+                            id="tab-general-btn"
+                            role="tab"
+                            aria-selected="true"
+                            aria-controls="tab-general">
+                        <i class="fa-solid fa-circle-info"></i> General
+                    </button>
+                    <button class="s-tab-btn"
+                            id="tab-gdrive-btn"
+                            role="tab"
+                            aria-selected="false"
+                            aria-controls="tab-gdrive">
+                        <i class="fa-brands fa-google-drive"></i> Google Drive
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Cuerpo con paneles -->
+            <div id="settings-body">
+
+                <!-- ─── PESTAÑA: General ─────────────────────────────── -->
+                <div id="tab-general" class="s-tab-panel active" role="tabpanel" aria-labelledby="tab-general-btn">
+
+                    <div class="s-field-group">
+                        <p class="s-section-title">Aplicación</p>
+
+                        <div class="s-field">
+                            <label for="s-app-name" class="s-label">Nombre de la aplicación</label>
+                            <input id="s-app-name" type="text" class="s-input"
+                                   placeholder="Ej: SolbaBackups Producción">
+                        </div>
+
+                        <div class="s-field">
+                            <label for="s-admin-email" class="s-label">Email del administrador</label>
+                            <input id="s-admin-email" type="email" class="s-input"
+                                   placeholder="admin@empresa.com">
+                            <p class="s-hint">Se usará para enviar alertas de errores críticos.</p>
+                        </div>
+
+                        <div class="s-field">
+                            <label for="s-timezone" class="s-label">Zona horaria</label>
+                            <input id="s-timezone" type="text" class="s-input"
+                                   placeholder="Ej: Europe/Madrid">
+                        </div>
+                    </div>
+
+                    <div class="s-field-group">
+                        <p class="s-section-title">Notificaciones</p>
+
+                        <div class="s-toggle-row">
+                            <div class="s-toggle-info">
+                                <p class="s-toggle-label">Notificaciones por email</p>
+                                <p class="s-toggle-desc">Recibe un resumen diario de las ejecuciones.</p>
+                            </div>
+                            <label class="s-switch">
+                                <input type="checkbox" id="s-notify-email">
+                                <span class="s-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="s-toggle-row">
+                            <div class="s-toggle-info">
+                                <p class="s-toggle-label">Alertas solo en caso de error</p>
+                                <p class="s-toggle-desc">Solo notifica cuando un backup falla.</p>
+                            </div>
+                            <label class="s-switch">
+                                <input type="checkbox" id="s-notify-errors-only">
+                                <span class="s-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="s-field-group">
+                        <p class="s-section-title">Retención de logs</p>
+
+                        <div class="s-field">
+                            <label for="s-log-retention" class="s-label">Días de retención de historial</label>
+                            <input id="s-log-retention" type="number" min="1" max="365" class="s-input"
+                                   placeholder="30">
+                            <p class="s-hint">Los registros más antiguos se eliminarán automáticamente.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ─── PESTAÑA: Google Drive ─────────────────────────── -->
+                <div id="tab-gdrive" class="s-tab-panel" role="tabpanel" aria-labelledby="tab-gdrive-btn">
+
+                    <div class="s-field-group">
+                        <p class="s-section-title">Credenciales de servicio</p>
+
+                        <div class="s-field">
+                            <label for="s-gdrive-credentials" class="s-label">Ruta al archivo credentials.json</label>
+                            <input id="s-gdrive-credentials" type="text" class="s-input"
+                                   placeholder="/ruta/absoluta/credentials.json">
+                            <p class="s-hint">
+                                Descarga el archivo desde
+                                <a href="https://console.cloud.google.com/" target="_blank" rel="noopener"
+                                   style="color:#818cf8">Google Cloud Console</a>.
+                            </p>
+                        </div>
+
+                        <div class="s-field">
+                            <label for="s-gdrive-folder" class="s-label">ID de carpeta de destino</label>
+                            <input id="s-gdrive-folder" type="text" class="s-input"
+                                   placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OGAK">
+                            <p class="s-hint">El ID aparece al final de la URL de la carpeta en Drive.</p>
+                        </div>
+
+                        <div class="s-field">
+                            <label for="s-gdrive-scope" class="s-label">Scope de acceso</label>
+                            <input id="s-gdrive-scope" type="text" class="s-input"
+                                   placeholder="https://www.googleapis.com/auth/drive.file"
+                                   value="https://www.googleapis.com/auth/drive.file">
+                        </div>
+                    </div>
+
+                    <div class="s-field-group">
+                        <p class="s-section-title">Comportamiento de subida</p>
+
+                        <div class="s-toggle-row">
+                            <div class="s-toggle-info">
+                                <p class="s-toggle-label">Subida automática tras backup</p>
+                                <p class="s-toggle-desc">Sube el archivo comprimido a Drive al terminar.</p>
+                            </div>
+                            <label class="s-switch">
+                                <input type="checkbox" id="s-gdrive-auto-upload" checked>
+                                <span class="s-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="s-toggle-row">
+                            <div class="s-toggle-info">
+                                <p class="s-toggle-label">Borrar archivo local tras subida</p>
+                                <p class="s-toggle-desc">Libera espacio en disco después de la subida.</p>
+                            </div>
+                            <label class="s-switch">
+                                <input type="checkbox" id="s-gdrive-delete-local">
+                                <span class="s-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="s-field" style="margin-top:1rem">
+                            <label for="s-gdrive-max-files" class="s-label">Máximo de archivos por carpeta en Drive</label>
+                            <input id="s-gdrive-max-files" type="number" min="1" max="999" class="s-input"
+                                   placeholder="10">
+                            <p class="s-hint">Los archivos más antiguos se eliminarán para no superar este límite.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Footer con acciones -->
+            <div id="settings-footer">
+                <button class="s-btn-cancel" id="settings-cancel-btn">Cancelar</button>
+                <button class="s-btn-save"  id="settings-save-btn">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar cambios
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="assets/js/api.js"></script>
     <script src="assets/js/app.js"></script>
