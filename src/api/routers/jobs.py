@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from src.core import models
 from src.db import crud
-from src.db.database import get_db
+from src.api.dependencies import get_db, get_job_manager
+from src.core.job_manager import JobManager
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
@@ -98,3 +99,25 @@ def delete_job(job_id: int, db: Session = Depends(get_db)):
         )
     # 204 No Content no devuelve body
     return None
+
+
+@router.post("/{job_id}/run")
+async def run_job_manually(
+    job_id: int, 
+    db: Session = Depends(get_db),
+    manager: JobManager = Depends(get_job_manager)
+):
+    """
+    Ejecuta un Job manualmente bajo demanda.
+    Nota: Al usar `await`, la respuesta HTTP esperará a que el backup termine.
+    """
+    job = crud.job_get_by_id(db, job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
+        )
+    
+    # Inicia la ejecución síncrona/esperada
+    await manager.run_job(job_id, trigger="manual")
+
+    return {"message": f"Backup del Job {job_id} en ejecución"}

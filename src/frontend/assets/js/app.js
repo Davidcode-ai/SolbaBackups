@@ -275,7 +275,7 @@ function initJobFormValidation() {
         const editingId = form.dataset.editingId || null;
         const jobData   = {
             name:        jobName.value.trim(),
-            description: dbType.value,
+            db_type:     dbType.value,
             schedule:    form.dataset.editingSchedule || 'Manual'
         };
 

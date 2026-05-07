@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
 from src.core.models import RunHistoryRead
+from src.db import crud
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ router = APIRouter(
 
 
 @router.get(
-    "/",
+    "",
     response_model=list[RunHistoryRead],
     summary="Historial paginado de todas las ejecuciones",
 )
@@ -67,7 +68,7 @@ def list_history(
     Returns:
         list[RunHistoryRead]: Página de registros de ejecución.
     """
-    pass
+    return crud.run_get_all(db, page=page, page_size=page_size, status_filter=status_filter)
 
 
 @router.get(
@@ -96,7 +97,11 @@ def list_job_history(
     Raises:
         HTTPException 404: Si el job no existe.
     """
-    pass
+    # Comprobar si el job existe primero (opcional, pero buena práctica si se exige el 404 documentado)
+    job = crud.job_get_by_id(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job no encontrado.")
+    return crud.run_get_by_job(db, job_id=job_id, page=page, page_size=page_size)
 
 
 @router.get(
@@ -121,7 +126,10 @@ def get_run(
     Raises:
         HTTPException 404: Si la ejecución no existe.
     """
-    pass
+    run = crud.run_get_by_id(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Ejecución no encontrada.")
+    return run
 
 
 @router.delete(
@@ -146,4 +154,12 @@ def delete_run(
         HTTPException 404: Si la ejecución no existe.
         HTTPException 409: Si la ejecución está actualmente en curso (status='running').
     """
-    pass
+    # Validar si está running
+    run = crud.run_get_by_id(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Ejecución no encontrada.")
+    if run.status == "running":
+        raise HTTPException(status_code=409, detail="No se puede eliminar una ejecución en curso.")
+        
+    crud.run_delete(db, run_id)
+    return None

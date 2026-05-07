@@ -3,13 +3,40 @@ import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 # Importamos los routers de la API
 from src.api.routers import jobs, history, settings
 
 log = logging.getLogger(__name__)
+
+
+def add_validation_handler(app: FastAPI):
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        print("\n\n=== ERROR 422 UNPROCESSABLE ENTITY ===")
+        print(f"Ruta: {request.method} {request.url}")
+        print("Errores detallados de Pydantic:")
+        for error in exc.errors():
+            print(f"- {error['loc']}: {error['msg']}")
+        
+        try:
+            body = await request.json()
+            print("Payload JSON recibido:")
+            print(body)
+        except Exception:
+            body = await request.body()
+            print("Payload Crudo recibido:")
+            print(body)
+        print("======================================\n\n")
+        
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={"detail": exc.errors(), "body": exc.body},
+        )
 
 
 @asynccontextmanager
@@ -42,6 +69,9 @@ async def lifespan(app: FastAPI):
 def create_app(frontend_path: Path | None = None) -> FastAPI:
     """Fábrica que construye la aplicación FastAPI."""
     app = FastAPI(title="SolbaBackups API", lifespan=lifespan)
+
+    # Añadimos el handler temporal para debuggear el 422
+    add_validation_handler(app)
 
     # 1. Registramos las rutas de la API primero
     _register_routers(app)

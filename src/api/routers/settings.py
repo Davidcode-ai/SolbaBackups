@@ -24,7 +24,15 @@ def get_settings(db: Session = Depends(get_db)):
 def update_settings(settings_in: models.AppSettingsUpdate, db: Session = Depends(get_db)):
     """
     Actualiza o crea variables de configuración global.
+    Acepta tanto JSON anidado en {"settings": {...}} como JSON plano {"key": "value"}.
     """
-    crud.setting_set_many(db, settings_in.settings)
+    # Extraemos todos los campos, incluyendo los "extra" del JSON plano
+    data = settings_in.model_dump(exclude_unset=True)
+    # Extraemos el dict 'settings' si viene
+    settings_dict = data.pop("settings", {}) or {}
+    # Juntamos todo
+    settings_dict.update(data)
+
+    crud.setting_set_many(db, settings_dict)
     updated_settings = crud.setting_get_all(db)
     return {"settings": updated_settings}

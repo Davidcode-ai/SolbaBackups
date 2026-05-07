@@ -71,7 +71,7 @@ class Job(Base):
     )
     db_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     db_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    db_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    db_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     db_user: Mapped[str | None] = mapped_column(String(255), nullable=True)
     db_password: Mapped[str | None] = mapped_column(
         Text, nullable=True,
@@ -103,8 +103,8 @@ class Job(Base):
     )
 
     # ── Destino ───────────────────────────────────────────────────────────
-    dest_type: Mapped[str] = mapped_column(
-        String(50), nullable=False,
+    dest_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="local",
         comment="local | google_drive"
     )
     dest_local_path: Mapped[str | None] = mapped_column(Text, nullable=True)
