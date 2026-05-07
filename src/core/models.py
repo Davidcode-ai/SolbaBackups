@@ -174,6 +174,12 @@ class LogEntryRead(BaseModel):
 # APP SETTINGS MODELS
 # ===========================================================================
 
+class AppSettingsRead(BaseModel):
+    """Lectura de todas las configuraciones globales."""
+    settings: dict[str, Any]
+    
+    model_config = ConfigDict(from_attributes=True)
+
 class AppSettingsUpdate(BaseModel):
     """Payload para actualizar múltiples configuraciones globales."""
     settings: dict[str, Any]
