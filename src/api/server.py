@@ -9,26 +9,34 @@ from fastapi.staticfiles import StaticFiles
 # Importamos los routers de la API
 from src.api.routers import jobs, history, settings
 
-# Importamos la base de datos para la inicialización
-from src.db.database import engine, Base
-from src.core.scheduler import scheduler_manager
-
 log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicialización de la base de datos: crear tablas si no existen
-    Base.metadata.create_all(bind=engine)
+    """Gestor de ciclo de vida de FastAPI."""
+    # --- STARTUP ---
+    # 1. Inicializar Base de Datos (crear tablas si no existen)
+    from src.db.database import init_db
+    init_db()
+
+    # 2. Instanciar e Iniciar Lógica Core y Scheduler
+    from src.core.job_manager import JobManager
+    from src.core.job_scheduler import JobScheduler
     
-    # === LÍNEAS AÑADIDAS PARA EL SCHEDULER ===
-    scheduler_manager.start()
-    scheduler_manager.load_jobs_from_db()
+    app.state.job_manager = JobManager()
+    app.state.scheduler = JobScheduler(app.state.job_manager)
     
-    yield
+    # Iniciar el proceso en background y cargar los jobs de la BD
+    app.state.scheduler.start()
+    app.state.scheduler.load_jobs_from_db()
+
+    yield  # La aplicación FastAPI está funcionando
     
-    # === LÍNEA DE APAGADO ===
-    scheduler_manager.shutdown()
+    # --- SHUTDOWN ---
+    # Apagar el scheduler limpiamente al cerrar el servidor
+    if hasattr(app.state, "scheduler"):
+        app.state.scheduler.stop()
 
 
 def create_app(frontend_path: Path | None = None) -> FastAPI:
