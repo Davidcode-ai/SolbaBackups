@@ -242,18 +242,27 @@ async function loadHistory(isSilent = false) {
  * Soporta modo CREACIÓN (POST) y modo EDICIÓN (PUT).
  */
 function initJobFormValidation() {
-    const form       = document.getElementById('createJobForm');
-    const btnSave    = document.getElementById('btnSaveJob');
-    const jobName    = document.getElementById('jobName');
-    const dbType     = document.getElementById('dbType');
-    const dbHost     = document.getElementById('dbHost');
-    const dbPort     = document.getElementById('dbPort');
-    const dbName     = document.getElementById('dbName');
-    const dbUser     = document.getElementById('dbUser');
-    const dbPassword = document.getElementById('dbPassword');
+    const form               = document.getElementById('createJobForm');
+    const btnSave            = document.getElementById('btnSaveJob');
+    const jobName            = document.getElementById('jobName');
+    const dbType             = document.getElementById('dbType');
+    const dbHost             = document.getElementById('dbHost');
+    const dbPort             = document.getElementById('dbPort');
+    const dbName             = document.getElementById('dbName');
+    const dbUser             = document.getElementById('dbUser');
+    const dbPassword         = document.getElementById('dbPassword');
+    const scheduleType       = document.getElementById('scheduleType');
+    const scheduleIntervalEl = document.getElementById('scheduleIntervalMinutes');
+    const scheduleCronEl     = document.getElementById('scheduleCron');
 
     if (!form || !btnSave) return;
 
+    // ── Mostrar/ocultar campos condicionales al cambiar la frecuencia ──
+    if (scheduleType) {
+        scheduleType.addEventListener('change', () => updateScheduleFields(scheduleType.value));
+        // Estado inicial (por defecto "manual" — no muestra nada extra)
+        updateScheduleFields(scheduleType.value);
+    }
     // Botón «Cancelar edición» (se inyecta dinámicamente en setFormEditMode)
     form.addEventListener('click', (e) => {
         if (e.target.closest('#btnCancelEdit')) resetFormToCreateMode();
@@ -282,17 +291,30 @@ function initJobFormValidation() {
         }
 
         const editingId = form.dataset.editingId || null;
+
+        // ── Recoger campos de schedule ──────────────────────────────────
+        const scheduleVal     = scheduleType     ? scheduleType.value                        : 'manual';
+        const intervalMinutes = scheduleIntervalEl && scheduleVal === 'interval'
+            ? (parseInt(scheduleIntervalEl.value) || null)
+            : null;
+        const cronExpr        = scheduleCronEl && scheduleVal === 'cron'
+            ? (scheduleCronEl.value.trim() || null)
+            : null;
+
+        // ── Payload PLANO según esquema del backend ────────────────────────
         const jobData   = {
-            name:        jobName.value.trim(),
-            db_type:     dbType.value || 'postgresql',
-            db_host:     dbHost  ? dbHost.value.trim()  || null : null,
-            db_port:     dbPort  ? parseInt(dbPort.value) || null : null,
-            db_name:     dbName  ? dbName.value.trim()  || null : null,
-            db_user:     dbUser  ? dbUser.value.trim()  || null : null,
-            db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
-            schedule:    form.dataset.editingSchedule || 'Manual'
+            name:                      jobName.value.trim(),
+            db_type:                   dbType.value || 'postgresql',
+            db_host:                   dbHost     ? dbHost.value.trim()   || null : null,
+            db_port:                   dbPort     ? parseInt(dbPort.value) || null : null,
+            db_name:                   dbName     ? dbName.value.trim()   || null : null,
+            db_user:                   dbUser     ? dbUser.value.trim()   || null : null,
+            db_password:               dbPassword && dbPassword.value ? dbPassword.value : undefined,
+            schedule:                  scheduleVal,
+            schedule_interval_minutes: intervalMinutes,   // int o null
+            schedule_cron:             cronExpr,          // string o null
         };
-        // Limpiar campos con undefined (no enviar la clave si está vacía)
+        // Limpiar claves con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
 
         btnSave.disabled  = true;
@@ -333,11 +355,13 @@ function handleEditJob(event) {
     const sch  = btn.dataset.schedule;
     // Leer todos los campos extra del dataset
     const extra = {
-        db_type:  btn.dataset.dbType  || '',
-        db_host:  btn.dataset.dbHost  || '',
-        db_port:  btn.dataset.dbPort  || '',
-        db_name:  btn.dataset.dbName  || '',
-        db_user:  btn.dataset.dbUser  || '',
+        db_type:                   btn.dataset.dbType             || '',
+        db_host:                   btn.dataset.dbHost             || '',
+        db_port:                   btn.dataset.dbPort             || '',
+        db_name:                   btn.dataset.dbName             || '',
+        db_user:                   btn.dataset.dbUser             || '',
+        schedule_interval_minutes: btn.dataset.scheduleIntervalMinutes || '',
+        schedule_cron:             btn.dataset.scheduleCron       || '',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -363,23 +387,25 @@ function handleDeleteJob(event) {
  * y guarda el ID del job que se está editando.
  */
 function setFormEditMode(id, name, extra = {}, schedule) {
-    const form       = document.getElementById('createJobForm');
-    const jobName    = document.getElementById('jobName');
-    const dbType     = document.getElementById('dbType');
-    const dbHost     = document.getElementById('dbHost');
-    const dbPort     = document.getElementById('dbPort');
-    const dbName     = document.getElementById('dbName');
-    const dbUser     = document.getElementById('dbUser');
-    const btnSave    = document.getElementById('btnSaveJob');
-    const heading    = form ? form.querySelector('h3') : null;
+    const form               = document.getElementById('createJobForm');
+    const jobName            = document.getElementById('jobName');
+    const dbType             = document.getElementById('dbType');
+    const dbHost             = document.getElementById('dbHost');
+    const dbPort             = document.getElementById('dbPort');
+    const dbName             = document.getElementById('dbName');
+    const dbUser             = document.getElementById('dbUser');
+    const scheduleType       = document.getElementById('scheduleType');
+    const scheduleIntervalEl = document.getElementById('scheduleIntervalMinutes');
+    const scheduleCronEl     = document.getElementById('scheduleCron');
+    const btnSave            = document.getElementById('btnSaveJob');
+    const heading            = form ? form.querySelector('h3') : null;
 
     if (!form) return;
 
-    // Guardar ID y schedule
-    form.dataset.editingId       = id;
-    form.dataset.editingSchedule = schedule;
+    // Guardar ID
+    form.dataset.editingId = id;
 
-    // Rellenar campos básicos
+    // Rellenar campos básicos de BD
     if (jobName) jobName.value  = name;
     if (dbType)  dbType.value   = extra.db_type  || '';
     if (dbHost)  dbHost.value   = extra.db_host  || '';
@@ -387,6 +413,13 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbName)  dbName.value   = extra.db_name  || '';
     if (dbUser)  dbUser.value   = extra.db_user  || '';
     // La contraseña NO se precarga por seguridad
+
+    // Rellenar y mostrar/ocultar los campos de schedule
+    const schedVal = schedule || 'manual';
+    if (scheduleType)       scheduleType.value       = schedVal;
+    if (scheduleIntervalEl) scheduleIntervalEl.value = extra.schedule_interval_minutes || '';
+    if (scheduleCronEl)     scheduleCronEl.value     = extra.schedule_cron             || '';
+    updateScheduleFields(schedVal);
 
     // Cambiar título con badge
     if (heading) {
@@ -445,6 +478,20 @@ function resetFormToCreateMode() {
     if (cancelBtn) cancelBtn.remove();
     const badge = form.querySelector('#edit-mode-badge');
     if (badge) badge.remove();
+
+    // Ocultar campos condicionales del schedule
+    updateScheduleFields('manual');
+}
+
+/**
+ * Muestra u oculta los campos condicionales de Schedule según el tipo elegido.
+ * @param {string} value - Valor del select scheduleType
+ */
+function updateScheduleFields(value) {
+    const intervalWrap = document.getElementById('scheduleIntervalWrap');
+    const cronWrap     = document.getElementById('scheduleCronWrap');
+    if (intervalWrap) intervalWrap.classList.toggle('hidden', value !== 'interval');
+    if (cronWrap)     cronWrap.classList.toggle('hidden',     value !== 'cron');
 }
 
 /**
