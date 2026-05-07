@@ -631,10 +631,57 @@
                             <option value="mysql">MySQL / MariaDB</option>
                             <option value="sqlserver">Microsoft SQL Server</option>
                         </select>
-                        <!-- Icono de flecha para el select -->
                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
                             <i class="fa-solid fa-chevron-down text-xs"></i>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ── Sección: Programación de la Tarea ─────────────────── -->
+                <div class="space-y-4">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Programación de la Tarea</p>
+
+                    <!-- Select: Tipo de Schedule -->
+                    <div class="relative form-group">
+                        <label for="scheduleType" class="block text-sm font-medium text-slate-400 mb-2">Frecuencia</label>
+                        <div class="relative">
+                            <select id="scheduleType"
+                                    class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                <option value="manual">Manual</option>
+                                <option value="daily">Diario</option>
+                                <option value="weekly">Semanal</option>
+                                <option value="monthly">Mensual</option>
+                                <option value="interval">Intervalo</option>
+                                <option value="cron">Cron</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campo condicional: Intervalo en minutos (visible solo con "interval") -->
+                    <div id="scheduleIntervalWrap" class="relative form-group hidden">
+                        <label for="scheduleIntervalMinutes" class="block text-sm font-medium text-slate-400 mb-2">
+                            <i class="fa-solid fa-clock mr-1.5 text-brand-400"></i>
+                            Intervalo (minutos)
+                        </label>
+                        <input type="number" id="scheduleIntervalMinutes" min="1"
+                               class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                               placeholder="Ej: 60  →  cada hora">
+                        <p class="text-xs text-slate-500 mt-1.5">El job se ejecutará cada N minutos de forma continua.</p>
+                    </div>
+
+                    <!-- Campo condicional: Expresión Cron (visible solo con "cron") -->
+                    <div id="scheduleCronWrap" class="relative form-group hidden">
+                        <label for="scheduleCron" class="block text-sm font-medium text-slate-400 mb-2">
+                            <i class="fa-solid fa-terminal mr-1.5 text-brand-400"></i>
+                            Expresión Cron
+                        </label>
+                        <input type="text" id="scheduleCron"
+                               class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 font-mono"
+                               placeholder="Ej: 0 2 * * *  →  cada día a las 02:00">
+                        <p class="text-xs text-slate-500 mt-1.5">Formato estándar UNIX cron: <code class="text-brand-400/80">minuto hora día-mes mes día-semana</code></p>
                     </div>
                 </div>
 
