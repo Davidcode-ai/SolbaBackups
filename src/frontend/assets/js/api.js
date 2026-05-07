@@ -89,6 +89,109 @@ class ApiClient {
             throw error;
         }
     }
+
+    /**
+     * Obtiene los logs de una ejecución específica del historial.
+     * @param {string|number} runId - El ID del run/ejecución a consultar
+     * @returns {Promise<Object>} Objeto con los logs de la ejecución { logs: string }
+     */
+    async getRunLogs(runId) {
+        try {
+            const response = await fetch(`${this.baseUrl}/history/${runId}/logs`);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`Error en getRunLogs (run ID: ${runId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Actualiza un trabajo existente (PUT).
+     * @param {string|number} jobId  - El ID del trabajo a actualizar
+     * @param {Object}        jobData - Datos actualizados del trabajo
+     * @returns {Promise<Object>} El trabajo actualizado
+     */
+    async updateJob(jobId, jobData) {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs/${jobId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(jobData)
+            });
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`Error en updateJob (ID: ${jobId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Elimina un trabajo por su ID (DELETE).
+     * @param {string|number} jobId - El ID del trabajo a eliminar
+     * @returns {Promise<Object>} Respuesta del servidor
+     */
+    async deleteJob(jobId) {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs/${jobId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            // 204 No Content no tiene body — devolvemos vacío
+            return response.status === 204 ? {} : await response.json();
+        } catch (error) {
+            console.error(`Error en deleteJob (ID: ${jobId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Obtiene los ajustes globales de la aplicación.
+     * @returns {Promise<Object>} Objeto con la configuración actual
+     */
+    async getSettings() {
+        try {
+            const response = await fetch(`${this.baseUrl}/settings`);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getSettings:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Guarda los ajustes globales (PUT; fallback a POST si el servidor devuelve 405).
+     * @param {Object} settingsData - Objeto con los ajustes a guardar
+     * @returns {Promise<Object>} Configuración guardada
+     */
+    async saveSettings(settingsData) {
+        const send = async (method) => fetch(`${this.baseUrl}/settings`, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settingsData)
+        });
+
+        try {
+            let response = await send('PUT');
+            // Fallback: si el servidor solo implementó POST
+            if (response.status === 405) response = await send('POST');
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            return response.status === 204 ? {} : await response.json();
+        } catch (error) {
+            console.error('Error en saveSettings:', error);
+            throw error;
+        }
+    }
 }
 
 // Instancia global para ser usada en otros archivos JS de la aplicación
