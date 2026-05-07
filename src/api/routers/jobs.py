@@ -6,7 +6,7 @@ La validación de entrada/salida la realiza Pydantic usando los modelos
 de ``src.core.models``.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from src.core import models
@@ -27,7 +27,7 @@ def list_jobs(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=models.JobRead, status_code=status.HTTP_201_CREATED)
-def create_job(job_in: models.JobCreate, db: Session = Depends(get_db)):
+def create_job(job_in: models.JobCreate, request: Request, db: Session = Depends(get_db)):
     """
     Crea un nuevo Job de backup.
 
@@ -43,6 +43,10 @@ def create_job(job_in: models.JobCreate, db: Session = Depends(get_db)):
     # Extraemos el diccionario del modelo Pydantic para pasarlo al CRUD
     job_data = job_in.model_dump(exclude_unset=True)
     new_job = crud.job_create(db, job_data)
+    
+    # === INTEGRACIÓN DINÁMICA CON EL SCHEDULER ===
+    if getattr(request.app.state, "scheduler", None):
+        request.app.state.scheduler.add_job(new_job)
 
     return new_job
 
@@ -61,7 +65,7 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{job_id}", response_model=models.JobRead)
-def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_db)):
+def update_job(job_id: int, job_in: models.JobUpdate, request: Request, db: Session = Depends(get_db)):
     """
     Actualiza la configuración de un Job existente de forma parcial.
     Solo se actualizan los campos enviados en el payload.
@@ -83,12 +87,19 @@ def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_
 
     job_data = job_in.model_dump(exclude_unset=True)
     updated_job = crud.job_update(db, job_id, job_data)
+    
+    # === INTEGRACIÓN DINÁMICA CON EL SCHEDULER ===
+    if getattr(request.app.state, "scheduler", None):
+        if updated_job.is_active and updated_job.schedule_type != "manual":
+            request.app.state.scheduler.add_job(updated_job)
+        else:
+            request.app.state.scheduler.remove_job(updated_job.id)
 
     return updated_job
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_job(job_id: int, db: Session = Depends(get_db)):
+def delete_job(job_id: int, request: Request, db: Session = Depends(get_db)):
     """
     Elimina un Job y todo su historial de ejecuciones asociadas.
     """
@@ -97,6 +108,11 @@ def delete_job(job_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
+        
+    # === INTEGRACIÓN DINÁMICA CON EL SCHEDULER ===
+    if getattr(request.app.state, "scheduler", None):
+        request.app.state.scheduler.remove_job(job_id)
+
     # 204 No Content no devuelve body
     return None
 

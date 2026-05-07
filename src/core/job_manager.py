@@ -123,6 +123,62 @@ class JobManager:
                     else:
                         history_manager.add_log(db, run.id, "INFO", "No se encontraron backups antiguos que borrar.", stage="cleanup")
 
+                # =====================================================================
+                # 6.5 Integración Google Drive (Opcional vía Settings)
+                # =====================================================================
+                global_settings = crud.setting_get_all(db)
+                is_cloud_enabled = str(global_settings.get("cloud_enabled", "false")).lower() == "true"
+                
+                if is_cloud_enabled:
+                    try:
+                        history_manager.add_log(db, run.id, "INFO", "Iniciando subida a Google Drive...", stage="cloud_upload")
+                        
+                        from src.destinations.google_drive import GoogleDriveDestination
+                        
+                        # Recogemos las credenciales dinámicamente desde Settings
+                        creds_path = global_settings.get("credentials_path", "credentials.json")
+                        folder_id = global_settings.get("drive_folder_id", None)
+                        
+                        drive_dest = GoogleDriveDestination(credentials_file=creds_path, folder_id=folder_id)
+                        
+                        # El archivo final se lee directamente desde la ruta en la que quedó tras el volcado local
+                        drive_dest.upload(Path(final_dest))
+                        
+                        history_manager.add_log(db, run.id, "INFO", "✅ Subida a Google Drive completada exitosamente.", stage="cloud_upload")
+                    except Exception as cloud_err:
+                        # Si la nube falla, NO lanzamos la excepción hacia arriba. Es solo un aviso.
+                        aviso = f"Aviso: Drive falló, pero el local está a salvo. Detalle: {str(cloud_err)}"
+                        log.warning(aviso)
+                        history_manager.add_log(db, run.id, "WARNING", aviso, stage="cloud_upload")
+                # =====================================================================
+                # =====================================================================
+                # 8. Limpieza Global (Garbage Collector)
+                # =====================================================================
+                try:
+                    history_manager.add_log(db, run.id, "INFO", "Iniciando Garbage Collector...", stage="cleanup")
+                    from src.core.cleaner import GarbageCollector
+                    
+                    local_retention = int(global_settings.get("local_retention_days") or 7)
+                    cloud_retention = int(global_settings.get("cloud_retention_days") or 30)
+                    
+                    # 8.1 Limpieza Local
+                    deleted_local = GarbageCollector.clean_local_backups(local_retention)
+                    if deleted_local > 0:
+                        history_manager.add_log(db, run.id, "INFO", f"Garbage Collector local: Eliminados {deleted_local} backups antiguos.", stage="cleanup")
+                        
+                    # 8.2 Limpieza en la Nube (si está habilitado)
+                    if is_cloud_enabled:
+                        creds_path = global_settings.get("credentials_path", "credentials.json")
+                        folder_id = global_settings.get("drive_folder_id", None)
+                        deleted_cloud = GarbageCollector.clean_cloud_backups(cloud_retention, creds_path, folder_id)
+                        if deleted_cloud > 0:
+                            history_manager.add_log(db, run.id, "INFO", f"Garbage Collector nube: Eliminados {deleted_cloud} backups antiguos.", stage="cleanup")
+                            
+                except Exception as gc_err:
+                    log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
+                    history_manager.add_log(db, run.id, "WARNING", f"Aviso en limpieza global: {gc_err}", stage="cleanup")
+                # =====================================================================
+
                 history_manager.add_log(db, run.id, "INFO", "Backup almacenado y pipeline completado.", stage="done")
 
                 # 7. Actualizar RunHistory a 'SUCCESS' si todo fue bien
@@ -149,3 +205,42 @@ class JobManager:
                 history_manager.finish_run(
                     db, run.id, status="failed", error_message=error_msg
                 )
+                
+                # =====================================================================
+                # 9. Notificación SMTP (Opcional vía Settings)
+                # =====================================================================
+                try:
+                    global_settings = crud.setting_get_all(db)
+                    smtp_enabled = str(global_settings.get("smtp_enabled", "false")).lower() == "true"
+                    
+                    if smtp_enabled:
+                        smtp_host = global_settings.get("smtp_host", "")
+                        smtp_port = int(global_settings.get("smtp_port", 587))
+                        smtp_user = global_settings.get("smtp_user", "")
+                        smtp_password = global_settings.get("smtp_password", "")
+                        alert_email_to = global_settings.get("alert_email_to", "")
+                        
+                        if smtp_host and smtp_user and alert_email_to:
+                            from src.notifications.mailer import EmailNotifier
+                            notifier = EmailNotifier(
+                                host=smtp_host,
+                                port=smtp_port,
+                                user=smtp_user,
+                                password=smtp_password,
+                                to_email=alert_email_to
+                            )
+                            # Extraer logs de la BD para adjuntarlos (opcional pero útil)
+                            logs_entries = crud.log_get_by_run(db, run.id)
+                            logs_text = "\n".join([f"[{l.stage}] {l.level}: {l.message}" for l in logs_entries])
+                            
+                            # Disparar correo asíncronamente
+                            await notifier.send_failure_alert(
+                                job_name=job.name,
+                                error_message=error_msg,
+                                logs=logs_text
+                            )
+                        else:
+                            log.warning("SMTP habilitado pero faltan credenciales (host, user o to_email).")
+                except Exception as smtp_err:
+                    log.error(f"Error al intentar enviar el email de alerta SMTP: {smtp_err}")
+                # =====================================================================
