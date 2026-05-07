@@ -6,17 +6,29 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-# Importamos tu router de jobs
-from src.api.routers import jobs
+# Importamos los routers de la API
+from src.api.routers import jobs, history, settings
+
+# Importamos la base de datos para la inicialización
+from src.db.database import engine, Base
+from src.core.scheduler import scheduler_manager
 
 log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Aquí irá la lógica de arranque del Scheduler más adelante
+    # Inicialización de la base de datos: crear tablas si no existen
+    Base.metadata.create_all(bind=engine)
+    
+    # === LÍNEAS AÑADIDAS PARA EL SCHEDULER ===
+    scheduler_manager.start()
+    scheduler_manager.load_jobs_from_db()
+    
     yield
-    # Aquí irá la lógica de apagado
+    
+    # === LÍNEA DE APAGADO ===
+    scheduler_manager.shutdown()
 
 
 def create_app(frontend_path: Path | None = None) -> FastAPI:
@@ -43,6 +55,7 @@ def _register_routers(app: FastAPI) -> None:
     """Registra los endpoints de la API."""
     app.include_router(jobs.router, prefix="/api/v1")
     app.include_router(history.router, prefix="/api/v1")
+    app.include_router(settings.router, prefix="/api/v1")
 
 def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
     """Monta el HTML y JS."""

@@ -38,3 +38,6 @@ black==24.3.0
 
 # GUI
 PyQt6>=6.6.1
+
+# Scheduler
+apscheduler>=3.10.4
