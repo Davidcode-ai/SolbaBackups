@@ -72,7 +72,8 @@ async function loadJobs(isSilent = false) {
                     <button class="btn-edit-job w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 bg-surface-800 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
                             data-id="${jobId}"
                             data-name="${job.name || ''}"
-                            data-schedule="${job.schedule_type || ''}"
+                            data-description="${job.description || ''}"
+                            data-schedule="${job.schedule_type || 'manual'}"
                             data-db-type="${job.db_type || ''}"
                             data-db-host="${job.db_host || ''}"
                             data-db-port="${job.db_port || ''}"
@@ -246,6 +247,8 @@ function initJobFormValidation() {
     const btnSave    = document.getElementById('btnSaveJob');
     const jobName    = document.getElementById('jobName');
     const dbType     = document.getElementById('dbType');
+    const jobDesc    = document.getElementById('jobDescription');
+    const jobSched   = document.getElementById('jobSchedule');
     const dbHost     = document.getElementById('dbHost');
     const dbPort     = document.getElementById('dbPort');
     const dbName     = document.getElementById('dbName');
@@ -284,13 +287,14 @@ function initJobFormValidation() {
         const editingId = form.dataset.editingId || null;
         const jobData   = {
             name:        jobName.value.trim(),
+            description: jobDesc    ? jobDesc.value.trim()  || null : null,
             db_type:     dbType.value || 'postgresql',
             db_host:     dbHost  ? dbHost.value.trim()  || null : null,
             db_port:     dbPort  ? parseInt(dbPort.value) || null : null,
             db_name:     dbName  ? dbName.value.trim()  || null : null,
             db_user:     dbUser  ? dbUser.value.trim()  || null : null,
             db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
-            schedule:    form.dataset.editingSchedule || 'Manual'
+            schedule:    jobSched ? jobSched.value : 'manual',
         };
         // Limpiar campos con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
@@ -333,11 +337,13 @@ function handleEditJob(event) {
     const sch  = btn.dataset.schedule;
     // Leer todos los campos extra del dataset
     const extra = {
-        db_type:  btn.dataset.dbType  || '',
-        db_host:  btn.dataset.dbHost  || '',
-        db_port:  btn.dataset.dbPort  || '',
-        db_name:  btn.dataset.dbName  || '',
-        db_user:  btn.dataset.dbUser  || '',
+        db_type:      btn.dataset.dbType  || '',
+        db_host:      btn.dataset.dbHost  || '',
+        db_port:      btn.dataset.dbPort  || '',
+        db_name:      btn.dataset.dbName  || '',
+        db_user:      btn.dataset.dbUser  || '',
+        description:  btn.dataset.description || '',
+        schedule_type: btn.dataset.schedule || 'manual',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -382,6 +388,8 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     // Rellenar campos básicos
     if (jobName) jobName.value  = name;
     if (dbType)  dbType.value   = extra.db_type  || '';
+    if (jobDesc) jobDesc.value  = extra.description || '';
+    if (jobSched) jobSched.value = extra.schedule_type || 'manual';
     if (dbHost)  dbHost.value   = extra.db_host  || '';
     if (dbPort)  dbPort.value   = extra.db_port  || '';
     if (dbName)  dbName.value   = extra.db_name  || '';
