@@ -62,7 +62,7 @@ def create_app(frontend_path: Path | None = None) -> FastAPI:
 def _register_routers(app: FastAPI) -> None:
     """Registra los endpoints de la API."""
     app.include_router(jobs.router, prefix="/api/v1")
-
+    app.include_router(history.router, prefix="/api/v1")
 
 def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
     """Monta el HTML y JS."""

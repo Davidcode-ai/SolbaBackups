@@ -25,6 +25,23 @@ class ApiClient {
     }
 
     /**
+     * Obtiene el historial de ejecuciones.
+     * @returns {Promise<Array>} Historial de ejecuciones
+     */
+    async getHistory() {
+        try {
+            const response = await fetch(`${this.baseUrl}/history`);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getHistory:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Crea un nuevo trabajo enviando los datos al servidor.
      * @param {Object} jobData - Datos del formulario del nuevo trabajo
      * @returns {Promise<Object>} El trabajo creado
