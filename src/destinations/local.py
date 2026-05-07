@@ -1,127 +1,61 @@
 """
-src/destinations/local.py — Destino de Almacenamiento Local.
-
-Implementa ``BaseDestination`` para guardar backups en una carpeta local
-del sistema de archivos (puede ser una ruta local, una unidad de red
-mapeada o una ruta UNC de Windows como ``\\\\servidor\\carpeta``).
-
-Comportamiento:
-    - Crea la carpeta de destino si no existe (incluyendo directorios padres).
-    - Organiza los backups en subcarpetas por nombre de job:
-      ``{dest_path}/{job_name}/{backup_file}``
-    - Aplica retención eliminando archivos con ``mtime`` más antiguo que
-      ``retention_days`` días.
-
-Compatibilidad Windows:
-    - Soporta rutas UNC (``\\\\server\\share``).
-    - Soporta rutas con letras de unidad (``D:\\backups``).
-    - Maneja permisos de acceso denegado con error descriptivo.
-
-Seguridad:
-    - Valida que la ruta de destino no sea un subdirectorio del directorio
-      temporal de trabajo para evitar sobrescribir archivos en proceso.
+src/destinations/local.py — Destino Carpeta Local / Red.
 """
-
+import asyncio
 import logging
 import shutil
-from datetime import datetime, timedelta
+import time
 from pathlib import Path
 
 from src.destinations.base import BaseDestination
 
 log = logging.getLogger(__name__)
 
-
 class LocalDestination(BaseDestination):
     """
-    Destino para guardar backups en una carpeta local o de red.
-
-    Args de configuración (pasados via kwargs al constructor):
-        path (str | Path): Ruta a la carpeta de destino. Requerido.
+    Gestiona el almacenamiento en carpetas locales o rutas de red (UNC).
     """
 
-    def __init__(
-        self,
-        path: str | Path,
-        retention_days: int | None = None,
-        job_name: str = "backup",
-    ) -> None:
-        """
-        Inicializa el destino local.
+    async def upload(self, file_path: Path, destination_path: str) -> bool:
+        dest_dir = Path(destination_path)
+        # Asegurar que el directorio destino existe
+        dest_dir.mkdir(parents=True, exist_ok=True)
 
-        Args:
-            path:           Ruta a la carpeta donde guardar los backups.
-            retention_days: Días de retención. ``None`` = sin límite.
-            job_name:       Nombre del job para crear subcarpeta.
-        """
-        pass
+        final_path = dest_dir / file_path.name
+        log.info(f"Moviendo backup local de {file_path} a {final_path}...")
+        
+        # Mover archivo de forma asíncrona usando un thread para evitar
+        # bloquear el loop si destination_path es una unidad de red lenta.
+        await asyncio.to_thread(shutil.move, str(file_path), str(final_path))
+        
+        return True
 
-    def upload(self, file_path: Path) -> str:
-        """
-        Copia el archivo de backup a la carpeta de destino.
+    async def clean_old_backups(self, destination_path: str, retention_days: int) -> int:
+        if retention_days <= 0:
+            return 0  # 0 o negativo significa sin límite de retención
 
-        Crea la estructura de directorios si no existe:
-        ``{self._dest_path}/{self._job_name}/``
+        dest_dir = Path(destination_path)
+        if not dest_dir.exists():
+            return 0
 
-        Tras copiar el archivo, llama automáticamente a ``apply_retention()``
-        para mantener limpio el destino.
+        deleted_count = 0
+        now = time.time()
+        # Segundos correspondientes a retention_days (1 día = 86400 segundos)
+        cutoff_time = now - (retention_days * 86400)
 
-        Args:
-            file_path: Ruta local al archivo de backup a copiar.
+        # Buscar todos los archivos .zip en la carpeta
+        for file_path in dest_dir.glob("*.zip"):
+            if not file_path.is_file():
+                continue
+                
+            try:
+                # Comparamos la fecha de modificación del archivo
+                mtime = file_path.stat().st_mtime
+                if mtime < cutoff_time:
+                    file_path.unlink()
+                    deleted_count += 1
+                    log.debug(f"Backup antiguo eliminado: {file_path.name}")
+            except Exception as e:
+                log.error(f"Error al intentar eliminar el backup antiguo {file_path.name}: {e}")
 
-        Returns:
-            str: Ruta absoluta al archivo copiado en el destino.
-
-        Raises:
-            FileNotFoundError: Si ``file_path`` no existe.
-            PermissionError:   Si no hay permisos de escritura en el destino.
-            OSError:           Si hay un error de red al escribir en ruta UNC.
-        """
-        pass
-
-    def test_connection(self) -> bool:
-        """
-        Verifica que la carpeta de destino es accesible y escribible.
-
-        Intenta crear un archivo temporal ``.solba_test`` y lo elimina
-        inmediatamente para verificar permisos de escritura.
-
-        Returns:
-            bool: ``True`` si la carpeta es accesible y escribible.
-        """
-        pass
-
-    def apply_retention(self) -> list[str]:
-        """
-        Elimina backups más antiguos que ``retention_days`` días.
-
-        Busca todos los archivos en la carpeta de destino del job y elimina
-        los que tienen ``mtime`` anterior al umbral de retención.
-
-        Returns:
-            list[str]: Rutas de los archivos eliminados.
-        """
-        pass
-
-    def list_backups(self) -> list[dict]:
-        """
-        Lista todos los archivos de backup en la carpeta de destino.
-
-        Returns:
-            list[dict]: Lista de backups con name, size_bytes, created_at, id (=ruta).
-        """
-        pass
-
-    def _ensure_dest_dir(self) -> Path:
-        """
-        Crea la carpeta de destino del job si no existe.
-
-        La estructura es: ``{self._dest_path}/{self._job_name}/``
-
-        Returns:
-            Path: Ruta al directorio creado/verificado.
-
-        Raises:
-            PermissionError: Si no se pueden crear los directorios.
-        """
-        pass
+        return deleted_count

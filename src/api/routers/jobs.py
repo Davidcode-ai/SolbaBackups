@@ -29,20 +29,20 @@ def list_jobs(db: Session = Depends(get_db)):
 def create_job(job_in: models.JobCreate, db: Session = Depends(get_db)):
     """
     Crea un nuevo Job de backup.
-    
+
     Verifica que el nombre sea único antes de delegar la creación al CRUD.
     """
     existing_job = crud.job_get_by_name(db, name=job_in.name)
     if existing_job:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un Job con ese nombre."
+            detail="Ya existe un Job con ese nombre.",
         )
-    
+
     # Extraemos el diccionario del modelo Pydantic para pasarlo al CRUD
     job_data = job_in.model_dump(exclude_unset=True)
     new_job = crud.job_create(db, job_data)
-    
+
     return new_job
 
 
@@ -54,8 +54,7 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
     job = crud.job_get_by_id(db, job_id)
     if not job:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job no encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
     return job
 
@@ -69,22 +68,21 @@ def update_job(job_id: int, job_in: models.JobUpdate, db: Session = Depends(get_
     job = crud.job_get_by_id(db, job_id)
     if not job:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job no encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
-        
+
     # Verificar colisión de nombres si se está cambiando el nombre
     if job_in.name and job_in.name != job.name:
         existing = crud.job_get_by_name(db, name=job_in.name)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe otro Job con ese nombre."
+                detail="Ya existe otro Job con ese nombre.",
             )
-            
+
     job_data = job_in.model_dump(exclude_unset=True)
     updated_job = crud.job_update(db, job_id, job_data)
-    
+
     return updated_job
 
 
@@ -96,8 +94,7 @@ def delete_job(job_id: int, db: Session = Depends(get_db)):
     success = crud.job_delete(db, job_id)
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job no encontrado."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
     # 204 No Content no devuelve body
     return None
