@@ -257,12 +257,6 @@ function initJobFormValidation() {
 
     if (!form || !btnSave) return;
 
-    // ── Mostrar/ocultar campos condicionales al cambiar la frecuencia ──
-    if (scheduleType) {
-        scheduleType.addEventListener('change', () => updateScheduleFields(scheduleType.value));
-        // Estado inicial (por defecto "manual" — no muestra nada extra)
-        updateScheduleFields(scheduleType.value);
-    }
     // Botón «Cancelar edición» (se inyecta dinámicamente en setFormEditMode)
     form.addEventListener('click', (e) => {
         if (e.target.closest('#btnCancelEdit')) resetFormToCreateMode();
@@ -291,15 +285,6 @@ function initJobFormValidation() {
         }
 
         const editingId = form.dataset.editingId || null;
-
-        // ── Recoger campos de schedule ──────────────────────────────────
-        const scheduleVal = scheduleType ? scheduleType.value : 'manual';
-        const intervalMinutes = scheduleIntervalEl && scheduleVal === 'interval'
-            ? (parseInt(scheduleIntervalEl.value) || null)
-            : null;
-        const cronExpr = scheduleCronEl && scheduleVal === 'cron'
-            ? (scheduleCronEl.value.trim() || null)
-            : null;
 
         // ── Payload PLANO según esquema del backend ────────────────────────
         const jobData = {
