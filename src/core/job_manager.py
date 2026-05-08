@@ -97,8 +97,9 @@ class JobManager:
                 backup_path = Path(temp_dir_to_cleanup) / f"backup_{run_id}.zip"
                 
                 # Descargar el archivo desde Google Drive
+                import asyncio
                 print(f"DEBUG RESTORE: Descargando archivo desde Google Drive a: {backup_path}")
-                gdrive.download_file(file_id, str(backup_path))
+                asyncio.run(gdrive.download_file(file_id, str(backup_path)))
                 
                 if not backup_path.exists():
                     raise FileNotFoundError(f"No se pudo descargar el archivo desde Google Drive")
@@ -495,16 +496,30 @@ class JobManager:
                         )
 
                     # Creamos un archivo .zip con el contenido de la carpeta
-                    # shutil.make_archive agrega automáticamente la extensión .zip al base_name
                     base_name = str(dump_path.with_suffix(""))
                     archive_path_str = shutil.make_archive(base_name, "zip", src_folder)
 
-                    # Eliminamos el archivo temporal vacío (.tmp) generado por mkstemp
                     if dump_path.exists():
                         dump_path.unlink()
 
-                    # Actualizamos dump_path para que apunte al .zip real generado
                     dump_path = Path(archive_path_str)
+
+                elif job.db_type == "sync":
+                    if not job.db_name:
+                        raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
+                    src_folder = Path(job.db_name)
+                    if not src_folder.exists() or not src_folder.is_dir():
+                        raise FileNotFoundError(f"La carpeta origen {src_folder} no existe.")
+                        
+                    if dump_path.exists():
+                        dump_path.unlink()
+                        
+                    # La sincornización copia directamente a la ruta final
+                    dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
+                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta: {src_folder} -> {dest_sync_folder}", stage="dump")
+                    shutil.copytree(src_folder, dest_sync_folder, dirs_exist_ok=True)
+                    
+                    dump_path = dest_sync_folder
 
                 else:
                     raise NotImplementedError(
@@ -521,22 +536,27 @@ class JobManager:
                 )
 
                 # 4. Comprimir el Archivo
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    "Iniciando compresión en formato ZIP...",
-                    stage="compress",
-                )
-                compressed_path = self.compressor.compress(dump_path)
-                file_size = compressed_path.stat().st_size
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    f"Compresión exitosa. Tamaño final: {file_size} bytes.",
-                    stage="compress",
-                )
+                if job.db_type != "sync":
+                    history_manager.add_log(
+                        db,
+                        run.id,
+                        "INFO",
+                        "Iniciando compresión en formato ZIP...",
+                        stage="compress",
+                    )
+                    compressed_path = self.compressor.compress(dump_path)
+                    file_size = compressed_path.stat().st_size
+                    history_manager.add_log(
+                        db,
+                        run.id,
+                        "INFO",
+                        f"Compresión exitosa. Tamaño final: {file_size} bytes.",
+                        stage="compress",
+                    )
+                else:
+                    compressed_path = dump_path
+                    # Calcular el tamaño sumando archivos
+                    file_size = sum(f.stat().st_size for f in compressed_path.rglob('*') if f.is_file())
 
                 # 5. Mover a destino (Carpeta local o red) y 6. Política de retención
                 history_manager.add_log(
@@ -548,10 +568,14 @@ class JobManager:
                 )
 
                 # Formatear el nombre del archivo y renombrar el comprimido temporalmente
-                timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                final_name = f"{job.name}_{timestamp}.sql.zip"
-                final_temp_path = compressed_path.parent / final_name
-                compressed_path = compressed_path.rename(final_temp_path)
+                if job.db_type != "sync":
+                    timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                    final_name = f"{job.name}_{timestamp}.sql.zip"
+                    final_temp_path = compressed_path.parent / final_name
+                    compressed_path = compressed_path.rename(final_temp_path)
+                    final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
+                else:
+                    final_dest = str(compressed_path)
 
                 if job.dest_type == "local":
                     from src.destinations.local import LocalDestination
@@ -560,9 +584,9 @@ class JobManager:
                     dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
 
                     # Subir archivo localmente
-                    await destination.upload(compressed_path, dest_path_str)
+                    if job.db_type != "sync":
+                        await destination.upload(compressed_path, dest_path_str)
 
-                    final_dest = str(Path(dest_path_str) / final_name)
                     history_manager.add_log(
                         db,
                         run.id,
@@ -639,10 +663,11 @@ class JobManager:
                     )
 
                 # Limpieza de archivos temporales
-                if dump_path.exists():
-                    dump_path.unlink()
-                if compressed_path.exists():
-                    compressed_path.unlink()
+                if job.db_type != "sync":
+                    if dump_path.exists():
+                        dump_path.unlink()
+                    if compressed_path.exists():
+                        compressed_path.unlink()
 
                 # =====================================================================
                 # 6.5 Integración Google Drive (Opcional vía Settings)
@@ -674,16 +699,19 @@ class JobManager:
                             credentials_file=creds_path, folder_id=folder_id
                         )
 
-                        # El archivo final se lee directamente desde la ruta en la que quedó tras el volcado local
-                        drive_dest.upload(Path(final_dest))
-
-                        history_manager.add_log(
-                            db,
-                            run.id,
-                            "INFO",
-                            "✅ Subida a Google Drive completada exitosamente.",
-                            stage="cloud_upload",
-                        )
+                        if job.db_type == "sync":
+                            log.warning("Google Drive no soporta carpetas 'sync' enteras de forma nativa todavía. Omitiendo subida.")
+                        else:
+                            # El archivo final se lee directamente desde la ruta en la que quedó tras el volcado local
+                            drive_dest.upload(Path(final_dest))
+                            
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                "✅ Subida a Google Drive completada exitosamente.",
+                                stage="cloud_upload",
+                            )
                     except Exception as cloud_err:
                         # Si la nube falla, NO lanzamos la excepción hacia arriba. Es solo un aviso.
                         aviso = f"Aviso: Drive falló, pero el local está a salvo. Detalle: {str(cloud_err)}"
@@ -714,32 +742,38 @@ class JobManager:
 
                     # 8.1 Limpieza Local
                     deleted_local = GarbageCollector.clean_local_backups(
-                        local_retention
+                        local_retention, 
+                        job_name=job.name, 
+                        job_retention_days=job.dest_retention_days
                     )
                     if deleted_local > 0:
                         history_manager.add_log(
                             db,
                             run.id,
                             "INFO",
-                            f"Garbage Collector local: Eliminados {deleted_local} backups antiguos.",
+                            f"Garbage Collector local: Eliminados {deleted_local} backups antiguos del job '{job.name}'.",
                             stage="cleanup",
                         )
 
                     # 8.2 Limpieza en la Nube (si está habilitado)
-                    if is_cloud_enabled:
+                    if is_cloud_enabled and job.dest_type != "local":
                         creds_path = global_settings.get(
                             "credentials_path", "credentials.json"
                         )
                         folder_id = global_settings.get("drive_folder_id", None)
                         deleted_cloud = GarbageCollector.clean_cloud_backups(
-                            cloud_retention, creds_path, folder_id
+                            cloud_retention, 
+                            creds_path, 
+                            folder_id,
+                            job_name=job.name,
+                            job_retention_days=job.dest_retention_days
                         )
                         if deleted_cloud > 0:
                             history_manager.add_log(
                                 db,
                                 run.id,
                                 "INFO",
-                                f"Garbage Collector nube: Eliminados {deleted_cloud} backups antiguos.",
+                                f"Garbage Collector nube: Eliminados {deleted_cloud} backups antiguos del job '{job.name}'.",
                                 stage="cleanup",
                             )
 

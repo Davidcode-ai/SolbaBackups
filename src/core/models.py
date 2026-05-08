@@ -42,9 +42,7 @@ class JobBase(BaseModel):
     dest_local_path: str | None = None
     dest_retention_days: int | None = Field(None, description="Días de retención")
     dest_gdrive_folder_id: str | None = None
-    
-    # Retención específica
-    retention_days: int | None = Field(None, description="Días de retención específicos para el Job")
+
     
     # Programación (Schedule) plana
     schedule_type: Optional[str] = None

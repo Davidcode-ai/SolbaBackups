@@ -118,12 +118,6 @@ class Job(Base):
         comment="JSON de credenciales OAuth2 de Google Drive"
     )
     
-    # ── Retención Específica ──────────────────────────────────────────────
-    retention_days: Mapped[int | None] = mapped_column(
-        Integer, nullable=True,
-        comment="Días de retención específicos para este Job (anula global)"
-    )
-
     # ── Schedule ──────────────────────────────────────────────────────────
     schedule_type: Mapped[str | None] = mapped_column(
         String(20), nullable=True,
