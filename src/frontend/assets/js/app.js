@@ -2,32 +2,88 @@
  * app.js - Lógica principal de la UI para SolbaBackups
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Obtener Jobs y pintar pantalla central
-    loadJobs();
+let isFormDirty = false; // Estado para saber si hay cambios sin guardar
 
-    // 2. Obtener Historial y pintar panel derecho
-    loadHistory();
+document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializar Tema Claro/Oscuro
+    initTheme();
 
-    // 3. Inicializar validación del formulario
+    // 0. Cargar configuración inicial (como el idioma) de forma bloqueante
+    await loadInitialSettings();
+
+    // 1. Autodescubrimiento
+    await loadDiscovery();
+
+    // 2. Obtener Jobs y pintar pantalla central
+    await loadJobs();
+
+    // 3. Obtener Historial y pintar panel derecho
+    await loadHistory();
+    
+    // Aplicar traducción de nuevo por si se generó contenido dinámico en español
+    const langSelect = document.getElementById('s-language');
+    if (langSelect && langSelect.value !== 'es') {
+        applyTranslations(langSelect.value);
+    }
+
+    // 4. Inicializar validación del formulario
     initJobFormValidation();
 
-    // 4. Iniciar polling (Radar) silencioso
+    // 5. Iniciar polling (Radar) silencioso
     setupPolling();
 
-    // 5. Inicializar el Visor de Logs (modal terminal)
+    // 6. Inicializar el Visor de Logs (modal terminal)
     initLogViewer();
 
-    // 6. Inicializar el modal de Ajustes Globales
+    // 7. Inicializar el modal de Ajustes Globales
     initSettingsModal();
+
+    // 8. Chequear estado de Google Drive
+    checkGoogleDriveStatus();
 });
+
+async function loadInitialSettings() {
+    try {
+        const result = await api.getSettings();
+        if (result && result.settings && result.settings.language) {
+            applyTranslations(result.settings.language);
+            const langSelect = document.getElementById('s-language');
+            if (langSelect) langSelect.value = result.settings.language;
+        }
+    } catch (e) {
+        console.error("Error cargando configuración inicial:", e);
+    }
+}
+
+/**
+ * Inicializa el tema leyendo localStorage y asigna el evento al botón
+ */
+function initTheme() {
+    const themeBtn = document.getElementById('themeToggleBtn');
+    if (!themeBtn) return;
+
+    // Leer de localStorage o sistema por defecto
+    const isDark = localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    
+    if (isDark) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+
+    themeBtn.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        const isNowDark = document.documentElement.classList.contains('dark');
+        localStorage.theme = isNowDark ? 'dark' : 'light';
+    });
+}
 
 /**
  * Carga la lista de Jobs desde la API y los renderiza en la pantalla central.
  * Incluye botones de Ejecutar, Editar y Borrar en cada tarjeta.
  */
 async function loadJobs(isSilent = false) {
-    const container = document.getElementById('jobs-container');
+    const container = document.getElementById('sidebar-jobs-container');
     if (!container) return;
 
     try {
@@ -35,76 +91,66 @@ async function loadJobs(isSilent = false) {
         container.innerHTML = '';
 
         if (jobs.length === 0) {
-            container.innerHTML = '<p class="text-slate-400">No hay jobs configurados.</p>';
+            container.innerHTML = '<p class="px-3 text-xs text-slate-500 italic">No hay jobs configurados.</p>';
             return;
         }
 
         jobs.forEach(job => {
             const jobId = job._id || job.id || job.job_id;
 
-            const jobCard = document.createElement('div');
-            jobCard.className = 'bg-surface-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 group';
-            jobCard.dataset.jobId = jobId;
+            const jobBtn = document.createElement('div');
+            jobBtn.className = 'w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-800 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent';
+            jobBtn.dataset.jobId = jobId;
 
-            jobCard.innerHTML = `
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-3 mb-1">
-                        <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-400 flex items-center justify-center shrink-0">
-                            <i class="fa-solid fa-server"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold text-white truncate">${job.name || 'Job sin nombre'}</h3>
+            let iconClass = "fa-solid fa-server";
+            if(job.db_type === 'folder') iconClass = "fa-solid fa-folder-tree";
+            else if(job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
+
+            jobBtn.innerHTML = `
+                <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer btn-edit-job" 
+                    data-id="${jobId}"
+                    data-name="${job.name || ''}"
+                    data-description="${job.description || ''}"
+                    data-schedule="${job.schedule_type || 'manual'}"
+                    data-schedule-interval="${job.schedule_interval_minutes || ''}"
+                    data-schedule-cron="${job.schedule_cron || ''}"
+                    data-db-type="${job.db_type || ''}"
+                    data-db-host="${job.db_host || ''}"
+                    data-db-port="${job.db_port || ''}"
+                    data-db-name="${job.db_name || ''}"
+                    data-db-user="${job.db_user || ''}"
+                    data-dest-type="${job.dest_type || 'local'}"
+                    data-dest-local-path="${job.dest_local_path || ''}"
+                    data-dest-gdrive-folder-id="${job.dest_gdrive_folder_id || ''}"
+                    data-dest-gdrive-folder-name="${job.dest_gdrive_folder_name || ''}">
+                    <i class="${iconClass} w-4 text-center group-hover:text-brand-400 transition-colors"></i>
+                    <div class="flex-1 truncate">
+                        <p class="text-sm font-medium group-hover:text-brand-400 transition-colors">${job.name || 'Job sin nombre'}</p>
+                        <p class="text-[10px] text-slate-500 truncate">${job.db_type} • ${job.schedule_type || 'manual'}</p>
                     </div>
-                    <p class="text-sm text-slate-400 mt-2">
-                        ${job.description || 'Sin descripción'} &bull; Schedule: <span class="text-slate-300">${job.schedule || 'Manual'}</span>
-                    </p>
                 </div>
-
-                <!-- Grupo de acciones -->
-                <div class="flex items-center gap-2 shrink-0">
-                    <!-- Ejecutar -->
-                    <button class="btn-ejecutar bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-1.5"
-                            data-id="${jobId}" title="Ejecutar ahora">
-                        <i class="fa-solid fa-play"></i>
-                        <span>Ejecutar</span>
+                
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="Ejecutar">
+                        <i class="fa-solid fa-play text-[10px]"></i>
                     </button>
-
-                    <!-- Editar -->
-                    <button class="btn-edit-job w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 bg-surface-800 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/50 transition-colors"
-                            data-id="${jobId}"
-                            data-name="${job.name || ''}"
-                            data-description="${job.description || ''}"
-                            data-schedule="${job.schedule_type || 'manual'}"
-                            data-db-type="${job.db_type || ''}"
-                            data-db-host="${job.db_host || ''}"
-                            data-db-port="${job.db_port || ''}"
-                            data-db-name="${job.db_name || ''}"
-                            data-db-user="${job.db_user || ''}"
-                            title="Editar Job">
-                        <i class="fa-solid fa-pen text-xs"></i>
-                    </button>
-
-                    <!-- Borrar -->
-                    <button class="btn-delete-job w-9 h-9 flex items-center justify-center rounded-lg border border-slate-700 bg-surface-800 text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-colors"
-                            data-id="${jobId}"
-                            data-name="${job.name || 'este job'}"
-                            title="Eliminar Job">
-                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    <button class="btn-delete-job w-6 h-6 flex items-center justify-center rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors" data-id="${jobId}" title="Borrar">
+                        <i class="fa-solid fa-trash-can text-[10px]"></i>
                     </button>
                 </div>
             `;
 
-            // Asignar listeners directamente al elemento (evita problemas con re-renders)
-            jobCard.querySelector('.btn-ejecutar').addEventListener('click', handleRunJob);
-            jobCard.querySelector('.btn-edit-job').addEventListener('click', handleEditJob);
-            jobCard.querySelector('.btn-delete-job').addEventListener('click', handleDeleteJob);
+            jobBtn.querySelector('.btn-ejecutar').addEventListener('click', handleRunJob);
+            jobBtn.querySelector('.btn-edit-job').addEventListener('click', handleEditJob);
+            jobBtn.querySelector('.btn-delete-job').addEventListener('click', handleDeleteJob);
 
-            container.appendChild(jobCard);
+            container.appendChild(jobBtn);
         });
 
     } catch (error) {
         if (!isSilent) {
             console.error('Error cargando los jobs:', error);
-            container.innerHTML = '<p class="text-red-400">Error al cargar los jobs. Revisa la consola.</p>';
+            container.innerHTML = '<p class="px-3 text-xs text-red-400">Error cargando jobs.</p>';
         }
     }
 }
@@ -113,25 +159,20 @@ async function loadJobs(isSilent = false) {
  * Maneja el clic en el botón de Ejecutar.
  */
 async function handleRunJob(event) {
+    event.stopPropagation(); // Evitar que dispare el modo edición
     const button = event.currentTarget;
     const jobId = button.dataset.id;
     const icon = button.querySelector('i');
-    const textSpan = button.querySelector('span');
 
     // Deshabilitar botón y mostrar 'Ejecutando...'
     button.disabled = true;
-    button.classList.add('opacity-70', 'cursor-not-allowed');
-    icon.className = 'fa-solid fa-spinner fa-spin mr-1.5';
-    textSpan.textContent = 'Ejecutando...';
+    button.classList.add('opacity-50', 'cursor-not-allowed');
+    icon.className = 'fa-solid fa-spinner fa-spin text-[10px]';
 
     try {
         // Llama al endpoint de ejecución manual
         await api.runJob(jobId);
-
-        // Alerta de éxito
         showToast(`¡Job ${jobId} ejecutado con éxito!`, 'success');
-
-        // Refrescar el historial para ver la nueva ejecución
         loadHistory();
 
     } catch (error) {
@@ -140,9 +181,8 @@ async function handleRunJob(event) {
     } finally {
         // Restaurar estado del botón
         button.disabled = false;
-        button.classList.remove('opacity-70', 'cursor-not-allowed');
-        icon.className = 'fa-solid fa-play mr-1.5';
-        textSpan.textContent = 'Ejecutar';
+        button.classList.remove('opacity-50', 'cursor-not-allowed');
+        icon.className = 'fa-solid fa-play text-[10px]';
     }
 }
 
@@ -166,7 +206,7 @@ async function loadHistory(isSilent = false) {
 
         // Pintamos cada registro del historial
         historyData.forEach(record => {
-            const isSuccess = record.status === 'SUCCESS';
+            const isSuccess = (record.status || '').toUpperCase() === 'SUCCESS';
 
             // Clases dinámicas dependiendo del estado
             const statusClass = isSuccess
@@ -174,56 +214,48 @@ async function loadHistory(isSilent = false) {
                 : 'bg-red-500/10 text-red-400 border-red-500/20';
 
             const borderClass = isSuccess
-                ? 'border-slate-700 hover:border-brand-500'
+                ? 'border-slate-300 dark:border-slate-700 hover:border-brand-500'
                 : 'border-red-500/30 hover:border-red-500';
 
             // Formatear la fecha
             const dateObj = new Date(record.timestamp || record.end_time || Date.now());
             const dateStr = dateObj.toLocaleString();
 
-            // El ID del run puede ser _id, id, run_id o el que devuelva el backend
             const runId = record._id || record.id || record.run_id || null;
 
             const historyItem = document.createElement('div');
-            historyItem.className = `bg-surface-800 border rounded-lg p-3 cursor-pointer transition-colors ${borderClass}`;
+            historyItem.className = `bg-slate-50 dark:bg-surface-800 border rounded-lg p-3 cursor-pointer transition-colors ${borderClass}`;
             if (runId) historyItem.dataset.runId = runId;
 
             historyItem.innerHTML = `
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-slate-300">${dateStr}</span>
+                    <span class="text-xs font-semibold text-slate-500 dark:text-slate-300">${dateStr}</span>
                     <div class="flex items-center gap-2">
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold ${statusClass} border uppercase tracking-wide">
                             ${record.status}
                         </span>
-                        ${runId ? `
-                        <button class="btn-view-logs w-6 h-6 flex items-center justify-center rounded text-slate-500 hover:text-green-400 hover:bg-green-500/10 transition-colors" 
-                                data-run-id="${runId}" 
-                                title="Ver logs de esta ejecución">
-                            <i class="fa-solid fa-terminal text-[10px]"></i>
-                        </button>` : ''}
                     </div>
                 </div>
-                <div class="flex items-center gap-4 text-xs text-slate-400">
+                <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                     <div class="flex items-center gap-1.5">
                         <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
                     </div>
                 </div>
                 ${!isSuccess && record.error_message ? `<p class="text-[11px] text-red-400 truncate mt-2">Error: ${record.error_message}</p>` : ''}
             `;
-
-            // Clic en el ítem completo -> abrir logs
+            
+            // Clic en el ítem completo -> cargar terminal
             historyItem.addEventListener('click', (e) => {
-                // Evitar doble disparo si se hizo clic en el botón interno
                 if (e.target.closest('.btn-view-logs')) return;
-                if (runId) openLogViewer(runId, dateStr);
+                loadTerminalLogs(runId);
             });
-
-            // Clic en el botón de terminal también abre el modal
+            
+            // Si el html sigue teniendo el botón interno de vista, lo asociamos a un modal grande
             const logBtn = historyItem.querySelector('.btn-view-logs');
             if (logBtn) {
                 logBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    openLogViewer(runId, dateStr);
+                    if (runId) openLogViewer(runId, dateStr);
                 });
             }
 
@@ -254,12 +286,107 @@ function initJobFormValidation() {
     const dbName = document.getElementById('dbName');
     const dbUser = document.getElementById('dbUser');
     const dbPassword = document.getElementById('dbPassword');
+    
+    // Destinos
+    const destType = document.getElementById('destType');
+    const destLocalPath = document.getElementById('destLocalPath');
+    const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+    const destLocalPathContainer = document.getElementById('destLocalPathContainer');
+    const destGDriveContainer = document.getElementById('destGDriveContainer');
+    const dbFilePathContainer = document.getElementById('dbFilePathContainer');
+    const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
+    const networkDetails = document.querySelector('details.group');
+    const dbFilePath = document.getElementById('dbFilePath');
+    
+    // Marcar el formulario como "dirty" cuando algo cambie
+    form.addEventListener('input', () => { isFormDirty = true; });
+    form.addEventListener('change', () => { isFormDirty = true; });
+
+    // Botón "Nuevo Job" de la sidebar
+    const btnNewJobSidebar = document.getElementById('btnNewJobSidebar');
+    if (btnNewJobSidebar) {
+        btnNewJobSidebar.addEventListener('click', () => {
+            if (isFormDirty) {
+                const confirmDiscard = confirm("Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos y crear un nuevo Job?");
+                if (!confirmDiscard) return;
+            }
+            
+            // Limpiar formulario y estado
+            resetFormToCreateMode();
+        });
+    }
+    // Elementos de programación
+    const scheduleIntervalContainer = document.getElementById('scheduleIntervalContainer');
+    const scheduleCronContainer = document.getElementById('scheduleCronContainer');
+    const scheduleTimeContainer = document.getElementById('scheduleTimeContainer');
+    const scheduleDayOfWeekContainer = document.getElementById('scheduleDayOfWeekContainer');
+    const scheduleDayOfMonthContainer = document.getElementById('scheduleDayOfMonthContainer');
+    const jobScheduleInterval = document.getElementById('jobScheduleInterval');
+    const jobScheduleCron = document.getElementById('jobScheduleCron');
+    const jobScheduleTime = document.getElementById('jobScheduleTime');
+    const jobScheduleDayOfWeek = document.getElementById('jobScheduleDayOfWeek');
+    const jobScheduleDayOfMonth = document.getElementById('jobScheduleDayOfMonth');
 
     if (!form || !btnSave) return;
 
+    // Listener para Programación
+    if (jobSched) {
+        jobSched.addEventListener('change', () => {
+            const s = jobSched.value;
+            [scheduleIntervalContainer, scheduleCronContainer, scheduleTimeContainer, 
+             scheduleDayOfWeekContainer, scheduleDayOfMonthContainer].forEach(el => {
+                if(el) el.classList.add('hidden');
+            });
+            
+            if (s === 'interval' && scheduleIntervalContainer) scheduleIntervalContainer.classList.remove('hidden');
+            else if (s === 'cron' && scheduleCronContainer) scheduleCronContainer.classList.remove('hidden');
+            else if (s === 'daily' && scheduleTimeContainer) scheduleTimeContainer.classList.remove('hidden');
+            else if (s === 'weekly') {
+                if (scheduleTimeContainer) scheduleTimeContainer.classList.remove('hidden');
+                if (scheduleDayOfWeekContainer) scheduleDayOfWeekContainer.classList.remove('hidden');
+            }
+            else if (s === 'monthly') {
+                if (scheduleTimeContainer) scheduleTimeContainer.classList.remove('hidden');
+                if (scheduleDayOfMonthContainer) scheduleDayOfMonthContainer.classList.remove('hidden');
+            }
+        });
+    }
+
+    // Listener para Tipo de BD
+    if (dbType) {
+        dbType.addEventListener('change', () => {
+            const t = dbType.value;
+            if (t === 'sqlite' || t === 'folder' || t === 'mdb') {
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+                if (networkDetails) networkDetails.classList.add('hidden');
+                if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
+            } else {
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
+                if (networkDetails) networkDetails.classList.remove('hidden');
+                if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    // Listener para Destinos
+    if (destType && destLocalPathContainer && destGDriveContainer) {
+        destType.addEventListener('change', () => {
+            if (destType.value === 'google_drive') {
+                destLocalPathContainer.classList.add('hidden');
+                destGDriveContainer.classList.remove('hidden');
+            } else {
+                destLocalPathContainer.classList.remove('hidden');
+                destGDriveContainer.classList.add('hidden');
+            }
+        });
+    }
+
     // Botón «Cancelar edición» (se inyecta dinámicamente en setFormEditMode)
     form.addEventListener('click', (e) => {
-        if (e.target.closest('#btnCancelEdit')) resetFormToCreateMode();
+        if (e.target.closest('#btnCancelEdit')) {
+            isFormDirty = false;
+            resetFormToCreateMode();
+        }
     });
 
     btnSave.addEventListener('click', async (e) => {
@@ -285,21 +412,69 @@ function initJobFormValidation() {
         }
 
         const editingId = form.dataset.editingId || null;
+        
+        let finalDbName = dbName ? dbName.value.trim() || null : null;
+        if (dbType.value === 'sqlite' || dbType.value === 'folder' || dbType.value === 'mdb') {
+            const dbFilePathEl = document.getElementById('dbFilePath');
+            const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
+            if (!pathValue) {
+                alert('Debes especificar la ruta absoluta del archivo/carpeta');
+                btnSave.classList.add('animate-shake');
+                setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+                return;
+            }
+            finalDbName = pathValue;
+        }
 
         // ── Payload PLANO según esquema del backend ────────────────────────
+        // Construir lógica de Schedule y convertir visual a Cron si es necesario
+        let finalScheduleType = jobSched ? jobSched.value : 'manual';
+        let finalCron = jobScheduleCron ? jobScheduleCron.value.trim() || null : null;
+        let finalInterval = jobScheduleInterval ? parseInt(jobScheduleInterval.value) || null : null;
+
+        if (finalScheduleType === 'daily' || finalScheduleType === 'weekly' || finalScheduleType === 'monthly') {
+            const timeVal = jobScheduleTime ? jobScheduleTime.value : '';
+            const [hourStr, minStr] = timeVal ? timeVal.split(':') : ['02', '00'];
+            const hour = parseInt(hourStr) || 0;
+            const min = parseInt(minStr) || 0;
+
+            if (finalScheduleType === 'daily') {
+                finalCron = `${min} ${hour} * * *`;
+            } else if (finalScheduleType === 'weekly') {
+                const dow = jobScheduleDayOfWeek ? jobScheduleDayOfWeek.value : '0';
+                finalCron = `${min} ${hour} * * ${dow}`;
+            } else if (finalScheduleType === 'monthly') {
+                const dom = jobScheduleDayOfMonth ? jobScheduleDayOfMonth.value : '1';
+                finalCron = `${min} ${hour} ${dom} * *`;
+            }
+            finalScheduleType = 'cron'; // El backend procesa el custom cron exacto
+            finalInterval = null;
+        }
+
         const jobData = {
             name: jobName.value.trim(),
             description: jobDesc ? jobDesc.value.trim() || null : null,
             db_type: dbType.value || 'postgresql',
             db_host: dbHost ? dbHost.value.trim() || null : null,
             db_port: dbPort ? parseInt(dbPort.value) || null : null,
-            db_name: dbName ? dbName.value.trim() || null : null,
+            db_name: finalDbName,
             db_user: dbUser ? dbUser.value.trim() || null : null,
             db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
-            schedule: jobSched ? jobSched.value : 'manual',
+            schedule: finalScheduleType,
+            schedule_interval_minutes: finalInterval,
+            schedule_cron: finalCron,
+            dest_type: destType ? destType.value : 'local',
+            dest_local_path: destLocalPath && destLocalPath.value.trim() ? destLocalPath.value.trim() : null,
+            dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
         };
         // Limpiar claves con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
+
+        // [PARCHE DE FUERZA BRUTA] - Asegurar el db_type según la UI visual
+        const activeCard = document.querySelector('.discovery-card.border-brand-500');
+        if (activeCard && activeCard.dataset.engine === 'folder') {
+            jobData.db_type = 'folder';
+        }
 
         btnSave.disabled = true;
         btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
@@ -324,6 +499,7 @@ function initJobFormValidation() {
             btnSave.innerHTML = editingId
                 ? '<i class="fa-solid fa-floppy-disk"></i> Actualizar Job'
                 : '<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración';
+            isFormDirty = false; // Reset de dirty al guardar con éxito (o error, pero asume flow completo)
         }
     });
 }
@@ -333,6 +509,11 @@ function initJobFormValidation() {
  * @param {Event} event
  */
 function handleEditJob(event) {
+    if (isFormDirty) {
+        const confirmDiscard = confirm("Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos para editar este Job?");
+        if (!confirmDiscard) return;
+    }
+
     const btn = event.currentTarget;
     const id = btn.dataset.id;
     const name = btn.dataset.name;
@@ -346,6 +527,11 @@ function handleEditJob(event) {
         db_user: btn.dataset.dbUser || '',
         description: btn.dataset.description || '',
         schedule_type: btn.dataset.schedule || 'manual',
+        schedule_interval_minutes: btn.dataset.scheduleInterval || '',
+        schedule_cron: btn.dataset.scheduleCron || '',
+        dest_type: btn.dataset.destType || 'local',
+        dest_local_path: btn.dataset.destLocalPath || '',
+        dest_gdrive_folder_id: btn.dataset.destGdriveFolderId || '',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -374,13 +560,12 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     const form = document.getElementById('createJobForm');
     const jobName = document.getElementById('jobName');
     const dbType = document.getElementById('dbType');
+    const jobDesc = document.getElementById('jobDescription');
+    const jobSched = document.getElementById('jobSchedule');
     const dbHost = document.getElementById('dbHost');
     const dbPort = document.getElementById('dbPort');
     const dbName = document.getElementById('dbName');
     const dbUser = document.getElementById('dbUser');
-    const scheduleType = document.getElementById('scheduleType');
-    const scheduleIntervalEl = document.getElementById('scheduleIntervalMinutes');
-    const scheduleCronEl = document.getElementById('scheduleCron');
     const btnSave = document.getElementById('btnSaveJob');
     const heading = form ? form.querySelector('h3') : null;
 
@@ -396,16 +581,72 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (jobSched) jobSched.value = extra.schedule_type || 'manual';
     if (dbHost) dbHost.value = extra.db_host || '';
     if (dbPort) dbPort.value = extra.db_port || '';
-    if (dbName) dbName.value = extra.db_name || '';
     if (dbUser) dbUser.value = extra.db_user || '';
     // La contraseña NO se precarga por seguridad
 
-    // Rellenar y mostrar/ocultar los campos de schedule
-    const schedVal = schedule || 'manual';
-    if (scheduleType) scheduleType.value = schedVal;
-    if (scheduleIntervalEl) scheduleIntervalEl.value = extra.schedule_interval_minutes || '';
-    if (scheduleCronEl) scheduleCronEl.value = extra.schedule_cron || '';
-    updateScheduleFields(schedVal);
+    // Poblar correctamente dbName o dbFilePath según el tipo
+    const dbFilePathEl = document.getElementById('dbFilePath');
+    if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb') {
+        if (dbFilePathEl) dbFilePathEl.value = extra.db_name || '';
+        if (dbName) dbName.value = ''; // limpiar el de red
+    } else {
+        if (dbName) dbName.value = extra.db_name || '';
+        if (dbFilePathEl) dbFilePathEl.value = ''; // limpiar el de fichero
+    }
+
+    // Decodificar el cron a formato visual (reverse parse)
+    let displaySchedule = schedule || 'manual';
+    let displayCron = extra.schedule_cron || '';
+    let displayTime = '';
+    let displayDow = '';
+    let displayDom = '';
+
+    if (displaySchedule === 'cron' && displayCron) {
+        const parts = displayCron.split(' ');
+        if (parts.length === 5) {
+            const [min, hour, dom, mon, dow] = parts;
+            if (dom === '*' && mon === '*' && dow === '*') {
+                displaySchedule = 'daily';
+                displayTime = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+            } else if (dom === '*' && mon === '*' && dow !== '*') {
+                displaySchedule = 'weekly';
+                displayTime = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+                displayDow = dow;
+            } else if (dom !== '*' && mon === '*' && dow === '*') {
+                displaySchedule = 'monthly';
+                displayTime = `${hour.padStart(2, '0')}:${min.padStart(2, '0')}`;
+                displayDom = dom;
+            }
+        }
+    }
+
+    // Rellenar campo de programación
+    if (jobSched) jobSched.value = displaySchedule;
+    
+    const jobScheduleInterval = document.getElementById('jobScheduleInterval');
+    const jobScheduleCron = document.getElementById('jobScheduleCron');
+    const jobScheduleTime = document.getElementById('jobScheduleTime');
+    const jobScheduleDayOfWeek = document.getElementById('jobScheduleDayOfWeek');
+    const jobScheduleDayOfMonth = document.getElementById('jobScheduleDayOfMonth');
+
+    if (jobScheduleInterval) jobScheduleInterval.value = extra.schedule_interval_minutes || '';
+    if (jobScheduleCron) jobScheduleCron.value = displaySchedule === 'cron' ? displayCron : '';
+    if (jobScheduleTime && displayTime) jobScheduleTime.value = displayTime;
+    if (jobScheduleDayOfWeek && displayDow) jobScheduleDayOfWeek.value = displayDow;
+    if (jobScheduleDayOfMonth && displayDom) jobScheduleDayOfMonth.value = displayDom;
+
+    // Rellenar Destinos
+    const destType = document.getElementById('destType');
+    const destLocalPath = document.getElementById('destLocalPath');
+    const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+    if (destType) destType.value = extra.dest_type || 'local';
+    if (destLocalPath) destLocalPath.value = extra.dest_local_path || '';
+    if (destGDriveFolderId) destGDriveFolderId.value = extra.dest_gdrive_folder_id || '';
+    
+    // Disparar eventos para ocultar/mostrar secciones de destino, programación y base de datos
+    if (dbType) dbType.dispatchEvent(new Event('change'));
+    if (destType) destType.dispatchEvent(new Event('change'));
+    if (jobSched) jobSched.dispatchEvent(new Event('change'));
 
     // Cambiar título con badge
     if (heading) {
@@ -429,7 +670,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
         const cancelBtn = document.createElement('button');
         cancelBtn.id = 'btnCancelEdit';
         cancelBtn.type = 'button';
-        cancelBtn.className = 'ml-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-600 text-slate-300 hover:bg-surface-800 transition-colors';
+        cancelBtn.className = 'ml-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-800 transition-colors';
         cancelBtn.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Cancelar';
         btnSave.parentElement.appendChild(cancelBtn);
     }
@@ -464,20 +705,14 @@ function resetFormToCreateMode() {
     if (cancelBtn) cancelBtn.remove();
     const badge = form.querySelector('#edit-mode-badge');
     if (badge) badge.remove();
+    
+    // Limpiar selección visual (Discovery)
+    document.querySelectorAll('.discovery-card').forEach(c => {
+        c.classList.remove('border-brand-500', 'bg-brand-500/10', 'dark:bg-brand-500/10', 'bg-brand-500/5');
+        c.classList.add('border-slate-300', 'dark:border-slate-700', 'bg-white', 'dark:bg-surface-950');
+    });
 
-    // Ocultar campos condicionales del schedule
-    updateScheduleFields('manual');
-}
-
-/**
- * Muestra u oculta los campos condicionales de Schedule según el tipo elegido.
- * @param {string} value - Valor del select scheduleType
- */
-function updateScheduleFields(value) {
-    const intervalWrap = document.getElementById('scheduleIntervalWrap');
-    const cronWrap = document.getElementById('scheduleCronWrap');
-    if (intervalWrap) intervalWrap.classList.toggle('hidden', value !== 'interval');
-    if (cronWrap) cronWrap.classList.toggle('hidden', value !== 'cron');
+    isFormDirty = false;
 }
 
 /**
@@ -562,7 +797,7 @@ function showError(inputElement, message) {
 
     // Crear el elemento del mensaje de error
     const errorText = document.createElement('div');
-    errorText.className = 'error-message';
+    errorText.className = 'error-message text-red-500 text-xs mt-1';
     // Le añadimos un pequeño icono de alerta
     errorText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${message}`;
 
@@ -612,11 +847,13 @@ function showToast(message, type = 'success') {
     if (!container) return;
 
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
+    toast.className = `toast toast-${type} bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white border shadow-lg`;
+    if(type === 'success') toast.classList.add('border-green-500');
+    else toast.classList.add('border-red-500');
 
     const icon = type === 'success'
-        ? '<i class="fa-solid fa-circle-check text-lg"></i>'
-        : '<i class="fa-solid fa-circle-exclamation text-lg"></i>';
+        ? '<i class="fa-solid fa-circle-check text-lg text-green-500"></i>'
+        : '<i class="fa-solid fa-circle-exclamation text-lg text-red-500"></i>';
 
     toast.innerHTML = `
         ${icon}
@@ -685,7 +922,7 @@ async function openLogViewer(runId, dateStr = '') {
     output.innerHTML = [
         '<div id="log-modal-loader">',
         '  <span class="terminal-cursor"></span>',
-        '  <span>Cargando logs...</span>',
+        '  <span class="text-slate-600 dark:text-slate-400">Cargando logs...</span>',
         '</div>'
     ].join('');
 
@@ -703,9 +940,9 @@ async function openLogViewer(runId, dateStr = '') {
     } catch (error) {
         console.error('Error al cargar los logs:', error);
         output.innerHTML = [
-            '<span class="log-line-error">[ERROR] No se pudieron cargar los logs.</span>\n',
-            `<span class="log-line-error">Detalle: ${escapeHtml(String(error.message))}</span>\n`,
-            '<span class="log-line-default">Verifica que el endpoint GET /api/v1/history/{runId}/logs esté disponible.</span>'
+            '<span class="log-line-error text-red-500">[ERROR] No se pudieron cargar los logs.</span>\n',
+            `<span class="log-line-error text-red-500">Detalle: ${escapeHtml(String(error.message))}</span>\n`,
+            '<span class="log-line-default text-slate-600 dark:text-slate-400">Verifica que el endpoint GET /api/v1/history/{runId}/logs esté disponible.</span>'
         ].join('');
     }
 }
@@ -729,10 +966,10 @@ function renderLogs(outputEl, rawLogs) {
     // Normalizar a array de líneas
     const lines = Array.isArray(rawLogs)
         ? rawLogs
-        : String(rawLogs).split('\n');
+        : String(rawLogs).split('\\n');
 
     if (lines.length === 0 || (lines.length === 1 && lines[0].trim() === '')) {
-        outputEl.innerHTML = '<span class="log-line-default">(sin logs disponibles)</span>';
+        outputEl.innerHTML = '<span class="log-line-default text-slate-600 dark:text-slate-400">(sin logs disponibles)</span>';
         return;
     }
 
@@ -741,12 +978,12 @@ function renderLogs(outputEl, rawLogs) {
         const safe = escapeHtml(line);
         const upper = line.toUpperCase();
 
-        if (upper.includes('[SUCCESS]') || upper.includes('SUCCESS')) return `<span class="log-line-success">${safe}</span>`;
-        if (upper.includes('[ERROR]') || upper.includes('ERROR')) return `<span class="log-line-error">${safe}</span>`;
-        if (upper.includes('[WARN]') || upper.includes('WARNING')) return `<span class="log-line-warn">${safe}</span>`;
-        if (upper.includes('[INFO]') || upper.includes('[DEBUG]')) return `<span class="log-line-info">${safe}</span>`;
-        return `<span class="log-line-default">${safe}</span>`;
-    }).join('\n');
+        if (upper.includes('[SUCCESS]') || upper.includes('SUCCESS')) return `<span class="text-green-500 font-medium">${safe}</span>`;
+        if (upper.includes('[ERROR]') || upper.includes('ERROR')) return `<span class="text-red-500 font-medium">${safe}</span>`;
+        if (upper.includes('[WARN]') || upper.includes('WARNING')) return `<span class="text-yellow-500 font-medium">${safe}</span>`;
+        if (upper.includes('[INFO]') || upper.includes('[DEBUG]')) return `<span class="text-brand-500 font-medium">${safe}</span>`;
+        return `<span class="text-slate-600 dark:text-slate-400">${safe}</span>`;
+    }).join('\\n');
 
     // Hacer scroll hasta el final (como una terminal real)
     const body = document.getElementById('log-modal-body');
@@ -784,6 +1021,17 @@ function initSettingsModal() {
 
     if (!backdrop) return; // El modal no está en el DOM — salir silenciosamente
 
+    // Rellenar zona horaria actual automáticamente si no tiene valor
+    const tzSelect = document.getElementById('s-timezone');
+    if (tzSelect) {
+        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        tzSelect.innerHTML = `<option value="${userTz}">${userTz}</option>`;
+        tzSelect.value = userTz;
+        tzSelect.setAttribute('readonly', 'true');
+        tzSelect.style.pointerEvents = 'none';
+        tzSelect.classList.add('bg-slate-100', 'dark:bg-slate-800', 'opacity-80');
+    }
+
     // ── Abrir modal ───────────────────────────────────────────
     if (openBtn) openBtn.addEventListener('click', openSettingsModal);
 
@@ -808,7 +1056,44 @@ function initSettingsModal() {
     });
 
     // ── Guardar ajustes ────────────────────────────────────
-    if (saveBtn) saveBtn.addEventListener('click', handleSaveSettings);
+    if (saveBtn) saveBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleSaveSettings(false);
+    });
+
+    // ── Enviar Email de Prueba ──────────────────────────────
+    const btnTestEmail = document.getElementById('btnTestEmail');
+    if (btnTestEmail) {
+        btnTestEmail.addEventListener('click', async (e) => {
+            e.preventDefault();
+            
+            // Requerido por el usuario: Mostrar alert
+            alert('Enviando correo de prueba. Por favor espera...');
+            
+            btnTestEmail.disabled = true;
+            const originalHtml = btnTestEmail.innerHTML;
+            btnTestEmail.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
+            try {
+                // Guardar antes por si ha cambiado el email en la interfaz
+                await handleSaveSettings(true); 
+                
+                const response = await fetch('/api/v1/settings/test-email', { method: 'POST' });
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert('ÉXITO: ' + result.message);
+                } else {
+                    alert('ERROR: ' + (result.message || result.detail || 'Fallo desconocido al enviar email'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('ERROR CRÍTICO: No se pudo contactar con el servidor. Revisa la consola.');
+            } finally {
+                btnTestEmail.disabled = false;
+                btnTestEmail.innerHTML = originalHtml;
+            }
+        });
+    }
 }
 
 /**
@@ -874,9 +1159,9 @@ function populateSettingsForm(s) {
     };
 
     // ── General ───────────────────────────────────────────
-    set('s-app-name', s.app_name);
+    set('s-language', s.language || 'es');
     set('s-admin-email', s.admin_email);
-    set('s-timezone', s.timezone);
+    // set('s-timezone', s.timezone); // Se detecta localmente ahora
     set('s-notify-email', s.notify_email);
     set('s-notify-errors-only', s.notify_errors_only);
     set('s-log-retention', s.log_retention_days);
@@ -894,7 +1179,7 @@ function populateSettingsForm(s) {
  * Recoge todos los valores del formulario y los envía al backend.
  * El payload sigue el esquema de claves que espera el servidor.
  */
-async function handleSaveSettings() {
+async function handleSaveSettings(silent = false) {
     const saveBtn = document.getElementById('settings-save-btn');
     if (!saveBtn) return;
 
@@ -907,7 +1192,7 @@ async function handleSaveSettings() {
     // Construir payload tipado
     const payload = {
         // General
-        app_name: get('s-app-name') || undefined,
+        language: get('s-language') || 'es',
         admin_email: get('s-admin-email') || undefined,
         timezone: get('s-timezone') || undefined,
         notify_email: get('s-notify-email'),
@@ -932,13 +1217,471 @@ async function handleSaveSettings() {
 
     try {
         await api.saveSettings(payload);
-        showToast('¡Ajustes guardados correctamente!', 'success');
-        closeSettingsModal();
+        if (!silent) {
+            alert('✅ Ajustes guardados correctamente');
+            applyTranslations(payload.language);
+            closeSettingsModal();
+            setTimeout(() => { location.reload(); }, 500);
+        }
     } catch (err) {
         console.error('Error al guardar los ajustes:', err);
-        showToast('Error al guardar los ajustes. Revisa la consola.', 'error');
+        if (!silent) alert('❌ Error al guardar los ajustes. Revisa la consola.');
     } finally {
         saveBtn.disabled = false;
         saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar cambios';
     }
 }
+
+// ============================================================================
+// AUTO-DESCUBRIMIENTO DE BASES DE DATOS
+// ============================================================================
+
+/**
+ * Llama a la API de autodescubrimiento y dibuja las tarjetas dinámicamente.
+ */
+async function loadDiscovery() {
+    const container = document.getElementById('discoveryContainer');
+    if (!container) return;
+
+    try {
+        const response = await fetch('/api/v1/jobs/discovery');
+        if (!response.ok) throw new Error('Error al escanear red');
+        const services = await response.json();
+
+        services.forEach(svc => {
+            const card = document.createElement('div');
+            card.className = 'discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 rounded-lg p-4 transition-all';
+            card.dataset.engine = svc.engine;
+            card.dataset.host = svc.host;
+            card.dataset.port = svc.port;
+            card.dataset.name = svc.name;
+            
+            card.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none">
+                        <i class="fa-solid fa-server"></i>
+                    </div>
+                    <div class="pointer-events-none">
+                        <p class="text-sm font-semibold text-slate-800 dark:text-white">${svc.name}</p>
+                        <p class="text-xs text-brand-500 dark:text-brand-400 font-mono">${svc.host}:${svc.port}</p>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        // Añadir event listeners a todas las tarjetas (incluyendo la estática)
+        document.querySelectorAll('.discovery-card').forEach(card => {
+            card.addEventListener('click', handleDiscoveryClick);
+        });
+
+    } catch (error) {
+        console.error('Error en autodescubrimiento:', error);
+        // Asegurar que la tarjeta estática funcione aunque falle la API
+        document.querySelectorAll('.discovery-card').forEach(card => {
+            card.addEventListener('click', handleDiscoveryClick);
+        });
+    }
+}
+
+/**
+ * Maneja el clic en una tarjeta de descubrimiento, autocompletando el formulario.
+ */
+function handleDiscoveryClick(event) {
+    const card = event.currentTarget;
+    const engine = card.dataset.engine;
+
+    // Resaltar tarjeta seleccionada visualmente
+    document.querySelectorAll('.discovery-card').forEach(c => {
+        c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
+    });
+    card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
+
+    // Elementos del formulario
+    const dbTypeEl = document.getElementById('dbType');
+    const dbHostEl = document.getElementById('dbHost');
+    const dbPortEl = document.getElementById('dbPort');
+    const dbUserEl = document.getElementById('dbUser');
+    const dbNameEl = document.getElementById('dbName');
+    const dbFilePathContainer = document.getElementById('dbFilePathContainer');
+    const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
+    const networkDetails = document.querySelector('details.group');
+
+    if (engine === 'sqlite' || engine === 'folder' || engine === 'mdb') {
+        // Fichero Local o Carpeta
+        if (dbTypeEl) {
+            dbTypeEl.value = engine;
+            dbTypeEl.dispatchEvent(new Event('change'));
+        }
+        if (dbHostEl) dbHostEl.value = '';
+        if (dbPortEl) dbPortEl.value = '';
+        
+        if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+        if (networkDetails) networkDetails.classList.add('hidden');
+        if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
+        
+        // Foco en la ruta del archivo/carpeta
+        const dbFilePathEl = document.getElementById('dbFilePath');
+        if (dbFilePathEl) dbFilePathEl.focus();
+
+    } else {
+        // Motor de Base de Datos en Red (Autodescubierto)
+        if (dbTypeEl) {
+            dbTypeEl.value = engine;
+            dbTypeEl.dispatchEvent(new Event('change'));
+        }
+        if (dbHostEl) dbHostEl.value = card.dataset.host || '127.0.0.1';
+        if (dbPortEl) dbPortEl.value = card.dataset.port || '';
+        
+        if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
+        if (networkDetails) networkDetails.classList.remove('hidden');
+        if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+
+        // Ajustar placeholder del usuario como sugerencia
+        if (dbUserEl) {
+            if (engine === 'postgresql') dbUserEl.placeholder = 'Ej: postgres';
+            else if (engine === 'sqlserver') dbUserEl.placeholder = 'Ej: sa';
+            else if (engine === 'mysql') dbUserEl.placeholder = 'Ej: root';
+            else dbUserEl.placeholder = 'Usuario';
+        }
+
+        // Dar foco automáticamente al Nombre de la Base de Datos para seguir el flujo
+        if (dbNameEl) dbNameEl.focus();
+    }
+}
+
+// ============================================================================
+// Lógica de Google Drive (OAuth2 + Google Picker API)
+// ============================================================================
+
+let gdriveAccessToken = null;
+let gdriveClientId = null;
+let pickerApiLoaded = false;
+
+async function checkGoogleDriveStatus() {
+    const authBox = document.getElementById('gdriveAuthBox');
+    const pickerBox = document.getElementById('gdrivePickerBox');
+    if (!authBox || !pickerBox) return;
+
+    try {
+        const res = await fetch('/api/v1/auth/google/status');
+        const data = await res.json();
+        
+        if (data.authorized) {
+            authBox.classList.add('hidden');
+            pickerBox.classList.remove('hidden');
+        } else {
+            authBox.classList.remove('hidden');
+            pickerBox.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error("Error chequeando estado de Google Drive", e);
+    }
+}
+
+document.getElementById('btnConnectDrive')?.addEventListener('click', () => {
+    // Abrir popup de login
+    const w = 500;
+    const h = 600;
+    const left = (screen.width/2)-(w/2);
+    const top = (screen.height/2)-(h/2);
+    window.open('/api/v1/auth/google/login', 'GDrive Auth', `width=${w},height=${h},top=${top},left=${left}`);
+});
+
+// Escuchar mensaje del popup cuando termina el login
+window.addEventListener("message", (event) => {
+    if (event.data === "GOOGLE_AUTH_SUCCESS") {
+        checkGoogleDriveStatus();
+    }
+});
+
+document.getElementById('btnDisconnectDrive')?.addEventListener('click', async () => {
+    if (!confirm("¿Seguro que quieres desvincular la cuenta de Google Drive?")) return;
+    
+    try {
+        const res = await fetch('/api/v1/auth/google/disconnect', { method: 'DELETE' });
+        if (res.ok) {
+            showToast("Cuenta de Google Drive desvinculada", "success");
+            checkGoogleDriveStatus();
+            
+            // Limpiar campos visuales
+            const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+            const destGDriveFolderName = document.getElementById('destGDriveFolderName');
+            if (destGDriveFolderId) destGDriveFolderId.value = '';
+            if (destGDriveFolderName) destGDriveFolderName.value = '';
+        } else {
+            showToast("Error al desvincular la cuenta", "error");
+        }
+    } catch (e) {
+        console.error("Error al desvincular", e);
+        showToast("Error de conexión", "error");
+    }
+});
+
+// Cuando la API de google se cargue, llamar a loadPicker()
+function loadGoogleApi() {
+    gapi.load('picker', { 'callback': onPickerApiLoad });
+}
+function onPickerApiLoad() {
+    pickerApiLoaded = true;
+}
+
+// Interceptar carga global de script si gapi ya existe
+const gapiInterval = setInterval(() => {
+    if (typeof gapi !== 'undefined') {
+        clearInterval(gapiInterval);
+        loadGoogleApi();
+    }
+}, 100);
+
+document.getElementById('btnSelectDriveFolder')?.addEventListener('click', async () => {
+    if (!pickerApiLoaded) {
+        showToast("La API de Google Picker aún se está cargando...", "error");
+        return;
+    }
+
+    try {
+        // Pedir token temporal al backend
+        const res = await fetch('/api/v1/auth/google/token');
+        if (!res.ok) throw new Error("No se pudo obtener el token");
+        
+        const data = await res.json();
+        gdriveAccessToken = data.access_token;
+        gdriveClientId = data.client_id;
+        
+        createPicker();
+    } catch (e) {
+        console.error(e);
+        showToast("Error al abrir el explorador de Drive. ¿Estás conectado?", "error");
+    }
+});
+
+function createPicker() {
+    if (!gdriveAccessToken) return;
+    
+    // Crear la vista solo de carpetas
+    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+    view.setIncludeFolders(true);
+    view.setSelectFolderEnabled(true);
+    view.setMimeTypes('application/vnd.google-apps.folder');
+
+    const picker = new google.picker.PickerBuilder()
+        .enableFeature(google.picker.Feature.NAV_HIDDEN)
+        .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+        // .setAppId(gdriveClientId.split('-')[0]) // Opcional
+        .setOAuthToken(gdriveAccessToken)
+        .addView(view)
+        .setTitle("Selecciona la carpeta para los backups")
+        .setCallback(pickerCallback)
+        .build();
+    
+    picker.setVisible(true);
+}
+
+function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+        const doc = data.docs[0];
+        const folderId = doc.id;
+        const folderName = doc.name;
+        
+        document.getElementById('destGDriveFolderId').value = folderId;
+        document.getElementById('destGDriveFolderName').value = folderName;
+        
+        showToast(`Carpeta "${folderName}" seleccionada`, "success");
+    }
+}
+
+/**
+ * Carga los logs reales de una ejecución desde la API y los pinta en la terminal inferior
+ * @param {string} runId 
+ */
+async function loadTerminalLogs(runId) {
+    const terminal = document.getElementById('bottomLogsTerminal');
+    if (!terminal) return;
+
+    terminal.innerHTML = '<span class="text-slate-500 italic">Cargando logs... <i class="fa-solid fa-circle-notch fa-spin"></i></span>';
+
+    try {
+        const res = await fetch(`/api/v1/history/${runId}/logs`);
+        if (!res.ok) throw new Error("No se pudieron cargar los logs");
+        
+        const data = await res.json();
+        const logs = data.logs || "No hay logs disponibles para esta ejecución.";
+        
+        terminal.innerHTML = ''; // Limpiar
+        
+        // Pintar por líneas para añadir colorines
+        const lines = Array.isArray(logs) ? logs : String(logs).split('\\n');
+        lines.forEach(line => {
+            const div = document.createElement('div');
+            div.textContent = line;
+            
+            // Coloreado sintáctico simple de logs
+            if (line.includes('[SUCCESS]')) div.className = 'text-green-500 font-medium';
+            else if (line.includes('[ERROR]') || line.includes('[CRITICAL]')) div.className = 'text-red-500 font-medium';
+            else if (line.includes('[WARNING]')) div.className = 'text-yellow-500';
+            else if (line.includes('[INFO]')) div.className = 'text-brand-500';
+            else div.className = 'text-slate-600 dark:text-slate-400';
+            
+            terminal.appendChild(div);
+        });
+
+        // Autoscroll al final
+        terminal.scrollTop = terminal.scrollHeight;
+        
+    } catch (e) {
+        console.error("Error cargando logs:", e);
+        terminal.innerHTML = '<span class="text-red-500 italic">Error al cargar los logs.</span>';
+    }
+}
+
+// ============================================================================
+// SISTEMA DE TRADUCCIÓN (i18n)
+// ============================================================================
+
+const i18n = {
+    es: {
+        "Nuevo Job de Backup": "Nuevo Job de Backup",
+        "Nombre del Job": "Nombre del Job",
+        "Motores Detectados": "Motores Detectados",
+        "Fichero Local": "Fichero Local",
+        "Carpeta Local": "Carpeta Local",
+        "Configuración Avanzada de Red": "Configuración Avanzada de Red",
+        "Motor de Base de Datos": "Motor de Base de Datos",
+        "Selecciona un tipo...": "Selecciona un tipo...",
+        "Fichero (SQLite/Access)": "Fichero (SQLite/Access)",
+        "Host / IP del Servidor": "Host / IP del Servidor",
+        "Puerto": "Puerto",
+        "Usuario": "Usuario",
+        "Contraseña": "Contraseña",
+        "Nombre de la Base de Datos": "Nombre de la Base de Datos",
+        "Guardar Configuración": "Guardar Configuración",
+        "Historial y Logs": "Historial y Logs",
+        "Detalles de Ejecución": "Detalles de Ejecución",
+        "Nombre": "Nombre",
+        "Destino": "Destino",
+        "Próxima Ej.": "Próxima Ej.",
+        "Estado": "Estado",
+        "Acciones": "Acciones",
+        "Trabajos (Jobs)": "Trabajos (Jobs)",
+        "Directorio de Destino": "Directorio de Destino",
+        "Almacenamiento": "Almacenamiento",
+        "Carpeta Local / Red": "Carpeta Local / Red",
+        "Google Drive": "Google Drive",
+        "Programación": "Programación",
+        "Diario (a una hora específica)": "Diario (a una hora específica)",
+        "Manual (solo bajo demanda)": "Manual (solo bajo demanda)",
+        "Aplicación": "Aplicación",
+        "Idioma": "Idioma",
+        "Email del administrador": "Email del administrador",
+        "Notificaciones por email": "Notificaciones por email",
+        "Alertas solo en caso de error": "Alertas solo en caso de error",
+        "Retención de logs": "Retención de logs",
+        "Días de retención": "Días de retención",
+        "Ajustes Globales": "Ajustes Globales",
+        "General": "General",
+        "Enviar Notificación de Prueba": "Enviar Notificación de Prueba",
+        "Guardar cambios": "Guardar cambios",
+        "Editar": "Editar",
+        "Borrar": "Borrar",
+        "Ejecutar": "Ejecutar",
+        "Cancelar": "Cancelar",
+        "Google Drive no vinculado": "Google Drive no vinculado",
+        "Vincular con Google": "Vincular con Google",
+        "Desvincular Google Drive": "Desvincular Google Drive"
+    },
+    en: {
+        "Nuevo Job de Backup": "New Backup Job",
+        "Nombre del Job": "Job Name",
+        "Motores Detectados": "Discovered Engines",
+        "Fichero Local": "Local File",
+        "Carpeta Local": "Local Folder",
+        "Configuración Avanzada de Red": "Advanced Network Settings",
+        "Motor de Base de Datos": "Database Engine",
+        "Selecciona un tipo...": "Select a type...",
+        "Fichero (SQLite/Access)": "File (SQLite/Access)",
+        "Host / IP del Servidor": "Server Host / IP",
+        "Puerto": "Port",
+        "Usuario": "User",
+        "Contraseña": "Password",
+        "Nombre de la Base de Datos": "Database Name",
+        "Guardar Configuración": "Save Configuration",
+        "Historial y Logs": "History and Logs",
+        "Detalles de Ejecución": "Execution Details",
+        "Nombre": "Name",
+        "Destino": "Destination",
+        "Próxima Ej.": "Next Run",
+        "Estado": "Status",
+        "Acciones": "Actions",
+        "Trabajos (Jobs)": "Backup Jobs",
+        "Directorio de Destino": "Destination Directory",
+        "Almacenamiento": "Storage",
+        "Carpeta Local / Red": "Local Folder / Network",
+        "Google Drive": "Google Drive",
+        "Programación": "Schedule",
+        "Diario (a una hora específica)": "Daily (specific time)",
+        "Manual (solo bajo demanda)": "Manual (on demand)",
+        "Aplicación": "Application",
+        "Idioma": "Language",
+        "Email del administrador": "Admin Email",
+        "Notificaciones por email": "Email Notifications",
+        "Alertas solo en caso de error": "Alerts on error only",
+        "Retención de logs": "Log Retention",
+        "Días de retención": "Retention Days",
+        "Ajustes Globales": "Global Settings",
+        "General": "General",
+        "Enviar Notificación de Prueba": "Send Test Notification",
+        "Guardar cambios": "Save Changes",
+        "Editar": "Edit",
+        "Borrar": "Delete",
+        "Ejecutar": "Run",
+        "Cancelar": "Cancel",
+        "Google Drive no vinculado": "Google Drive not linked",
+        "Vincular con Google": "Link with Google",
+        "Desvincular Google Drive": "Unlink Google Drive"
+    }
+};
+
+function applyTranslations(lang) {
+    if (!i18n[lang]) lang = 'es';
+    const dict = i18n[lang];
+    
+        const elementsToTranslate = [
+        ...document.querySelectorAll('h3, label, p.text-sm, span, summary span, th, .btn-run, .btn-edit, .btn-delete')
+    ];
+    
+    elementsToTranslate.forEach(el => {
+        if (!el.dataset.originalText) {
+            if (el.children.length === 0 || el.tagName.toLowerCase() === 'label') {
+                el.dataset.originalText = el.textContent.trim();
+            }
+        }
+        
+        const original = el.dataset.originalText;
+        if (original && dict[original]) {
+            el.textContent = dict[original];
+        }
+    });
+    
+    document.querySelectorAll('option').forEach(opt => {
+        if (!opt.dataset.originalText) opt.dataset.originalText = opt.textContent.trim();
+        const original = opt.dataset.originalText;
+        if (original && dict[original]) {
+            opt.textContent = dict[original];
+        }
+    });
+}
+
+// Interceptar populateSettingsForm para aplicar idioma guardado
+const originalPopulateSettingsForm = populateSettingsForm;
+populateSettingsForm = function(s) {
+    originalPopulateSettingsForm(s);
+    if (s.language) {
+        applyTranslations(s.language);
+    }
+};
+
+// Escuchar cambios en el selector de idioma en vivo
+document.getElementById('s-language')?.addEventListener('change', (e) => {
+    applyTranslations(e.target.value);
+});

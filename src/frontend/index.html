@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Iconos FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Picker API -->
+    <script async defer src="https://apis.google.com/js/api.js"></script>
 
     <script>
         tailwind.config = {
@@ -675,18 +677,63 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        /* ── LIGHT MODE OVERRIDES FOR SETTINGS MODAL ── */
+        html:not(.dark) #settings-modal {
+            background: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 0 0 1px #e2e8f0, 0 32px 80px rgba(0, 0, 0, 0.1) !important;
+        }
+        html:not(.dark) #settings-header {
+            background: #ffffff !important;
+            border-bottom-color: #e2e8f0 !important;
+        }
+        html:not(.dark) #settings-header h2 { color: #0f172a !important; }
+        html:not(.dark) #settings-close-btn:hover {
+            color: #0f172a !important;
+            background: #f1f5f9 !important;
+        }
+        html:not(.dark) #settings-body { background: #ffffff !important; }
+        html:not(.dark) .s-section-title { border-bottom-color: #e2e8f0 !important; color: #64748b !important; }
+        html:not(.dark) .s-label { color: #475569 !important; }
+        html:not(.dark) .s-input {
+            background: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html:not(.dark) .s-input:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+        }
+        html:not(.dark) .s-input::placeholder { color: #94a3b8 !important; }
+        html:not(.dark) .s-toggle-row { border-bottom-color: #e2e8f0 !important; }
+        html:not(.dark) .s-toggle-info .s-toggle-label { color: #0f172a !important; }
+        html:not(.dark) .s-slider { background: #cbd5e1 !important; }
+        html:not(.dark) .s-slider:before { background: #ffffff !important; }
+        html:not(.dark) #settings-footer {
+            background: #ffffff !important;
+            border-top-color: #e2e8f0 !important;
+        }
+        html:not(.dark) .s-btn-cancel {
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+        }
+        html:not(.dark) .s-btn-cancel:hover {
+            background: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
     </style>
 </head>
 
 <body
-    class="bg-surface-950 text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white">
+    class="bg-slate-50 dark:bg-surface-950 text-slate-800 dark:text-slate-300 font-sans h-screen flex overflow-hidden antialiased selection:bg-brand-500 selection:text-white transition-colors duration-200">
 
     <!-- 1. LEFT SIDEBAR (JOBS) -->
     <aside
-        class="w-72 bg-surface-900 border-r border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
+        class="w-72 bg-white dark:bg-surface-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
         <!-- Header Sidebar -->
-        <div class="h-16 flex items-center px-6 border-b border-slate-800">
-            <div class="flex items-center gap-3 text-white">
+        <div class="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-800">
+            <div class="flex items-center gap-3 text-slate-900 dark:text-white">
                 <div
                     class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
                     <i class="fa-solid fa-database text-sm"></i>
@@ -697,7 +744,7 @@
 
         <!-- Botón Nuevo Job -->
         <div class="p-4">
-            <button
+            <button id="btnNewJobSidebar"
                 class="w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow shadow-brand-500/10">
                 <i class="fa-solid fa-plus"></i> Nuevo Job
             </button>
@@ -706,74 +753,43 @@
         <!-- Lista de Jobs -->
         <div class="flex-1 overflow-y-auto px-3 py-2 space-y-1">
             <p class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2">Mis Jobs</p>
-
-            <!-- Job Activo Seleccionado -->
-            <button
-                class="w-full flex items-center gap-3 px-3 py-2.5 bg-brand-500/10 text-brand-400 rounded-lg group transition-colors text-left border border-brand-500/20">
-                <i class="fa-solid fa-server w-4 text-center"></i>
-                <div class="flex-1 truncate">
-                    <p class="text-sm font-medium text-brand-400">Backup Producción</p>
-                    <p class="text-xs text-brand-400/70">PostgreSQL • Diario</p>
-                </div>
-                <div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-            </button>
-
-            <!-- Otro Job -->
-            <button
-                class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
-                <i class="fa-solid fa-box-archive w-4 text-center group-hover:text-slate-300"></i>
-                <div class="flex-1 truncate">
-                    <p class="text-sm font-medium">Backup Contabilidad</p>
-                    <p class="text-xs text-slate-500">SQL Server • Semanal</p>
-                </div>
-                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
-            </button>
-
-            <!-- Otro Job Manual -->
-            <button
-                class="w-full flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-surface-800 hover:text-slate-200 rounded-lg group transition-colors text-left border border-transparent">
-                <i class="fa-solid fa-folder-tree w-4 text-center group-hover:text-slate-300"></i>
-                <div class="flex-1 truncate">
-                    <p class="text-sm font-medium">Archivos Locales</p>
-                    <p class="text-xs text-slate-500">Local • Manual</p>
-                </div>
-                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
-            </button>
+            <div id="sidebar-jobs-container" class="space-y-1">
+                <!-- Los Jobs se cargarán aquí dinámicamente desde app.js -->
+            </div>
         </div>
 
         <!-- Footer Sidebar -->
-        <div class="p-4 border-t border-slate-800">
+        <div class="p-4 border-t border-slate-200 dark:border-slate-800">
             <button id="openSettingsBtn"
-                class="flex items-center gap-3 text-sm text-slate-400 hover:text-white transition-colors w-full px-2 py-1">
-                <i class="fa-solid fa-gear w-4 text-center"></i> Configuración
+                class="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors w-full px-2 py-1">
+                <i class="fa-solid fa-gear w-4 text-center"></i> Ajustes Globales
             </button>
         </div>
     </aside>
 
     <!-- 2. MAIN AREA (CONFIGURACIÓN DEL JOB) -->
-    <main class="flex-1 flex flex-col min-w-0 bg-surface-950 relative">
+    <main class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-surface-950 relative">
         <!-- Topbar -->
         <header
-            class="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-surface-950/80 backdrop-blur-md sticky top-0 z-10">
+            class="h-16 flex items-center justify-between px-8 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md sticky top-0 z-10 transition-colors">
             <div class="flex items-center gap-4">
-                <h2 class="text-xl font-semibold text-white">Backup Producción</h2>
-                <span
-                    class="px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                <h2 class="text-xl font-semibold text-slate-800 dark:text-white" id="mainHeaderTitle">Crear Nuevo Job</h2>
+                <span id="mainHeaderBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
                     Activo
                 </span>
             </div>
             <div class="flex items-center gap-3">
-                <button
-                    class="bg-surface-800 hover:bg-surface-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-slate-700">
-                    <i class="fa-solid fa-play mr-1.5"></i> Ejecutar Ahora
-                </button>
-                <button
-                    class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
-                    <i class="fa-solid fa-floppy-disk mr-1.5"></i> Guardar
+                <button id="themeToggleBtn" title="Alternar Modo Claro/Oscuro"
+                    class="relative w-14 h-8 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-surface-900 transition-all duration-300 shadow-inner group">
+                    <!-- Esfera -->
+                    <div class="absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white dark:bg-surface-800 shadow-sm border border-slate-200 dark:border-slate-600 flex items-center justify-center transform transition-transform duration-300 dark:translate-x-6">
+                        <i class="fa-solid fa-sun text-[10px] text-amber-500 dark:hidden"></i>
+                        <i class="fa-solid fa-moon text-[10px] text-brand-400 hidden dark:block"></i>
+                    </div>
                 </button>
                 <!-- Botón toggle panel derecho para móvil -->
                 <button id="toggleRightPanelBtn"
-                    class="ml-2 w-9 h-9 rounded-lg border border-slate-800 bg-surface-900 text-slate-400 hover:text-white flex items-center justify-center transition-colors lg:hidden">
+                    class="ml-2 w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition-colors lg:hidden">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                 </button>
             </div>
@@ -784,115 +800,283 @@
 
             <!-- Formulario de Creación de Job -->
             <form id="createJobForm"
-                class="bg-surface-900 border border-slate-800 rounded-xl p-6 max-w-4xl mx-auto space-y-6 mb-8 shadow-sm">
-                <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
-                    <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-400 flex items-center justify-center">
+                class="bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-4xl mx-auto space-y-6 mb-8 shadow-sm">
+                <div class="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
                         <i class="fa-solid fa-plus"></i>
                     </div>
-                    <h3 class="text-base font-semibold text-white">Nuevo Job de Backup</h3>
+                    <h3 class="text-base font-semibold text-slate-800 dark:text-white">Nuevo Job de Backup</h3>
                 </div>
 
                 <!-- Contenedor Nombre del Job -->
                 <div class="relative form-group">
-                    <label for="jobName" class="block text-sm font-medium text-slate-400 mb-2">Nombre del Job</label>
+                    <label for="jobName" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Nombre del Job</label>
                     <input type="text" id="jobName"
-                        class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                         placeholder="Ej: Backup Base de Datos Producción">
                 </div>
 
-                <!-- Contenedor Base de Datos -->
-                <div class="relative form-group">
-                    <label for="dbType" class="block text-sm font-medium text-slate-400 mb-2">Motor de Base de
-                        Datos</label>
-                    <div class="relative">
-                        <select id="dbType"
-                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
-                            <option value="">Selecciona un tipo...</option>
-                            <option value="postgresql">PostgreSQL</option>
-                            <option value="mysql">MySQL / MariaDB</option>
-                            <option value="sqlserver">Microsoft SQL Server</option>
-                        </select>
-                        <div
-                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                <!-- Contenedor: Motores Detectados -->
+                <div class="space-y-3">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Motores Detectados</p>
+                    <div id="discoveryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Tarjeta estática Fichero Local -->
+                        <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="sqlite" data-name="Fichero Local">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
+                                    <i class="fa-solid fa-file-lines"></i>
+                                </div>
+                                <div class="pointer-events-none">
+                                    <p class="text-sm font-semibold text-slate-800 dark:text-white">Fichero Local</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">SQLite / Access</p>
+                                </div>
+                            </div>
                         </div>
+                        
+                        <!-- Tarjeta estática Carpeta Local -->
+                        <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="folder" data-name="Carpeta Local">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
+                                    <i class="fa-solid fa-folder-open"></i>
+                                </div>
+                                <div class="pointer-events-none">
+                                    <p class="text-sm font-semibold text-slate-800 dark:text-white">Carpeta Local</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Directorio de archivos</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Las tarjetas dinámicas se insertarán aquí -->
                     </div>
                 </div>
 
+                <!-- Configuración Avanzada de Red -->
+                <details class="group border border-slate-300 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-surface-950">
+                    <summary class="cursor-pointer p-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors list-none flex items-center justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-network-wired"></i> Configuración Avanzada de Red</span>
+                        <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                    </summary>
+                    <div class="p-4 border-t border-slate-300 dark:border-slate-800 space-y-4">
+                        <!-- Contenedor Base de Datos -->
+                        <div class="relative form-group">
+                            <label for="dbType" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Motor de Base de Datos</label>
+                            <div class="relative">
+                                <select id="dbType"
+                                    class="w-full bg-white dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                    <option value="">Selecciona un tipo...</option>
+                                    <option value="postgresql">PostgreSQL</option>
+                                    <option value="mysql">MySQL / MariaDB</option>
+                                    <option value="sqlserver">Microsoft SQL Server</option>
+                                    <option value="sqlite">Fichero (SQLite/Access)</option>
+                                    <option value="folder">Carpeta Local</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Sección: Conexión a la Base de Datos -->
+                        <div class="space-y-4">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Conexión a la Base de
+                                Datos</p>
+
+                            <!-- Fila Host + Puerto -->
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-2 relative form-group">
+                                    <label for="dbHost" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Host / IP del
+                                        Servidor</label>
+                                    <input type="text" id="dbHost"
+                                        class="w-full bg-white dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                        placeholder="Ej: 127.0.0.1 o mi-servidor.local">
+                                </div>
+                                <div class="relative form-group">
+                                    <label for="dbPort" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Puerto</label>
+                                    <input type="number" id="dbPort"
+                                        class="w-full bg-white dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                        placeholder="5432">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
                 <!-- Descripción del Job -->
-                <div class="relative form-group">
-                    <label for="jobDescription" class="block text-sm font-medium text-slate-400 mb-2">Descripción <span
+                <div class="relative form-group mt-4">
+                    <label for="jobDescription" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Descripción <span
                             class="text-slate-600 font-normal">(opcional)</span></label>
                     <input type="text" id="jobDescription"
-                        class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                         placeholder="Ej: Backup nocturno de la BD de producción">
                 </div>
 
                 <!-- Programación (Schedule) -->
-                <div class="relative form-group">
-                    <label for="jobSchedule" class="block text-sm font-medium text-slate-400 mb-2">Programación</label>
+                <div class="relative form-group mt-4">
+                    <label for="jobSchedule" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Programación</label>
                     <div class="relative">
                         <select id="jobSchedule"
-                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
                             <option value="manual">Manual (solo bajo demanda)</option>
-                            <option value="daily">Diario (02:00 AM)</option>
-                            <option value="weekly">Semanal (Domingos 02:00 AM)</option>
-                            <option value="monthly">Mensual (Día 1, 02:00 AM)</option>
+                            <option value="daily">Diario (a una hora específica)</option>
+                            <option value="weekly">Semanal (día específico)</option>
+                            <option value="monthly">Mensual (día del mes)</option>
                             <option value="interval">Por intervalo (minutos)</option>
                             <option value="cron">Expresión Cron personalizada</option>
                         </select>
                         <div
-                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
                             <i class="fa-solid fa-chevron-down text-xs"></i>
                         </div>
                     </div>
-                </div>
 
-                <!-- Sección: Conexión a la Base de Datos -->
-                <div class="space-y-4">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Conexión a la Base de
-                        Datos</p>
+                    <!-- Campos Condicionales de Programación -->
+                    <div id="scheduleTimeContainer" class="hidden mt-3">
+                        <label for="jobScheduleTime" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Hora de Ejecución</label>
+                        <input type="time" id="jobScheduleTime"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+                    </div>
 
-                    <!-- Fila Host + Puerto -->
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="col-span-2 relative form-group">
-                            <label for="dbHost" class="block text-sm font-medium text-slate-400 mb-2">Host / IP del
-                                Servidor</label>
-                            <input type="text" id="dbHost"
-                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                placeholder="Ej: 127.0.0.1 o mi-servidor.local">
-                        </div>
-                        <div class="relative form-group">
-                            <label for="dbPort" class="block text-sm font-medium text-slate-400 mb-2">Puerto</label>
-                            <input type="number" id="dbPort"
-                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                placeholder="5432">
+                    <div id="scheduleDayOfWeekContainer" class="hidden mt-3">
+                        <label for="jobScheduleDayOfWeek" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Día de la semana</label>
+                        <div class="relative">
+                            <select id="jobScheduleDayOfWeek" class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                <option value="1">Lunes</option>
+                                <option value="2">Martes</option>
+                                <option value="3">Miércoles</option>
+                                <option value="4">Jueves</option>
+                                <option value="5">Viernes</option>
+                                <option value="6">Sábado</option>
+                                <option value="0">Domingo</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
                         </div>
                     </div>
 
+                    <div id="scheduleDayOfMonthContainer" class="hidden mt-3">
+                        <label for="jobScheduleDayOfMonth" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Día del mes</label>
+                        <input type="number" id="jobScheduleDayOfMonth" min="1" max="31"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            placeholder="Ej: 1">
+                    </div>
+
+                    <div id="scheduleIntervalContainer" class="hidden mt-3">
+                        <label for="jobScheduleInterval" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Intervalo en Minutos</label>
+                        <input type="number" id="jobScheduleInterval" min="1"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            placeholder="Ej: 60">
+                    </div>
+                    
+                    <div id="scheduleCronContainer" class="hidden mt-3">
+                        <label for="jobScheduleCron" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Expresión Cron</label>
+                        <input type="text" id="jobScheduleCron"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            placeholder="Ej: 0 2 * * *">
+                    </div>
+                </div>
+
+                <!-- Credenciales (Siempre visibles por defecto) -->
+                <div id="dbCredentialsContainer" class="space-y-4">
+
                     <!-- Nombre de la BD -->
                     <div class="relative form-group">
-                        <label for="dbName" class="block text-sm font-medium text-slate-400 mb-2">Nombre de la Base de
+                        <label for="dbName" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Nombre de la Base de
                             Datos</label>
                         <input type="text" id="dbName"
-                            class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                             placeholder="Ej: mi_base_de_datos">
                     </div>
 
                     <!-- Fila Usuario + Contraseña -->
                     <div class="grid grid-cols-2 gap-3">
                         <div class="relative form-group">
-                            <label for="dbUser" class="block text-sm font-medium text-slate-400 mb-2">Usuario</label>
+                            <label for="dbUser" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Usuario</label>
                             <input type="text" id="dbUser"
-                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                                 placeholder="Ej: postgres">
                         </div>
                         <div class="relative form-group">
                             <label for="dbPassword"
-                                class="block text-sm font-medium text-slate-400 mb-2">Contraseña</label>
+                                class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Contraseña</label>
                             <input type="password" id="dbPassword"
-                                class="w-full bg-surface-950 border border-slate-700 text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                                 placeholder="••••••••" autocomplete="new-password">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ruta de Archivo / Carpeta (Oculto por defecto) -->
+                <div id="dbFilePathContainer" class="relative form-group hidden mt-4">
+                    <label for="dbFilePath" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Ruta absoluta del origen (Archivo o Carpeta)</label>
+                    <input type="text" id="dbFilePath"
+                        class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        placeholder="Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos">
+                </div>
+
+                <!-- Sección: Destino del Backup -->
+                <div class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Destino del Backup</p>
+                    
+                    <div class="relative form-group">
+                        <label for="destType" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Almacenamiento</label>
+                        <div class="relative">
+                            <select id="destType"
+                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                <option value="local">Carpeta Local / Red</option>
+                                <option value="google_drive">Google Drive</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ruta Local -->
+                    <div id="destLocalPathContainer" class="relative form-group">
+                        <label for="destLocalPath" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Directorio de Destino</label>
+                        <input type="text" id="destLocalPath"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            placeholder="Ej: C:\MisBackups o \\Servidor\Backups">
+                    </div>
+
+                    <!-- UI de Google Drive Avanzada -->
+                    <div id="destGDriveContainer" class="relative form-group hidden border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-white dark:bg-surface-900 mt-2">
+                        <!-- Estado Desconectado -->
+                        <div id="gdriveAuthBox" class="text-center py-4">
+                            <i class="fa-brands fa-google-drive text-3xl text-slate-300 dark:text-slate-600 mb-3"></i>
+                            <h4 class="text-sm font-medium text-slate-800 dark:text-white mb-1">Google Drive no vinculado</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Conecta tu cuenta para realizar backups automáticos en la nube.</p>
+                            <button type="button" id="btnConnectDrive" class="bg-white dark:bg-surface-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-surface-700 text-slate-700 dark:text-white px-4 py-2 rounded shadow-sm text-sm font-medium transition-colors">
+                                <i class="fa-brands fa-google text-blue-500 mr-2"></i> Vincular con Google
+                            </button>
+                        </div>
+
+                        <!-- Estado Conectado -->
+                        <div id="gdrivePickerBox" class="hidden">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-brands fa-google-drive text-green-500 text-lg"></i>
+                                    <div>
+                                        <p class="text-sm font-medium text-slate-800 dark:text-white leading-none">Cuenta Vinculada</p>
+                                        <p class="text-xs text-green-600 dark:text-green-400 mt-1">Lista para usar</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" id="btnDisconnectDrive" class="bg-white dark:bg-surface-800 border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-sm" title="Desvincular cuenta">
+                                        <i class="fa-solid fa-link-slash"></i>
+                                    </button>
+                                    <button type="button" id="btnSelectDriveFolder" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-sm">
+                                        <i class="fa-solid fa-folder-open mr-1"></i> Explorar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Carpeta Destino Seleccionada</label>
+                            <div class="flex items-center gap-2 bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5">
+                                <i class="fa-solid fa-folder text-brand-500"></i>
+                                <input type="text" id="destGDriveFolderName" readonly class="bg-transparent border-none outline-none text-sm text-slate-900 dark:text-white w-full cursor-default" placeholder="Raíz de Mi Unidad">
+                            </div>
+                            <!-- Input oculto para enviar el ID al backend -->
+                            <input type="hidden" id="destGDriveFolderId" value="">
                         </div>
                     </div>
                 </div>
@@ -906,21 +1090,18 @@
                 </div>
             </form>
 
-            <div id="jobs-container" class="max-w-4xl mx-auto space-y-6">
-                <!-- Los Jobs se cargarán aquí dinámicamente desde app.js -->
-            </div>
         </div>
     </main>
 
     <!-- 3. RIGHT PANEL: Historial y Logs -->
     <aside id="rightPanel"
-        class="w-80 bg-surface-900 border-l border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute lg:relative right-0 h-full shadow-2xl lg:shadow-none hidden lg:flex">
+        class="w-80 bg-white dark:bg-surface-900 border-l border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-30 shrink-0 absolute lg:relative right-0 h-full shadow-2xl lg:shadow-none hidden lg:flex">
         <!-- Header Panel -->
-        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-surface-900">
-            <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-900">
+            <h3 class="text-sm font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                 <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> Historial y Logs
             </h3>
-            <button id="closeRightPanelBtn" class="lg:hidden text-slate-400 hover:text-white transition-colors">
+            <button id="closeRightPanelBtn" class="lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
         </div>
@@ -931,24 +1112,13 @@
         </div>
 
         <!-- Terminal / Logs View -->
-        <div class="h-64 border-t border-slate-800 bg-surface-950 flex flex-col shrink-0">
-            <div class="px-4 py-2 border-b border-slate-800 flex justify-between items-center bg-surface-900/50">
-                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Logs (Hoy, 02:00
-                    AM)</span>
-                <button class="text-slate-500 hover:text-white transition-colors"><i
-                        class="fa-solid fa-expand text-xs"></i></button>
+        <div class="h-64 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-950 flex flex-col shrink-0">
+            <div class="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-100 dark:bg-surface-900/50">
+                <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Detalles de Ejecución</span>
+                <button id="btnExpandLogs" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors" title="Ver logs completos"><i class="fa-solid fa-expand text-xs"></i></button>
             </div>
-            <div class="flex-1 overflow-y-auto p-3 font-mono text-[10px] text-slate-400 leading-relaxed bg-[#0a0f1c]">
-                <div class="text-brand-400">[02:00:01] [INFO] Starting Job: Backup Producción</div>
-                <div>[02:00:01] [INFO] Connecting to PostgreSQL (127.0.0.1:5432)...</div>
-                <div>[02:00:02] [INFO] Connection successful.</div>
-                <div>[02:00:02] [INFO] Dumping database 'mi_base_de_datos'...</div>
-                <div>[02:00:30] [INFO] Dump finished (1.2 GB).</div>
-                <div>[02:00:30] [INFO] Compressing to ZIP...</div>
-                <div>[02:00:40] [INFO] Compression finished (142 MB).</div>
-                <div>[02:00:40] [INFO] Encrypting with AES-256...</div>
-                <div>[02:00:42] [INFO] Uploading to Google Drive...</div>
-                <div class="text-green-400 font-medium">[02:00:45] [SUCCESS] Backup completed successfully.</div>
+            <div id="bottomLogsTerminal" class="flex-1 overflow-y-auto p-3 font-mono text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed bg-white dark:bg-surface-950 whitespace-pre-wrap">
+                <span class="text-slate-500 italic">Selecciona una ejecución en el historial para ver sus logs.</span>
             </div>
         </div>
     </aside>
@@ -1013,10 +1183,6 @@
                         aria-controls="tab-general">
                         <i class="fa-solid fa-circle-info"></i> General
                     </button>
-                    <button class="s-tab-btn" id="tab-gdrive-btn" role="tab" aria-selected="false"
-                        aria-controls="tab-gdrive">
-                        <i class="fa-brands fa-google-drive"></i> Google Drive
-                    </button>
                 </nav>
             </div>
 
@@ -1030,9 +1196,11 @@
                         <p class="s-section-title">Aplicación</p>
 
                         <div class="s-field">
-                            <label for="s-app-name" class="s-label">Nombre de la aplicación</label>
-                            <input id="s-app-name" type="text" class="s-input"
-                                placeholder="Ej: SolbaBackups Producción">
+                            <label for="s-language" class="s-label">Idioma</label>
+                            <select id="s-language" class="s-input">
+                                <option value="es">Español</option>
+                                <option value="en">English</option>
+                            </select>
                         </div>
 
                         <div class="s-field">
@@ -1042,8 +1210,11 @@
                         </div>
 
                         <div class="s-field">
-                            <label for="s-timezone" class="s-label">Zona horaria</label>
-                            <input id="s-timezone" type="text" class="s-input" placeholder="Ej: Europe/Madrid">
+                            <label for="s-timezone" class="s-label">Zona horaria del sistema</label>
+                            <select id="s-timezone" class="s-input bg-slate-100 dark:bg-slate-800 opacity-80 cursor-not-allowed" readonly>
+                                <option value="">Detectando...</option>
+                            </select>
+                            <p class="s-hint">La zona horaria es detectada automáticamente por el sistema local.</p>
                         </div>
                     </div>
 
@@ -1070,6 +1241,12 @@
                                 <input type="checkbox" id="s-notify-errors-only">
                                 <span class="s-slider"></span>
                             </label>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                            <button type="button" id="btnTestEmail" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 font-medium py-2 px-4 rounded-lg transition-colors border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane text-brand-500"></i> Enviar Notificación de Prueba
+                            </button>
                         </div>
                     </div>
 

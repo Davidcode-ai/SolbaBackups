@@ -16,34 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 # ===========================================================================
-# SCHEDULE CONFIG
-# ===========================================================================
-
-class ScheduleConfig(BaseModel):
-    """
-    Submodelo para la configuración de programación del Job.
-    Mapea a los campos ``schedule_*`` en la base de datos.
-    """
-    schedule_type: str = Field("manual", description="'cron', 'interval' o 'manual'")
-    cron_expression: str | None = Field(None, description="Expresión cron, ej. '0 2 * * *'")
-    interval_minutes: int | None = Field(None, description="Minutos entre ejecuciones")
-
-    @model_validator(mode='before')
-    @classmethod
-    def empty_strings_to_none(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: (None if v == "" else v) for k, v in data.items()}
-        return data
-
-    @field_validator("schedule_type")
-    @classmethod
-    def validate_type(cls, v: str | None) -> str | None:
-        if v and v not in ("cron", "interval", "manual"):
-            raise ValueError("schedule_type debe ser 'cron', 'interval' o 'manual'")
-        return v
-
-
-# ===========================================================================
 # JOB MODELS
 # ===========================================================================
 
@@ -79,6 +51,15 @@ class JobBase(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def empty_strings_to_none(cls, data: Any) -> Any:
+        """
+        Convierte cadenas vacías a None y mapea 'schedule' a 'schedule_type'.
+        
+        Args:
+            data (Any): Los datos en crudo que llegan a Pydantic.
+            
+        Returns:
+            Any: Los datos transformados con las cadenas vacías como None.
+        """
         if isinstance(data, dict):
             new_data = {k: (None if v == "" else v) for k, v in data.items()}
             # Si el frontend envía 'schedule' como string, lo mapeamos al campo plano 'schedule_type'
@@ -93,9 +74,21 @@ class JobBase(BaseModel):
     @field_validator("db_type")
     @classmethod
     def validate_db_type(cls, v: str | None) -> str | None:
+        """
+        Valida que el motor de base de datos esté soportado.
+        
+        Args:
+            v (str | None): El motor especificado.
+            
+        Returns:
+            str | None: El motor validado, o 'postgresql' por defecto.
+            
+        Raises:
+            ValueError: Si el motor no está en la lista de permitidos.
+        """
         if v is None:
             return "postgresql"
-        allowed = ("postgresql", "mysql", "sqlserver", "sqlite")
+        allowed = ("postgresql", "mysql", "sqlserver", "sqlite", "mdb", "folder")
         if v not in allowed:
             raise ValueError(f"db_type debe ser uno de: {allowed}")
         return v

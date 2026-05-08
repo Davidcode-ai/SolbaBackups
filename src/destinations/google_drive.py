@@ -221,6 +221,7 @@ class GoogleDriveDestination(BaseDestination):
                 body=file_metadata,
                 media_body=media,
                 fields="id,webViewLink",
+                supportsAllDrives=True
             )
 
             response = None
@@ -318,6 +319,7 @@ class GoogleDriveDestination(BaseDestination):
                 body=file_metadata,
                 media_body=media,
                 fields="id,webViewLink",
+                supportsAllDrives=True
             )
 
             response = None
@@ -363,6 +365,15 @@ class GoogleDriveDestination(BaseDestination):
             log.warning("❌ Test de conexión a Drive fallido: %s", exc)
             return False
 
+    def clean_old_backups(self) -> None:
+        """
+        Elimina backups antiguos cumpliendo con el contrato de BaseDestination.
+        Es un alias de apply_retention.
+        """
+        deleted = self.apply_retention()
+        if deleted:
+            log.info(f"Retención en Drive completada. {len(deleted)} archivos eliminados.")
+
     def apply_retention(self) -> list[str]:
         """
         Elimina de Drive los backups del job más antiguos que ``retention_days``.
@@ -392,7 +403,7 @@ class GoogleDriveDestination(BaseDestination):
 
             results = (
                 service.files()
-                .list(q=query, fields="files(id,name,createdTime)", pageSize=100)
+                .list(q=query, fields="files(id,name,createdTime)", pageSize=100, supportsAllDrives=True, includeItemsFromAllDrives=True)
                 .execute()
             )
             files = results.get("files", [])
@@ -402,7 +413,7 @@ class GoogleDriveDestination(BaseDestination):
                 fid = file["id"]
                 fname = file["name"]
                 try:
-                    service.files().delete(fileId=fid).execute()
+                    service.files().delete(fileId=fid, supportsAllDrives=True).execute()
                     deleted_ids.append(fid)
                     log.info("🗑️  Eliminado de Drive: %s (id=%s)", fname, fid)
                 except HttpError as exc:
@@ -444,6 +455,8 @@ class GoogleDriveDestination(BaseDestination):
                     fields="files(id,name,size,createdTime)",
                     orderBy="createdTime desc",
                     pageSize=200,
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
                 )
                 .execute()
             )
@@ -557,15 +570,9 @@ class GoogleDriveDestination(BaseDestination):
 
         # 3. Flujo OAuth2 interactivo si no hay token válido.
         if not creds or not creds.valid:
-            try:
-                flow = InstalledAppFlow.from_client_config(creds_data, SCOPES)
-                creds = flow.run_local_server(port=0, open_browser=True)
-                log.info("Autorización OAuth2 completada.")
-                self._persist_token(creds)
-            except (DefaultCredentialsError, Exception) as exc:
-                raise AuthenticationError(
-                    f"Falló el flujo de autorización OAuth2: {exc}"
-                ) from exc
+            raise AuthenticationError(
+                "La cuenta de Google Drive no está vinculada. Por favor, conéctala desde la interfaz web de SolbaBackups."
+            )
 
         return creds
 
@@ -627,7 +634,7 @@ class GoogleDriveDestination(BaseDestination):
             query = " and ".join(query_parts)
             results = (
                 service.files()
-                .list(q=query, fields="files(id,name)", pageSize=1)
+                .list(q=query, fields="files(id,name)", pageSize=1, supportsAllDrives=True, includeItemsFromAllDrives=True)
                 .execute()
             )
             files = results.get("files", [])
@@ -647,7 +654,7 @@ class GoogleDriveDestination(BaseDestination):
 
             folder = (
                 service.files()
-                .create(body=folder_metadata, fields="id")
+                .create(body=folder_metadata, fields="id", supportsAllDrives=True)
                 .execute()
             )
             folder_id = folder["id"]

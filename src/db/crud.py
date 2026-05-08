@@ -182,6 +182,25 @@ def run_delete(db: Session, run_id: int) -> bool:
     return True
 
 
+def history_purge_old(db: Session, retention_days: int) -> int:
+    """Elimina las ejecuciones (y sus logs por CASCADE) más antiguas que retention_days."""
+    if retention_days <= 0:
+        return 0
+    
+    cutoff_date = datetime.datetime.utcnow() - datetime.timedelta(days=retention_days)
+    
+    # Buscar ejecuciones antiguas
+    stmt = select(RunHistory).where(RunHistory.started_at < cutoff_date)
+    old_runs = list(db.scalars(stmt).all())
+    
+    count = len(old_runs)
+    for run in old_runs:
+        db.delete(run)
+        
+    db.commit()
+    return count
+
+
 # ===========================================================================
 # LOG ENTRY CRUD
 # ===========================================================================

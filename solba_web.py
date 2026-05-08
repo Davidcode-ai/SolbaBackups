@@ -1,3 +1,10 @@
+"""
+solba_web.py — Punto de entrada principal de la aplicación SolbaBackups.
+
+Este script arranca el servidor web Uvicorn, inicializa el framework FastAPI
+y configura el nivel global de logging para monitorizar las solicitudes HTTP
+y la ejecución de las tareas en segundo plano.
+"""
 import uvicorn
 import logging
 

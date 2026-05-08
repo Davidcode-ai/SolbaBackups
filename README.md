@@ -1,135 +1,88 @@
-# SolbaBackups
+# SolbaBackups 🗄️
 
-**Gestor de copias de seguridad de bases de datos y carpetas de ficheros**
-
-> Proyecto de prácticas colaborativo – 3 alumnos
-
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+**SolbaBackups** es una solución automatizada, integral y reactiva para la gestión de copias de seguridad de bases de datos. Diseñada para operar sin fricciones, permite centralizar el volcado (dump), compresión, cifrado y transferencia de múltiples motores de bases de datos hacia destinos locales o en la nube (como Google Drive). Todo ello orquestado desde una interfaz web moderna, responsiva y orientada a la experiencia del usuario (UI/UX).
 
 ---
 
-## ✨ Características
+## 🚀 Arquitectura y Features
 
-| Funcionalidad | Descripción |
-|---------------|-------------|
-| 🗄️ **Bases de datos** | SQLite, PostgreSQL, MySQL/MariaDB, SQL Server, MDB/Access |
-| 📅 **Planificación** | Diaria, semanal, mensual, días concretos de la semana |
-| ☁️ **Google Drive** | Subida automática organizada por mes |
-| 🔄 **Sincronización** | Mirror, actualización y monitorización en tiempo real |
-| 🔍 **Detección** | Escaneo de puertos TCP y archivos locales |
-| ♻️ **Restauración** | Restaura cualquier tipo de backup con un comando |
-| 💾 **Compresión** | ZIP, TAR.GZ o sin compresión |
-| 🗑️ **Retención** | Purga automática de copias antiguas |
+*   **Motor de Orquestación Asíncrono**: Integrado con `APScheduler`, gestiona las tareas en segundo plano dentro del propio Event Loop de FastAPI. Sin bloqueos, de forma concurrente y eficiente.
+*   **Interfaz Web UI/UX Reactiva**: Un panel de control *single-page* creado con Vanilla JS y Tailwind CSS (tema oscuro nativo). Proporciona alertas visuales, modales de confirmación, validación reactiva de formularios y *streaming* de logs sin necesidad de recargar.
+*   **Almacenamiento Híbrido**: Descarga y comprime tus volcados localmente, o prográmalos para subir automáticamente a **Google Drive** asegurando la redundancia.
+*   **Garbage Collector (Política de Retención)**: Define cuántos días mantener tus backups. SolbaBackups se encargará de purgar automáticamente los archivos obsoletos para ahorrar espacio de almacenamiento.
+*   **Alertas y Notificaciones**: Soporte para notificaciones por correo (SMTP) para alertar a los administradores en caso de que alguna tarea de backup falle críticamente.
 
 ---
 
-## 🚀 Inicio rápido
+## 📂 Estructura del Proyecto
 
-```bash
-# 1. Clonar y configurar
-git clone https://github.com/vecinoconil/SolbaBackups.git
-cd SolbaBackups
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+El código está estructurado mediante arquitectura por capas para facilitar su mantenimiento y expansión:
 
-# 2. Configurar (editar config.yaml según tus necesidades)
-cp config.example.yaml config.yaml
-
-# 3. Abrir en VSCode
-code SolbaBackups.code-workspace
-
-# 4. Realizar tu primera copia de seguridad
-python -m src.main backup sqlite --db /ruta/a/mi.db
-python -m src.main status
-```
-
----
-
-## 📦 Comandos principales
-
-```bash
-# Copias de seguridad
-python -m src.main backup sqlite     --db /ruta/mi.db
-python -m src.main backup postgresql --host localhost --db mibd --user postgres
-python -m src.main backup mysql      --host localhost --db mibd --user root
-python -m src.main backup sqlserver  --host 192.168.1.10 --db mibd --user sa
-python -m src.main backup mdb        --db /ruta/datos.mdb
-python -m src.main backup folder     --source /mi/carpeta --incremental
-
-# Restauración
-python -m src.main restore sqlite --backup backups/sqlite_mi_20250101.zip --target /nueva/mi.db
-python -m src.main restore folder --backup backups/folder_docs.zip --target /docs_restaurados
-
-# Detección de BD en una máquina
-python -m src.main detect --host 192.168.1.100
-python -m src.main detect --local --search-dir /home/usuario
-
-# Sincronización de carpetas
-python -m src.main sync --source /origen --dest /destino --mode mirror
-python -m src.main sync --source /origen --dest /destino --mode watch
-
-# Subir a Google Drive
-python -m src.main upload --file backups/mi_backup.zip
-
-# Ver estado de backups locales
-python -m src.main status
-```
-
----
-
-## 📁 Estructura del proyecto
-
-```
+```text
 SolbaBackups/
-├── SolbaBackups.code-workspace   ← Workspace de VSCode
-├── config.example.yaml           ← Plantilla de configuración
-├── requirements.txt
-├── src/
-│   ├── backup/         ← Proveedores de backup (SQLite, PG, MySQL, etc.)
-│   ├── scheduler/      ← Planificador de tareas
-│   ├── storage/        ← Almacenamiento local + Google Drive
-│   ├── sync/           ← Sincronización de carpetas
-│   ├── detector/       ← Detección de BD en red y archivos
-│   ├── restore/        ← Restauración de backups
-│   └── ui/             ← Interfaz CLI (Click)
-├── tests/              ← Tests unitarios (pytest)
-└── docs/
-    ├── architecture.md
-    ├── setup.md
-    ├── usage.md
-    └── contributing.md
+├── solba_web.py                # Punto de entrada de la aplicación (Inicia FastAPI + Uvicorn)
+├── .env.example                # Plantilla de variables de entorno
+└── src/
+    ├── api/                    # Capa de transporte y endpoints REST (Routers)
+    │   ├── server.py           # Configuración principal de FastAPI
+    │   └── routers/            # Endpoints (Jobs, Historial, Settings)
+    ├── core/                   # Lógica de negocio core
+    │   ├── job_manager.py      # Orquestador del pipeline (Dump -> Compress -> Upload)
+    │   ├── job_scheduler.py    # Enlace con APScheduler
+    │   └── models.py           # Modelos de validación (Pydantic)
+    ├── db/                     # Capa de persistencia (SQLAlchemy + SQLite)
+    │   ├── crud.py             # Operaciones Create, Read, Update, Delete
+    │   └── database.py         # Conexión a la base de datos
+    ├── frontend/               # Interfaz gráfica de usuario
+    │   ├── index.html          # Estructura del panel web
+    │   └── assets/             # Estilos y JS (app.js)
+    ├── connectors/             # Motores de base de datos soportados (PostgreSQL, MySQL...)
+    └── destinations/           # Adaptadores de destino (Local, Google Drive)
 ```
 
 ---
 
-## 🧪 Tests
+## ⚙️ Configuración Inicial
 
-```bash
-pytest tests/ -v
-pytest tests/ -v --cov=src --cov-report=term-missing
-```
+Antes de arrancar SolbaBackups por primera vez, necesitas definir tus parámetros de entorno.
 
----
+1. **Renombra el archivo de entorno**:
+   Copia el archivo `.env.example` y renómbralo a `.env`.
+   
+2. **Configura tus variables clave** en `.env`:
+   ```env
+   # Base de Datos Interna de SolbaBackups
+   DATABASE_URL=sqlite:///./solba.db
 
-## 📖 Documentación
+   # Configuración de Google Drive (Ruta absoluta recomendada)
+   GDRIVE_CREDENTIALS_PATH=/ruta/absoluta/a/tus/credentials.json
 
-| Documento | Descripción |
-|-----------|-------------|
-| [Arquitectura](docs/architecture.md) | Diseño del sistema y decisiones técnicas |
-| [Instalación](docs/setup.md) | Guía de instalación y configuración |
-| [Uso](docs/usage.md) | Manual completo de todos los comandos |
-| [Contribución](docs/contributing.md) | Flujo de trabajo y estándares de código |
-
----
-
-## 🤝 Colaboradores
-
-Proyecto de prácticas desarrollado por 3 alumnos. Ver [docs/contributing.md](docs/contributing.md)
-para el flujo de trabajo con Git y la distribución de responsabilidades.
+   # Configuración de Alertas por Email (SMTP)
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=tu_correo@gmail.com
+   SMTP_PASSWORD=tu_contraseña_de_aplicacion
+   ```
 
 ---
 
-## 📄 Licencia
+## 💻 Uso y Ejecución
 
-MIT License
+SolbaBackups se ejecuta a través de Python y FastAPI. 
+
+1. **Instala las dependencias** (si no lo has hecho ya):
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Arranca el servidor**:
+   Desde la raíz del proyecto, ejecuta el script principal:
+   ```bash
+   python solba_web.py
+   ```
+
+3. **Accede a la Interfaz Web**:
+   Abre tu navegador de confianza y dirígete a:
+   [http://localhost:8765](http://localhost:8765)
+
+   Desde el panel de control podrás crear tus primeros Jobs, definir la frecuencia (Cron, Diaria, por Intervalos) y ejecutar simulaciones manuales.

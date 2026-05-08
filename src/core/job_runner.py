@@ -80,7 +80,49 @@ def _run_and_release(job_id: int, job_manager: JobManager, trigger: str) -> None
         job_manager: Instancia del JobManager.
         trigger:     Origen de la ejecución.
     """
-    pass
+    from src.db.database import SessionLocal
+    from src.db import crud
+    from src.core.notifications import send_email_notification
+    
+    db = SessionLocal()
+    success = False
+    job_name = "Desconocido"
+    try:
+        job = crud.job_get_by_id(db, job_id)
+        if job:
+            job_name = job.name
+            
+        # Ejecutar el pipeline de backup bloqueante real
+        job_manager.execute_job(job_id, trigger=trigger)
+        success = True
+    except Exception as e:
+        log.error(f"Error crítico no controlado en hilo background para Job {job_id}: {e}")
+    finally:
+        # Recuperar ajustes globales para notificaciones
+        settings = crud.setting_get(db, "global_settings", {})
+        db.close()
+        
+        notify_email = settings.get("notify_email", False)
+        notify_errors_only = settings.get("notify_errors_only", False)
+        admin_email = settings.get("admin_email", "")
+
+        if notify_email and admin_email:
+            if not success:
+                send_email_notification(
+                    to_email=admin_email,
+                    subject=f"❌ Error en Backup: {job_name}",
+                    body=f"El trabajo de backup '{job_name}' (ID: {job_id}) ha fallado en su ejecución de tipo '{trigger}'. Revise los logs en el panel."
+                )
+            elif not notify_errors_only:
+                send_email_notification(
+                    to_email=admin_email,
+                    subject=f"✅ Backup Exitoso: {job_name}",
+                    body=f"El trabajo de backup '{job_name}' (ID: {job_id}) finalizó correctamente en su ejecución de tipo '{trigger}'."
+                )
+
+        with _lock:
+            _active_job_ids.discard(job_id)
+            log.debug(f"Job {job_id} liberado de _active_job_ids.")
 
 
 def is_job_running(job_id: int) -> bool:

@@ -36,3 +36,26 @@ def update_settings(settings_in: models.AppSettingsUpdate, db: Session = Depends
     crud.setting_set_many(db, settings_dict)
     updated_settings = crud.setting_get_all(db)
     return {"settings": updated_settings}
+
+@router.post("/test-email")
+def test_email(db: Session = Depends(get_db)):
+    """
+    Envía un correo de prueba al administrador utilizando la configuración actual.
+    """
+    from fastapi import HTTPException
+    from src.core.notifications import send_email_notification
+    settings = crud.setting_get_all(db)
+    admin_email = settings.get("admin_email")
+    
+    if not admin_email:
+        raise HTTPException(status_code=400, detail="No hay email de administrador configurado en los ajustes.")
+        
+    try:
+        send_email_notification(
+            to_email=admin_email,
+            subject="🔔 SolbaBackups: Prueba de Notificaciones",
+            body="¡Hola! Este es un correo de prueba automatizado para verificar que las notificaciones de SolbaBackups están funcionando correctamente."
+        )
+        return {"success": True, "message": f"Correo de prueba simulado/enviado a {admin_email}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno al enviar email: {str(e)}")

@@ -59,7 +59,30 @@ class JobScheduler:
                     except ValueError as e:
                         log.error(f"Error parseando cron '{job.schedule_cron}' para el Job {job.id}: {e}")
             
-            log.info(f"✅ Se han cargado {scheduled_count} jobs programados desde la BD.")
+            # Tarea de sistema: Purga de Logs (Diario a las 00:00)
+            self.scheduler.add_job(
+                self._purge_old_logs,
+                trigger=CronTrigger(hour=0, minute=0),
+                id="system_purge_logs",
+                replace_existing=True
+            )
+            
+            log.info(f"✅ Se han cargado {scheduled_count} jobs programados desde la BD. Tarea de purga iniciada.")
+        finally:
+            db.close()
+
+    async def _purge_old_logs(self):
+        """Tarea de sistema para limpiar logs viejos según los ajustes globales."""
+        log.info("🧹 Iniciando purga de historial y logs antiguos...")
+        db = SessionLocal()
+        try:
+            settings_json = crud.setting_get(db, "global_settings", {})
+            retention = int(settings_json.get("log_retention", 30))
+            
+            deleted = crud.history_purge_old(db, retention_days=retention)
+            log.info(f"✨ Purga completada. Se eliminaron {deleted} ejecuciones más antiguas que {retention} días.")
+        except Exception as e:
+            log.error(f"❌ Error en purga de logs: {e}")
         finally:
             db.close()
 

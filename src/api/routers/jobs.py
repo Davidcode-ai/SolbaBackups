@@ -15,7 +15,17 @@ from src.api.dependencies import get_db, get_job_manager, get_scheduler
 from src.core.job_manager import JobManager
 from src.core.job_scheduler import JobScheduler
 
+from src.core.discovery import scan_local_databases
+
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+@router.get("/discovery")
+async def get_discovery():
+    """
+    Escanea localhost asíncronamente y devuelve los motores de BD activos detectados.
+    """
+    results = await scan_local_databases()
+    return results
 
 
 @router.get("", response_model=list[models.JobRead])
@@ -53,30 +63,6 @@ def create_job(
     return new_job
 
 
-@router.post("", response_model=models.JobRead, status_code=status.HTTP_201_CREATED)
-def create_job(
-    job_in: models.JobCreate,
-    db: Session = Depends(get_db),
-    scheduler: JobScheduler = Depends(get_scheduler),
-):
-    """
-    Crea un nuevo Job de backup y lo programa automáticamente si tiene schedule.
-    """
-    existing_job = crud.job_get_by_name(db, name=job_in.name)
-    if existing_job:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un Job con ese nombre.",
-        )
-
-    job_data = job_in.model_dump(exclude_unset=True)
-    new_job = crud.job_create(db, job_data)
-
-    # Registrar en el scheduler si tiene schedule automático
-    if new_job.schedule_type and new_job.schedule_type.lower() not in ("manual", "none", ""):
-        scheduler.add_job(new_job)
-
-    return new_job
 
 
 @router.get("/{job_id}", response_model=models.JobRead)

@@ -5,10 +5,10 @@ Contiene la lógica central del JobManager que une la base de datos,
 los conectores, compresores y destinos.
 """
 
-import os
-import asyncio
 import logging
+import os
 import shutil
+import subprocess
 import tempfile
 import traceback
 from pathlib import Path
@@ -27,13 +27,34 @@ class JobManager:
     """
 
     def __init__(self):
+        """
+        Inicializa el JobManager.
+        
+        Instancia el compresor predeterminado (ZIP) que se utilizará
+        para reducir el tamaño de los volcados SQL extraídos.
+        """
         self.compressor = Compressor()
 
     async def run_job(self, job_id: int, trigger: str = "manual") -> None:
         """
-        Ejecuta el pipeline de backup para el job especificado.
-        Gestiona su propia sesión de BD (with SessionLocal() as db) 
-        para no bloquear a los llamadores (ej. endpoints API).
+        Ejecuta el pipeline de backup completo para un Job específico.
+        
+        Este método orquesta la extracción (dump), compresión, transferencia
+        al destino final y la política de retención. Gestiona su propia
+        sesión de base de datos para no bloquear el hilo principal.
+        
+        Args:
+            job_id (int): El identificador único del Job en la base de datos.
+            trigger (str, optional): El origen de la ejecución ('manual', 'interval', 'cron').
+                                     Por defecto es "manual".
+        
+        Returns:
+            None
+            
+        Raises:
+            Exception: Atrapa internamente cualquier excepción durante el pipeline,
+                       la registra en los logs de la ejecución y marca el RunHistory
+                       como 'FAILED'. No propaga la excepción hacia arriba.
         """
         history_manager = HistoryManager()
         
@@ -52,11 +73,22 @@ class JobManager:
 
             # TODO EL PROCESO ENVUELTO EN UN GRAN TRY-EXCEPT
             try:
+                # REFACTORIZACIÓN DE EMERGENCIA: Fallback si el frontend falla
+                if job.db_name:
+                    src_path = Path(job.db_name)
+                    if src_path.is_dir() and job.db_type != 'folder':
+                        job.db_type = 'folder'
+                        log.warning(f"Corrigiendo tipo de backup a 'folder' para la ruta: {src_path}")
+
                 # 3. Extracción de BD (Dump)
                 history_manager.add_log(db, run.id, "INFO", f"Iniciando volcado de la BD '{job.db_name}' usando conector {job.db_type}...", stage="dump")
 
-                # Crear un archivo temporal donde el conector guardará el volcado SQL
-                fd, dump_path_str = tempfile.mkstemp(suffix=".sql")
+                # Archivo temporal por defecto
+                suffix = ".bak" if job.db_type == "sqlserver" else ".sql"
+                if job.db_type == "folder":
+                    suffix = ".tmp"
+                    
+                fd, dump_path_str = tempfile.mkstemp(suffix=suffix)
                 os.close(fd)
                 dump_path = Path(dump_path_str)
 
@@ -64,14 +96,52 @@ class JobManager:
                 if job.db_type == "postgresql":
                     from src.connectors.postgresql import PostgreSQLConnector
                     connector = PostgreSQLConnector()
+                    await connector.extract(job, dump_path)
+                    
                 elif job.db_type == "mysql":
                     from src.connectors.mysql import MySQLConnector
                     connector = MySQLConnector()
+                    await connector.extract(job, dump_path)
+                    
+                elif job.db_type == "sqlserver":
+                    host_str = f"{job.db_host},{job.db_port}" if job.db_port else f"{job.db_host}"
+                    cmd = [
+                        "sqlcmd", "-S", host_str, "-U", job.db_user or "", "-P", job.db_password or "",
+                        "-Q", f"BACKUP DATABASE [{job.db_name}] TO DISK='{dump_path_str}'"
+                    ]
+                    process = subprocess.run(cmd, capture_output=True, text=True)
+                    if process.returncode != 0:
+                        raise Exception(f"Error en sqlcmd: {process.stderr or process.stdout}")
+
+                elif job.db_type in ["sqlite", "mdb"]:
+                    if not job.db_name:
+                        raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
+                    src_file = Path(job.db_name)
+                    if not src_file.exists():
+                        raise FileNotFoundError(f"El archivo origen {src_file} no existe.")
+                    shutil.copy2(src_file, dump_path)
+
+                elif job.db_type == "folder":
+                    if not job.db_name:
+                        raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
+                    src_folder = Path(job.db_name)
+                    if not src_folder.exists() or not src_folder.is_dir():
+                        raise FileNotFoundError(f"La carpeta origen {src_folder} no existe.")
+                    
+                    # Creamos un archivo .zip con el contenido de la carpeta
+                    # shutil.make_archive agrega automáticamente la extensión .zip al base_name
+                    base_name = str(dump_path.with_suffix(''))
+                    archive_path_str = shutil.make_archive(base_name, 'zip', src_folder)
+                    
+                    # Eliminamos el archivo temporal vacío (.tmp) generado por mkstemp
+                    if dump_path.exists():
+                        dump_path.unlink()
+                        
+                    # Actualizamos dump_path para que apunte al .zip real generado
+                    dump_path = Path(archive_path_str)
+
                 else:
                     raise NotImplementedError(f"El conector para el motor '{job.db_type}' no está implementado aún.")
-
-                # Llamada asíncrona a la extracción
-                await connector.extract(job, dump_path)
 
                 dump_size = dump_path.stat().st_size
                 history_manager.add_log(db, run.id, "INFO", f"Volcado completado: {dump_path.name} ({dump_size} bytes)", stage="dump")
@@ -82,46 +152,61 @@ class JobManager:
                 file_size = compressed_path.stat().st_size
                 history_manager.add_log(db, run.id, "INFO", f"Compresión exitosa. Tamaño final: {file_size} bytes.", stage="compress")
 
-                # 5. Mover a destino (Carpeta local o red)
+                # 5. Mover a destino (Carpeta local o red) y 6. Política de retención
                 history_manager.add_log(db, run.id, "INFO", f"Preparando transferencia a destino '{job.dest_type}'...", stage="upload")
+
+                # Formatear el nombre del archivo y renombrar el comprimido temporalmente
+                timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                final_name = f"{job.name}_{timestamp}.sql.zip"
+                final_temp_path = compressed_path.parent / final_name
+                compressed_path = compressed_path.rename(final_temp_path)
 
                 if job.dest_type == "local":
                     from src.destinations.local import LocalDestination
                     destination = LocalDestination()
-                    # Ruta de destino por defecto si el usuario no especificó
                     dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
+                    
+                    # Subir archivo localmente
+                    await destination.upload(compressed_path, dest_path_str)
+                    
+                    final_dest = str(Path(dest_path_str) / final_name)
+                    history_manager.add_log(db, run.id, "INFO", f"Transferencia exitosa a: {final_dest}", stage="upload")
+
+                    # Retención Local
+                    if job.dest_retention_days and job.dest_retention_days > 0:
+                        history_manager.add_log(db, run.id, "INFO", f"Ejecutando política de retención local ({job.dest_retention_days} días)...", stage="cleanup")
+                        deleted = await destination.clean_old_backups(dest_path_str, job.dest_retention_days)
+                        if deleted > 0:
+                            history_manager.add_log(db, run.id, "INFO", f"Borrados {deleted} backups antiguos exitosamente.", stage="cleanup")
+                        else:
+                            history_manager.add_log(db, run.id, "INFO", "No se encontraron backups antiguos que borrar.", stage="cleanup")
+
                 elif job.dest_type == "google_drive":
-                    raise NotImplementedError("Google Drive no está implementado aún.")
+                    from src.destinations.google_drive import GoogleDriveDestination
+                    destination = GoogleDriveDestination(
+                        folder_id=job.dest_gdrive_folder_id,
+                        retention_days=job.dest_retention_days,
+                        job_name=job.name
+                    )
+                    import asyncio
+                    
+                    # Subir archivo a GDrive (ejecución síncrona enviada a thread)
+                    web_link = await asyncio.to_thread(destination.upload, compressed_path)
+                    final_dest = web_link
+                    history_manager.add_log(db, run.id, "INFO", f"Transferencia a Google Drive exitosa. Enlace: {web_link}", stage="upload")
+                    
+                    # La retención de GDrive se ejecuta automáticamente dentro de destination.upload
+                    if job.dest_retention_days and job.dest_retention_days > 0:
+                        history_manager.add_log(db, run.id, "INFO", f"Política de retención ejecutada internamente en Drive ({job.dest_retention_days} días).", stage="cleanup")
+
                 else:
                     raise NotImplementedError(f"Destino '{job.dest_type}' no implementado aún.")
-
-                # Formatear el nombre del archivo
-                timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                final_name = f"{job.name}_{timestamp}.sql.zip"
-
-                # Renombramos el comprimido temporalmente al nombre final antes de subirlo
-                final_temp_path = compressed_path.parent / final_name
-                compressed_path = compressed_path.rename(final_temp_path)
-
-                # Subir el archivo
-                await destination.upload(compressed_path, dest_path_str)
-                final_dest = str(Path(dest_path_str) / final_name)
-                history_manager.add_log(db, run.id, "INFO", f"Transferencia exitosa a: {final_dest}", stage="upload")
 
                 # Limpieza de archivos temporales
                 if dump_path.exists():
                     dump_path.unlink()
                 if compressed_path.exists():
                     compressed_path.unlink()
-
-                # 6. Política de Retención
-                if job.dest_retention_days and job.dest_retention_days > 0:
-                    history_manager.add_log(db, run.id, "INFO", f"Ejecutando política de retención ({job.dest_retention_days} días)...", stage="cleanup")
-                    deleted = await destination.clean_old_backups(dest_path_str, job.dest_retention_days)
-                    if deleted > 0:
-                        history_manager.add_log(db, run.id, "INFO", f"Borrados {deleted} backups antiguos exitosamente.", stage="cleanup")
-                    else:
-                        history_manager.add_log(db, run.id, "INFO", "No se encontraron backups antiguos que borrar.", stage="cleanup")
 
                 history_manager.add_log(db, run.id, "INFO", "Backup almacenado y pipeline completado.", stage="done")
 

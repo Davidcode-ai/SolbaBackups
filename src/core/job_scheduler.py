@@ -11,7 +11,6 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from sqlalchemy.orm import Session
 
 from src.core.job_manager import JobManager
 from src.db import crud
@@ -44,7 +43,14 @@ class JobScheduler:
     def load_jobs_from_db(self):
         """
         Lee todos los jobs activos de la BD y los programa en el scheduler.
-        Este método se debe llamar en el startup de la aplicación.
+        
+        Abre una sesión de base de datos efímera para obtener la lista completa
+        de Jobs activos. Para cada Job con un 'schedule_type' válido (distinto
+        de 'manual'), lo inserta en el APScheduler. Se llama típicamente
+        durante el startup de la aplicación.
+        
+        Returns:
+            None
         """
         # Se necesita una sesión de base de datos efímera para la consulta
         db = SessionLocal()
@@ -61,8 +67,19 @@ class JobScheduler:
 
     def add_job(self, job) -> bool:
         """
-        Añade (o actualiza) un job en el scheduler.
-        Utiliza el job.id como identificador único en APScheduler.
+        Añade (o actualiza) la programación de un Job en el scheduler.
+        
+        Convierte la configuración del Job (frecuencia, intervalo o cron) a un
+        Trigger compatible con APScheduler. Si el Job ya estaba programado,
+        lo reemplaza para aplicar cualquier cambio de configuración.
+        
+        Args:
+            job (JobBase): El objeto del Job extraído de la base de datos que
+                           contiene las propiedades 'id', 'schedule_type', etc.
+                           
+        Returns:
+            bool: True si el Job fue parseado y programado con éxito, False
+                  si hubo un error en la configuración o el formato cron.
         """
         job_id_str = f"job_{job.id}"
         
@@ -127,7 +144,18 @@ class JobScheduler:
             return False
 
     def remove_job(self, job_id: int):
-        """Elimina un job del scheduler si existe (ej. cuando se pausa o elimina)."""
+        """
+        Elimina un Job del scheduler de forma segura.
+        
+        Busca el Job por su ID unívoco (job_{id}). Si existe, lo remueve
+        inmediatamente para que no ocurran futuras ejecuciones programadas.
+        
+        Args:
+            job_id (int): El identificador único del Job en la base de datos.
+            
+        Returns:
+            None
+        """
         job_id_str = f"job_{job_id}"
         if self.scheduler.get_job(job_id_str):
             self.scheduler.remove_job(job_id_str)
@@ -135,8 +163,16 @@ class JobScheduler:
 
     async def _execute_job(self, job_id: int):
         """
-        Función interna que será llamada automáticamente por el Scheduler
-        cuando llegue la hora.
+        Desencadena asíncronamente el pipeline de backup.
+        
+        Esta es la función callback interna que es invocada automáticamente
+        por el Event Loop de APScheduler cuando se dispara un trigger de tiempo.
+        
+        Args:
+            job_id (int): El identificador único del Job a ejecutar.
+            
+        Returns:
+            None
         """
         log.info(f"Desencadenando ejecución programada (automática) para el Job {job_id}.")
         await self.job_manager.run_job(job_id, trigger="scheduled")
