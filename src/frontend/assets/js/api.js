@@ -209,6 +209,52 @@ class ApiClient {
             throw error;
         }
     }
+    /**
+     * Obtiene los discos disponibles en el sistema.
+     * @returns {Promise<Object>} Objeto con array de discos { drives: ["C:\\", ...] }
+     */
+    async getDrives() {
+        try {
+            const response = await fetch(`${this.baseUrl}/utils/drives`);
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getDrives:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Lista el contenido de un directorio.
+     * @param {string} path - Ruta del directorio
+     * @returns {Promise<Object>} Contenido { folders: [...], files: [...] }
+     */
+    async listDirectory(path = "") {
+        try {
+            const response = await fetch(`${this.baseUrl}/utils/list-dir?path=${encodeURIComponent(path)}`);
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Error en listDirectory:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Calcula el espacio libre de un disco o ruta.
+     * @param {string} path - Ruta a comprobar
+     * @returns {Promise<Object>} { free_space_mb: 1024 }
+     */
+    async getFreeSpace(path) {
+        try {
+            const response = await fetch(`${this.baseUrl}/utils/free-space?path=${encodeURIComponent(path)}`);
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getFreeSpace:', error);
+            throw error;
+        }
+    }
 }
 
 // Instancia global para ser usada en otros archivos JS de la aplicación

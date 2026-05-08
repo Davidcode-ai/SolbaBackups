@@ -869,26 +869,17 @@ function setupPolling() {
  */
 async function loadStats(isSilent = false) {
     const elTotal = document.getElementById('stat-total-jobs');
-    const elSuccess = document.getElementById('stat-success-rate');
-    const elStorage = document.getElementById('stat-storage-used');
 
     // Si los elementos no existen en el DOM, no hacer nada
-    if (!elTotal || !elSuccess || !elStorage) return;
+    if (!elTotal) return;
 
     try {
         const stats = await api.getStats();
-        
         elTotal.textContent = stats.total_jobs !== undefined ? stats.total_jobs : 'N/A';
-        elSuccess.textContent = stats.success_rate || 'N/A';
-        elStorage.textContent = stats.storage_used || 'N/A';
-        
     } catch (error) {
         if (!isSilent) {
             console.error('Error cargando estadísticas:', error);
-            // Si el backend aún no lo soporta o falla, mostrar valores por defecto bonitos
             elTotal.textContent = 'N/A';
-            elSuccess.textContent = 'N/A';
-            elStorage.textContent = 'N/A';
         }
     }
 }
@@ -2088,3 +2079,147 @@ populateSettingsForm = function(s) {
 document.getElementById('s-language')?.addEventListener('change', (e) => {
     applyTranslations(e.target.value);
 });
+
+// ====== LÓGICA DEL ESCÁNER DE ESPACIO ======
+// ====== LÓGICA DEL ESCÁNER DE ESPACIO ======
+let scanTimeout;
+async function scanFreeSpace(path) {
+    const statEl = document.getElementById('stat-free-space');
+    const icon = document.getElementById('iconScanSpace');
+    if (!statEl || !icon) return;
+
+    if (!path) {
+        statEl.textContent = 'Esperando ruta...';
+        return;
+    }
+    
+    icon.classList.add('fa-spin');
+    statEl.textContent = 'Escaneando...';
+    
+    try {
+        const data = await api.getFreeSpace(path);
+        let space = data.free_space_mb;
+        let unit = 'MB';
+        if (space > 1024) {
+            space = (space / 1024).toFixed(2);
+            unit = 'GB';
+        }
+        statEl.textContent = `${space} ${unit} Libres`;
+    } catch (error) {
+        statEl.textContent = 'Error al leer';
+        console.warn(`No se pudo escanear la ruta: ${error.message}`);
+    } finally {
+        icon.classList.remove('fa-spin');
+    }
+}
+
+// Escuchar cambios en el input de destino (con debounce para no saturar la API)
+const destLocalInput = document.getElementById('destLocalPath');
+if (destLocalInput) {
+    destLocalInput.addEventListener('input', (e) => {
+        clearTimeout(scanTimeout);
+        scanTimeout = setTimeout(() => {
+            scanFreeSpace(e.target.value.trim());
+        }, 800);
+    });
+    // Escanear si ya hay un valor cargado
+    if (destLocalInput.value.trim()) {
+        scanFreeSpace(destLocalInput.value.trim());
+    }
+}
+
+// ====== LÓGICA DEL EXPLORADOR DE ARCHIVOS WEB ======
+let currentExplorerInput = null;
+let currentExplorerPath = "";
+
+async function openFileExplorer(inputId) {
+    currentExplorerInput = document.getElementById(inputId);
+    const modal = document.getElementById('fileExplorerModal');
+    modal.classList.remove('hidden');
+    await renderExplorerPath(""); // Carga discos inicialmente
+}
+
+function closeFileExplorer() {
+    const modal = document.getElementById('fileExplorerModal');
+    modal.classList.add('hidden');
+    currentExplorerInput = null;
+    currentExplorerPath = "";
+}
+
+async function renderExplorerPath(path) {
+    currentExplorerPath = path;
+    const container = document.getElementById('explorerListContainer');
+    const pathDisplay = document.getElementById('explorerCurrentPath');
+    const btnUp = document.getElementById('btnExplorerUp');
+    
+    container.innerHTML = '<div class="flex justify-center items-center h-40"><i class="fa-solid fa-spinner fa-spin text-brand-500 text-2xl"></i></div>';
+    
+    try {
+        const data = await api.listDirectory(path);
+        
+        pathDisplay.textContent = data.current_path || "Este equipo";
+        btnUp.disabled = !data.parent_path;
+        btnUp.onclick = () => renderExplorerPath(data.parent_path);
+        
+        let html = '';
+        if (data.folders.length === 0 && data.files.length === 0) {
+            html = '<div class="text-center py-8 text-slate-500 text-sm">Carpeta vacía</div>';
+        } else {
+            // Renderizar carpetas
+            data.folders.forEach(f => {
+                html += `
+                    <div class="explorer-item flex items-center gap-3 p-2 hover:bg-slate-200 dark:hover:bg-surface-800 rounded cursor-pointer transition-colors" data-path="${f.path.replace(/\\/g, '\\\\')}">
+                        <i class="fa-solid fa-folder text-brand-400 text-lg w-5 text-center"></i>
+                        <span class="text-sm text-slate-700 dark:text-slate-300 select-none truncate">${f.name}</span>
+                    </div>
+                `;
+            });
+            // Renderizar archivos
+            data.files.forEach(f => {
+                html += `
+                    <div class="explorer-item flex items-center gap-3 p-2 hover:bg-slate-200 dark:hover:bg-surface-800 rounded cursor-pointer transition-colors" data-path="${f.path.replace(/\\/g, '\\\\')}">
+                        <i class="fa-solid fa-file text-slate-400 text-lg w-5 text-center"></i>
+                        <span class="text-sm text-slate-700 dark:text-slate-300 select-none truncate">${f.name}</span>
+                    </div>
+                `;
+            });
+        }
+        container.innerHTML = html;
+        
+        // Listeners
+        container.querySelectorAll('.explorer-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const targetPath = item.dataset.path;
+                if (item.querySelector('.fa-folder')) {
+                    renderExplorerPath(targetPath);
+                } else {
+                    currentExplorerPath = targetPath;
+                    pathDisplay.textContent = targetPath;
+                    // Resaltar seleccionado
+                    container.querySelectorAll('.explorer-item').forEach(i => i.classList.remove('bg-brand-500/10', 'border', 'border-brand-500/50'));
+                    item.classList.add('bg-brand-500/10', 'border', 'border-brand-500/50');
+                }
+            });
+        });
+        
+    } catch (error) {
+        container.innerHTML = `<div class="text-center py-8 text-red-500 text-sm"><i class="fa-solid fa-triangle-exclamation mb-2 text-xl"></i><br>Error: ${error.message}</div>`;
+    }
+}
+
+document.getElementById('btnBrowseSource')?.addEventListener('click', () => openFileExplorer('dbFilePath'));
+document.getElementById('btnBrowseDest')?.addEventListener('click', () => openFileExplorer('destLocalPath'));
+
+document.getElementById('btnExplorerSelect')?.addEventListener('click', () => {
+    if (currentExplorerInput && currentExplorerPath) {
+        currentExplorerInput.value = currentExplorerPath;
+        // Disparar el evento input para que el escáner (u otros listeners) se enteren del cambio
+        currentExplorerInput.dispatchEvent(new Event('input'));
+    }
+    closeFileExplorer();
+});
+
+document.getElementById('btnExplorerCancel')?.addEventListener('click', closeFileExplorer);
+document.getElementById('btnCloseExplorer')?.addEventListener('click', closeFileExplorer);
+document.getElementById('btnExplorerRefresh')?.addEventListener('click', () => renderExplorerPath(currentExplorerPath));
+
