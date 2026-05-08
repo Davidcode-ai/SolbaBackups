@@ -101,10 +101,10 @@ async function loadJobs(isSilent = false) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                         </svg>
                     </div>
-                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1">No hay tareas</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">No has configurado ningún backup aún.</p>
+                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1">${t('empty_jobs_title')}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">${t('empty_jobs_desc')}</p>
                     <button onclick="document.getElementById('jobName').focus();" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm">
-                        Nueva Tarea
+                        ${t('empty_jobs_cta')}
                     </button>
                 </div>
             `;
@@ -166,7 +166,7 @@ async function loadJobs(isSilent = false) {
     } catch (error) {
         if (!isSilent) {
             console.error('Error cargando los jobs:', error);
-            container.innerHTML = '<p class="px-3 text-xs text-red-400">Error cargando jobs.</p>';
+            container.innerHTML = `<p class="px-3 text-xs text-red-400">${t('error_loading_jobs')}</p>`;
         }
     }
 }
@@ -225,7 +225,7 @@ async function loadHistory(isSilent = false) {
         container.innerHTML = '';
 
         if (historyData.length === 0) {
-            container.innerHTML = '<p class="text-slate-400 text-sm">No hay ejecuciones recientes.</p>';
+            container.innerHTML = `<p class="text-slate-400 text-sm">${t('empty_history')}</p>`;
             return;
         }
 
@@ -290,7 +290,7 @@ async function loadHistory(isSilent = false) {
     } catch (error) {
         if (!isSilent) {
             console.error('Error cargando historial:', error);
-            container.innerHTML = '<p class="text-red-400 text-sm">Error cargando historial.</p>';
+            container.innerHTML = `<p class="text-red-400 text-sm">${t('error_loading_history')}</p>`;
         }
     }
 }
@@ -1306,12 +1306,15 @@ async function loadDiscovery() {
         const services = await response.json();
 
         services.forEach(svc => {
+            const currentLang = getCurrentLanguage();
+            const translatedName = translateDiscoveryEngineName(svc, currentLang);
+            const detectedAtText = t('discovery_detected_at', currentLang);
             const card = document.createElement('div');
             card.className = 'discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 rounded-lg p-4 transition-all';
             card.dataset.engine = svc.engine;
             card.dataset.host = svc.host;
             card.dataset.port = svc.port;
-            card.dataset.name = svc.name;
+            card.dataset.name = translatedName;
             
             card.innerHTML = `
                 <div class="flex items-center gap-3">
@@ -1319,8 +1322,8 @@ async function loadDiscovery() {
                         <i class="fa-solid fa-server"></i>
                     </div>
                     <div class="pointer-events-none">
-                        <p class="text-sm font-semibold text-slate-800 dark:text-white">${svc.name}</p>
-                        <p class="text-xs text-brand-500 dark:text-brand-400 font-mono">${svc.host}:${svc.port}</p>
+                        <p class="text-sm font-semibold text-slate-800 dark:text-white">${translatedName}</p>
+                        <p class="text-xs text-brand-500 dark:text-brand-400 font-mono">${detectedAtText} ${svc.host}:${svc.port}</p>
                     </div>
                 </div>
             `;
@@ -1339,6 +1342,26 @@ async function loadDiscovery() {
             card.addEventListener('click', handleDiscoveryClick);
         });
     }
+}
+
+function translateDiscoveryEngineName(service, lang = getCurrentLanguage()) {
+    const engine = String(service?.engine || '').toLowerCase();
+    const rawName = String(service?.name || '').trim();
+
+    if (engine === 'postgresql') return t('engine_postgresql', lang);
+    if (engine === 'mysql') return t('engine_mysql', lang);
+    if (engine === 'sqlserver') return t('engine_sqlserver', lang);
+    if (engine === 'sqlite') return t('engine_local_file', lang);
+    if (engine === 'folder') return t('engine_local_folder', lang);
+
+    const normalized = rawName.toLowerCase();
+    if (normalized.includes('postgres')) return t('engine_postgresql', lang);
+    if (normalized.includes('mysql') || normalized.includes('mariadb')) return t('engine_mysql', lang);
+    if (normalized.includes('sql server') || normalized.includes('sqlserver')) return t('engine_sqlserver', lang);
+    if (normalized.includes('sqlite') || normalized.includes('access')) return t('engine_local_file', lang);
+    if (normalized.includes('carpeta') || normalized.includes('folder')) return t('engine_local_folder', lang);
+
+    return rawName || t('engine_unknown', lang);
 }
 
 /**
@@ -1396,10 +1419,11 @@ function handleDiscoveryClick(event) {
 
         // Ajustar placeholder del usuario como sugerencia
         if (dbUserEl) {
-            if (engine === 'postgresql') dbUserEl.placeholder = 'Ej: postgres';
-            else if (engine === 'sqlserver') dbUserEl.placeholder = 'Ej: sa';
-            else if (engine === 'mysql') dbUserEl.placeholder = 'Ej: root';
-            else dbUserEl.placeholder = 'Usuario';
+            const lang = getCurrentLanguage();
+            if (engine === 'postgresql') dbUserEl.placeholder = t('ph_db_user', lang);
+            else if (engine === 'sqlserver') dbUserEl.placeholder = t('ph_db_user_sqlserver', lang);
+            else if (engine === 'mysql') dbUserEl.placeholder = t('ph_db_user_mysql', lang);
+            else dbUserEl.placeholder = t('label_user', lang);
         }
 
         // Dar foco automáticamente al Nombre de la Base de Datos para seguir el flujo
@@ -1598,6 +1622,116 @@ async function loadTerminalLogs(runId) {
 
 const i18n = {
     es: {
+        app_title: "SolbaBackups",
+        title_create_job: "Crear Nuevo Job",
+        btn_new_job: "Nuevo Job",
+        sidebar_my_jobs: "Mis Jobs",
+        btn_open_settings: "Ajustes Globales",
+        stat_total_jobs: "Total de Tareas",
+        stat_success_rate: "Tasa de Éxito",
+        stat_storage_used: "Espacio Ocupado",
+        label_job_name: "Nombre del Job",
+        label_detected_engines: "Motores Detectados",
+        title_new_backup_job: "Nuevo Job de Backup",
+        label_job_description: "Descripción",
+        label_optional: "(opcional)",
+        title_advanced_network: "Configuración Avanzada de Red",
+        section_db_connection: "Conexión a la Base de Datos",
+        label_db_engine: "Motor de Base de Datos",
+        label_file_db: "Fichero (SQLite/Access)",
+        label_db_host: "Host / IP del Servidor",
+        label_port: "Puerto",
+        title_schedule: "Programación",
+        opt_schedule_manual: "Manual (solo bajo demanda)",
+        opt_schedule_daily: "Diario (a una hora específica)",
+        opt_schedule_weekly: "Semanal (día específico)",
+        opt_schedule_monthly: "Mensual (día del mes)",
+        opt_schedule_interval: "Por intervalo (minutos)",
+        opt_schedule_cron: "Expresión Cron personalizada",
+        opt_db_select_type: "Selecciona un tipo...",
+        label_user: "Usuario",
+        label_password: "Contraseña",
+        label_db_name: "Nombre de la Base de Datos",
+        label_schedule_time: "Hora de Ejecución",
+        label_day_of_week: "Día de la semana",
+        label_day_of_month: "Día del mes",
+        label_interval_minutes: "Intervalo en Minutos",
+        label_cron_expression: "Expresión Cron",
+        label_source_absolute_path: "Ruta absoluta del origen (Archivo o Carpeta)",
+        day_monday: "Lunes",
+        day_tuesday: "Martes",
+        day_wednesday: "Miércoles",
+        day_thursday: "Jueves",
+        day_friday: "Viernes",
+        day_saturday: "Sábado",
+        day_sunday: "Domingo",
+        label_storage: "Almacenamiento",
+        section_backup_destination: "Destino del Backup",
+        opt_local_folder: "Carpeta Local / Red",
+        opt_google_drive: "Google Drive",
+        engine_local_file: "Fichero Local",
+        engine_local_folder: "Carpeta Local",
+        engine_file_directory: "Directorio de archivos",
+        engine_postgresql: "PostgreSQL",
+        engine_mysql: "MySQL / MariaDB",
+        engine_sqlserver: "Microsoft SQL Server",
+        engine_unknown: "Motor detectado",
+        discovery_detected_at: "Detectado en",
+        label_dest_dir: "Directorio de Destino",
+        gdrive_not_linked: "Google Drive no vinculado",
+        gdrive_connect_hint: "Conecta tu cuenta para realizar backups automáticos en la nube.",
+        btn_link_google: "Vincular con Google",
+        gdrive_account_linked: "Cuenta Vinculada",
+        gdrive_ready: "Lista para usar",
+        btn_explore: "Explorar",
+        label_gdrive_dest_folder: "Carpeta Destino Seleccionada",
+        btn_save_job: "Guardar Configuración",
+        title_execution_details: "Detalles de Ejecución",
+        title_history_logs: "Historial y Logs",
+        msg_select_execution: "Selecciona una ejecución en el historial para ver sus logs.",
+        title_global_settings: "Ajustes Globales",
+        tab_general: "General",
+        section_application: "Aplicación",
+        label_language: "Idioma",
+        opt_lang_es: "Español",
+        opt_lang_en: "English",
+        label_admin_email: "Email del administrador",
+        hint_admin_email: "Se usará para enviar alertas de errores críticos.",
+        label_timezone: "Zona horaria del sistema",
+        opt_detecting: "Detectando...",
+        hint_timezone: "La zona horaria es detectada automáticamente por el sistema local.",
+        section_notifications: "Notificaciones",
+        label_notify_email: "Notificaciones por email",
+        hint_notify_email: "Recibe un resumen diario de las ejecuciones.",
+        label_notify_errors: "Alertas solo en caso de error",
+        hint_notify_errors: "Solo notifica cuando un backup falla.",
+        btn_test_email: "Enviar Notificación de Prueba",
+        section_log_retention: "Retención de logs",
+        label_log_retention: "Días de retención de historial",
+        hint_log_retention: "Los registros más antiguos se eliminarán automáticamente.",
+        btn_cancel: "Cancelar",
+        btn_save_changes: "Guardar cambios",
+        ph_job_name: "Ej: Backup nocturno de la BD de producción",
+        ph_job_title: "Ej: Backup Base de Datos Producción",
+        ph_db_host: "Ej: 127.0.0.1 o mi-servidor.local",
+        ph_db_name: "Ej: mi_base_de_datos",
+        ph_db_user: "Ej: postgres",
+        ph_db_user_sqlserver: "Ej: sa",
+        ph_db_user_mysql: "Ej: root",
+        ph_source_absolute_path: "Ej: C:\\Backups\\mi_base_datos.db o C:\\MisArchivos",
+        ph_day_of_month: "Ej: 1",
+        ph_schedule_interval: "Ej: 60",
+        ph_cron_expression: "Ej: 0 2 * * *",
+        ph_dest_dir: "Ej: C:\\MisBackups o \\\\Servidor\\Backups",
+        ph_gdrive_root: "Raíz de Mi Unidad",
+        ph_admin_email: "admin@empresa.com",
+        ph_log_retention_days: "30",
+        empty_jobs_title: "No hay tareas",
+        empty_jobs_desc: "No has configurado ningún backup aún.",
+        empty_jobs_cta: "Nueva Tarea",
+        empty_history: "No hay ejecuciones recientes.",
+        error_loading_jobs: "Error cargando jobs.",
+        error_loading_history: "Error cargando historial.",
         "Nuevo Job de Backup": "Nuevo Job de Backup",
         "Nombre del Job": "Nombre del Job",
         "Motores Detectados": "Motores Detectados",
@@ -1644,10 +1778,153 @@ const i18n = {
         "Ejecutar": "Ejecutar",
         "Cancelar": "Cancelar",
         "Google Drive no vinculado": "Google Drive no vinculado",
+        "Aplicación": "Aplicación",
+        "Zona horaria del sistema": "Zona horaria del sistema",
+        "La zona horaria es detectada automáticamente por el sistema local.": "La zona horaria es detectada automáticamente por el sistema local.",
+        "Notificaciones": "Notificaciones",
+        "Recibe un resumen diario de las ejecuciones.": "Recibe un resumen diario de las ejecuciones.",
+        "Solo notifica cuando un backup falla.": "Solo notifica cuando un backup falla.",
+        "Retención de logs": "Retención de logs",
+        "Días de retención de historial": "Días de retención de historial",
+        "Los registros más antiguos se eliminarán automáticamente.": "Los registros más antiguos se eliminarán automáticamente.",
+        "Se usará para enviar alertas de errores críticos.": "Se usará para enviar alertas de errores críticos.",
+        "Enviar Notificación de Prueba": "Enviar Notificación de Prueba",
+        "Cancelar": "Cancelar",
+        "Guardar cambios": "Guardar cambios",
         "Vincular con Google": "Vincular con Google",
-        "Desvincular Google Drive": "Desvincular Google Drive"
+        "Desvincular Google Drive": "Desvincular Google Drive",
+        "No hay tareas configuradas": "No hay tareas configuradas",
+        "Crea un nuevo Job para empezar": "Crea un nuevo Job para empezar",
+        "Total de Tareas": "Total de Tareas",
+        "Tasa de Éxito": "Tasa de Éxito",
+        "Espacio Ocupado": "Espacio Ocupado",
+        "Procesando...": "Procesando...",
+        "Éxito": "Éxito",
+        "Fallido": "Fallido",
+        "N/A": "N/A",
+        "Ej: Backup Base de Datos Producción": "Ej: Backup Base de Datos Producción",
+        "Ej: Backup nocturno de la BD de producción": "Ej: Backup nocturno de la BD de producción",
+        "Ej: 127.0.0.1 o mi-servidor.local": "Ej: 127.0.0.1 o mi-servidor.local",
+        "Ej: mi_base_de_datos": "Ej: mi_base_de_datos",
+        "Ej: postgres": "Ej: postgres",
+        "Ej: C:\MisBackups o \\Servidor\Backups": "Ej: C:\MisBackups o \\Servidor\Backups",
+        "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos": "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos",
+        "Ej: 0 2 * * *": "Ej: 0 2 * * *",
+        "Ej: 60": "Ej: 60",
+        "/ruta/absoluta/credentials.json": "/ruta/absoluta/credentials.json",
+        "Raíz de Mi Unidad": "Raíz de Mi Unidad"
     },
     en: {
+        app_title: "SolbaBackups",
+        title_create_job: "Create New Job",
+        btn_new_job: "New Job",
+        sidebar_my_jobs: "My Jobs",
+        btn_open_settings: "Global Settings",
+        stat_total_jobs: "Total Jobs",
+        stat_success_rate: "Success Rate",
+        stat_storage_used: "Used Space",
+        label_job_name: "Job Name",
+        label_detected_engines: "Detected Engines",
+        title_new_backup_job: "New Backup Job",
+        label_job_description: "Description",
+        label_optional: "(optional)",
+        title_advanced_network: "Advanced Network Settings",
+        section_db_connection: "Database Connection",
+        label_db_engine: "Database Engine",
+        label_file_db: "File (SQLite/Access)",
+        label_db_host: "Server Host / IP",
+        label_port: "Port",
+        title_schedule: "Schedule",
+        opt_schedule_manual: "Manual (on demand)",
+        opt_schedule_daily: "Daily (specific time)",
+        opt_schedule_weekly: "Weekly (specific day)",
+        opt_schedule_monthly: "Monthly (day of month)",
+        opt_schedule_interval: "By interval (minutes)",
+        opt_schedule_cron: "Custom Cron expression",
+        opt_db_select_type: "Select a type...",
+        label_user: "User",
+        label_password: "Password",
+        label_db_name: "Database Name",
+        label_schedule_time: "Execution Time",
+        label_day_of_week: "Day of week",
+        label_day_of_month: "Day of month",
+        label_interval_minutes: "Interval in Minutes",
+        label_cron_expression: "Cron Expression",
+        label_source_absolute_path: "Absolute source path (File or Folder)",
+        day_monday: "Monday",
+        day_tuesday: "Tuesday",
+        day_wednesday: "Wednesday",
+        day_thursday: "Thursday",
+        day_friday: "Friday",
+        day_saturday: "Saturday",
+        day_sunday: "Sunday",
+        label_storage: "Storage",
+        section_backup_destination: "Backup Destination",
+        opt_local_folder: "Local Folder / Network",
+        opt_google_drive: "Google Drive",
+        engine_local_file: "Local File",
+        engine_local_folder: "Local Folder",
+        engine_file_directory: "File directory",
+        engine_postgresql: "PostgreSQL",
+        engine_mysql: "MySQL / MariaDB",
+        engine_sqlserver: "Microsoft SQL Server",
+        engine_unknown: "Detected engine",
+        discovery_detected_at: "Detected at",
+        label_dest_dir: "Destination Directory",
+        gdrive_not_linked: "Google Drive not linked",
+        gdrive_connect_hint: "Connect your account to run automatic cloud backups.",
+        btn_link_google: "Link with Google",
+        gdrive_account_linked: "Linked Account",
+        gdrive_ready: "Ready to use",
+        btn_explore: "Browse",
+        label_gdrive_dest_folder: "Selected Destination Folder",
+        btn_save_job: "Save Configuration",
+        title_execution_details: "Execution Details",
+        title_history_logs: "History and Logs",
+        msg_select_execution: "Select a history execution to view logs.",
+        title_global_settings: "Global Settings",
+        tab_general: "General",
+        section_application: "Application",
+        label_language: "Language",
+        opt_lang_es: "Spanish",
+        opt_lang_en: "English",
+        label_admin_email: "Admin Email",
+        hint_admin_email: "Used to send critical error alerts.",
+        label_timezone: "System Timezone",
+        opt_detecting: "Detecting...",
+        hint_timezone: "Timezone is automatically detected from your local system.",
+        section_notifications: "Notifications",
+        label_notify_email: "Email Notifications",
+        hint_notify_email: "Receive a daily execution summary.",
+        label_notify_errors: "Alerts on errors only",
+        hint_notify_errors: "Only notify when a backup fails.",
+        btn_test_email: "Send Test Notification",
+        section_log_retention: "Log Retention",
+        label_log_retention: "History retention days",
+        hint_log_retention: "Older records will be removed automatically.",
+        btn_cancel: "Cancel",
+        btn_save_changes: "Save changes",
+        ph_job_name: "Ex: Nightly production DB backup",
+        ph_job_title: "Ex: Production database backup",
+        ph_db_host: "Ex: 127.0.0.1 or my-server.local",
+        ph_db_name: "Ex: my_database",
+        ph_db_user: "Ex: postgres",
+        ph_db_user_sqlserver: "Ex: sa",
+        ph_db_user_mysql: "Ex: root",
+        ph_source_absolute_path: "Ex: C:\\Backups\\my_database.db or C:\\MyFiles",
+        ph_day_of_month: "Ex: 1",
+        ph_schedule_interval: "Ex: 60",
+        ph_cron_expression: "Ex: 0 2 * * *",
+        ph_dest_dir: "Ex: C:\\MyBackups or \\\\Server\\Backups",
+        ph_gdrive_root: "Root of My Drive",
+        ph_admin_email: "admin@company.com",
+        ph_log_retention_days: "30",
+        empty_jobs_title: "No jobs yet",
+        empty_jobs_desc: "You have not configured any backup yet.",
+        empty_jobs_cta: "New Job",
+        empty_history: "No recent executions.",
+        error_loading_jobs: "Error loading jobs.",
+        error_loading_history: "Error loading history.",
         "Nuevo Job de Backup": "New Backup Job",
         "Nombre del Job": "Job Name",
         "Motores Detectados": "Discovered Engines",
@@ -1694,37 +1971,106 @@ const i18n = {
         "Ejecutar": "Run",
         "Cancelar": "Cancel",
         "Google Drive no vinculado": "Google Drive not linked",
+        "Aplicación": "Application",
+        "Zona horaria del sistema": "System Timezone",
+        "La zona horaria es detectada automáticamente por el sistema local.": "The timezone is automatically detected by the local system.",
+        "Notificaciones": "Notifications",
+        "Recibe un resumen diario de las ejecuciones.": "Receive a daily summary of executions.",
+        "Solo notifica cuando un backup falla.": "Only notify when a backup fails.",
+        "Retención de logs": "Log Retention",
+        "Días de retención de historial": "History retention days",
+        "Los registros más antiguos se eliminarán automáticamente.": "Older records will be deleted automatically.",
+        "Se usará para enviar alertas de errores críticos.": "Will be used to send critical error alerts.",
+        "Enviar Notificación de Prueba": "Send Test Notification",
+        "Cancelar": "Cancel",
+        "Guardar cambios": "Save changes",
         "Vincular con Google": "Link with Google",
-        "Desvincular Google Drive": "Unlink Google Drive"
+        "Desvincular Google Drive": "Unlink Google Drive",
+        "No hay tareas configuradas": "No configured jobs",
+        "Crea un nuevo Job para empezar": "Create a new Job to start",
+        "Total de Tareas": "Total Jobs",
+        "Tasa de Éxito": "Success Rate",
+        "Espacio Ocupado": "Used Space",
+        "Procesando...": "Processing...",
+        "Éxito": "Success",
+        "Fallido": "Failed",
+        "N/A": "N/A",
+        "Ej: Backup Base de Datos Producción": "Ex: Production Database Backup",
+        "Ej: Backup nocturno de la BD de producción": "Ex: Nightly Production DB Backup",
+        "Ej: 127.0.0.1 o mi-servidor.local": "Ex: 127.0.0.1 or my-server.local",
+        "Ej: mi_base_de_datos": "Ex: my_database",
+        "Ej: postgres": "Ex: postgres",
+        "Ej: C:\MisBackups o \\Servidor\Backups": "Ex: C:\MyBackups or \\Server\Backups",
+        "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos": "Ex: C:\Backups\my_db.db or C:\MyFiles",
+        "Ej: 0 2 * * *": "Ex: 0 2 * * *",
+        "Ej: 60": "Ex: 60",
+        "/ruta/absoluta/credentials.json": "/absolute/path/to/credentials.json",
+        "Raíz de Mi Unidad": "Root of My Drive"
     }
 };
 
+function getCurrentLanguage() {
+    const langSelect = document.getElementById('s-language');
+    if (langSelect && i18n[langSelect.value]) return langSelect.value;
+    return 'es';
+}
+
+function t(key, lang = getCurrentLanguage()) {
+    const language = i18n[lang] ? lang : 'es';
+    const dict = i18n[language] || {};
+    const fallback = i18n.es || {};
+    const value = dict[key] ?? fallback[key];
+
+    if (value === undefined) {
+        console.warn(`[i18n] Missing translation key "${key}" for language "${language}".`);
+        return key;
+    }
+    return value;
+}
+
 function applyTranslations(lang) {
-    if (!i18n[lang]) lang = 'es';
-    const dict = i18n[lang];
-    
-        const elementsToTranslate = [
-        ...document.querySelectorAll('h3, label, p.text-sm, span, summary span, th, .btn-run, .btn-edit, .btn-delete')
-    ];
-    
-    elementsToTranslate.forEach(el => {
-        if (!el.dataset.originalText) {
-            if (el.children.length === 0 || el.tagName.toLowerCase() === 'label') {
-                el.dataset.originalText = el.textContent.trim();
+    if (!i18n[lang]) {
+        console.warn(`[i18n] Unknown language "${lang}", fallback to "es".`);
+        lang = 'es';
+    }
+    const dict = i18n[lang] || {};
+    const fallback = i18n.es || {};
+    document.documentElement.lang = lang;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        try {
+            const key = el.getAttribute('data-i18n');
+            if (!key) return;
+
+            const translated = dict[key] ?? fallback[key];
+            if (translated === undefined) {
+                console.warn(`[i18n] Missing key "${key}" for language "${lang}".`);
+                return;
             }
-        }
-        
-        const original = el.dataset.originalText;
-        if (original && dict[original]) {
-            el.textContent = dict[original];
+
+            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                el.placeholder = translated;
+            } else {
+                el.innerText = translated;
+            }
+        } catch (error) {
+            console.warn('[i18n] Error translating element:', error);
         }
     });
-    
-    document.querySelectorAll('option').forEach(opt => {
-        if (!opt.dataset.originalText) opt.dataset.originalText = opt.textContent.trim();
-        const original = opt.dataset.originalText;
-        if (original && dict[original]) {
-            opt.textContent = dict[original];
+
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        try {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (!key) return;
+
+            const translated = dict[key] ?? fallback[key];
+            if (translated === undefined) {
+                console.warn(`[i18n] Missing placeholder key "${key}" for language "${lang}".`);
+                return;
+            }
+            el.setAttribute('placeholder', translated);
+        } catch (error) {
+            console.warn('[i18n] Error translating placeholder:', error);
         }
     });
 }
