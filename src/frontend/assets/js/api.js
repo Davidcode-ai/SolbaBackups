@@ -192,6 +192,23 @@ class ApiClient {
             throw error;
         }
     }
+
+    /**
+     * Obtiene las estadísticas globales del Dashboard.
+     * @returns {Promise<Object>} Objeto con las estadísticas (total_jobs, success_rate, storage_used)
+     */
+    async getStats() {
+        try {
+            const response = await fetch(`${this.baseUrl}/stats`);
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en getStats:', error);
+            throw error;
+        }
+    }
 }
 
 // Instancia global para ser usada en otros archivos JS de la aplicación
