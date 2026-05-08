@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 # Importamos los routers de la API
-from src.api.routers import jobs, history, settings, auth, stats
+from src.api.routers import jobs, history, settings, auth, stats, utils
 
 log = logging.getLogger(__name__)
 
@@ -95,6 +95,7 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(history.router, prefix="/api/v1")
     app.include_router(settings.router, prefix="/api/v1")
     app.include_router(stats.router, prefix="/api/v1")
+    app.include_router(utils.router, prefix="/api/v1")
     app.include_router(auth.router)
 
 def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
