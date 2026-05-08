@@ -97,13 +97,36 @@ class ApiClient {
      */
     async getRunLogs(runId) {
         try {
-            const response = await fetch(`${this.baseUrl}/history/${runId}/logs`);
+            const response = await fetch(`${this.baseUrl}/history/run/${runId}/logs`);
             if (!response.ok) {
                 throw new Error(`Error HTTP: ${response.status}`);
             }
             return await response.json();
         } catch (error) {
             console.error(`Error en getRunLogs (run ID: ${runId}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Restaura un backup desde un run exitoso.
+     * @param {string|number} runId - El ID del run/ejecución a restaurar
+     * @returns {Promise<Object>} Resultado de la restauración
+     */
+    async restoreBackup(runId) {
+        try {
+            const response = await fetch(`${this.baseUrl}/history/restore/${runId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`Error en restoreBackup (run ID: ${runId}):`, error);
             throw error;
         }
     }

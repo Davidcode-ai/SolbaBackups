@@ -169,7 +169,11 @@ class RunHistory(Base):
     )
 
     # ── Temporización ─────────────────────────────────────────────────────
-    started_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    started_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        nullable=False,
+    )
     finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     duration_secs: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -222,7 +226,9 @@ class LogEntry(Base):
 
     # ── Contenido ─────────────────────────────────────────────────────────
     timestamp: Mapped[datetime.datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.datetime.utcnow
+        DateTime,
+        default=datetime.datetime.utcnow,
+        nullable=False,
     )
     level: Mapped[str] = mapped_column(
         String(10), nullable=False,

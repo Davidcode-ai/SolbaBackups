@@ -8,10 +8,12 @@ Prefijo del router : /api/v1/history
 Tag OpenAPI        : History
 
 Endpoints:
-    GET /              → Historial paginado de todas las ejecuciones.
-    GET /{job_id}      → Historial de las ejecuciones de un job concreto.
-    GET /run/{run_id}  → Detalle completo de una ejecución específica.
-    DELETE /run/{run_id} → Eliminar el registro de una ejecución y sus logs.
+    GET /                      → Historial paginado de todas las ejecuciones.
+    GET /job/{job_id}          → Historial de las ejecuciones de un job concreto.
+    GET /run/{run_id}          → Detalle completo de una ejecución específica.
+    DELETE /run/{run_id}       → Eliminar el registro de una ejecución y sus logs.
+    GET /run/{run_id}/logs     → Logs detallados de una ejecución.
+    POST /restore/{run_id}     → Restaurar backup de una ejecución exitosa.
 
 Modelo de datos de una ejecución (RunHistory):
     - run_id       : ID único de la ejecución.
@@ -32,6 +34,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
+from src.core.job_manager import JobManager
 from src.core.models import RunHistoryRead, LogEntryRead
 from src.db import crud
 
@@ -68,7 +71,9 @@ def list_history(
     Returns:
         list[RunHistoryRead]: Página de registros de ejecución.
     """
-    return crud.run_get_all(db, page=page, page_size=page_size, status_filter=status_filter)
+    runs = crud.run_get_all(db, page=page, page_size=page_size, status_filter=status_filter)
+    log.info(f"LIST_HISTORY: Devolviendo {len(runs)} runs. IDs: {[r.id for r in runs]}")
+    return runs
 
 
 @router.get(
@@ -102,6 +107,52 @@ def list_job_history(
     if not job:
         raise HTTPException(status_code=404, detail="Job no encontrado.")
     return crud.run_get_by_job(db, job_id=job_id, page=page, page_size=page_size)
+
+
+@router.post(
+    "/restore/{run_id}",
+    summary="Restaurar backup de una ejecución exitosa",
+)
+def restore_run_backup(
+    run_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Restaura el backup asociado a un run exitoso.
+
+    Validaciones:
+    - El run debe existir.
+    - El run debe estar en estado 'success'.
+    """
+    log.info(f"RESTORE: Intentando restaurar run_id={run_id}")
+    
+    # Debug: Listar todos los runs disponibles
+    all_runs = crud.run_get_all(db, page=1, page_size=100)
+    log.info(f"RESTORE: Runs disponibles en BD: {[r.id for r in all_runs]}")
+    
+    run = crud.run_get_by_id(db, run_id)
+    if not run:
+        log.error(f"RESTORE: Run {run_id} no encontrado en la base de datos")
+        raise HTTPException(status_code=404, detail=f"Ejecución con ID {run_id} no encontrada en la base de datos.")
+    
+    log.info(f"RESTORE: Run {run_id} encontrado, status={run.status}")
+    if (run.status or "").lower() != "success":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Solo se puede restaurar una ejecución SUCCESS. Run {run_id} tiene estado: {run.status}",
+        )
+
+    jm = JobManager()
+    try:
+        return jm.restore_backup(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get(
@@ -166,7 +217,7 @@ def delete_run(
 
 
 @router.get(
-    "/{run_id}/logs",
+    "/run/{run_id}/logs",
     summary="Logs detallados de una ejecución",
 )
 def get_run_logs(
@@ -193,10 +244,15 @@ def get_run_logs(
         # Devolver un log mínimo con el estado final del run
         return {"logs": [f"[INFO] La ejecución finalizó con estado: {run.status.upper()}. No hay entradas de log detalladas."]}
 
-    # Formatear cada entrada como una línea de terminal: [HH:MM:SS] [LEVEL] stage: mensaje
+    # Formatear cada entrada con fecha y hora real del evento:
+    # [YYYY-MM-DD HH:MM:SS] [LEVEL] stage: mensaje
     lines = []
     for entry in entries:
-        time_str = entry.timestamp.strftime("%H:%M:%S") if entry.timestamp else "??:??:??"
+        time_str = (
+            entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            if entry.timestamp
+            else "????-??-?? ??:??:??"
+        )
         lines.append(f"[{time_str}] [{entry.level}] {entry.stage}: {entry.message}")
 
     return {"logs": lines}

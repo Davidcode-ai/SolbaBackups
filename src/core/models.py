@@ -88,7 +88,7 @@ class JobBase(BaseModel):
         """
         if v is None:
             return "postgresql"
-        allowed = ("postgresql", "mysql", "sqlserver", "sqlite", "mdb", "folder")
+        allowed = ("postgresql", "mysql", "sqlserver", "sqlite", "mdb", "folder", "sync")
         if v not in allowed:
             raise ValueError(f"db_type debe ser uno de: {allowed}")
         return v
