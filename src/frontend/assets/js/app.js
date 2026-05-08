@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Obtener Historial y pintar panel derecho
     await loadHistory();
     
+    // 3.5 Obtener Estadísticas (Centro de Mando)
+    await loadStats();
+    
     // Aplicar traducción de nuevo por si se generó contenido dinámico en español
     const langSelect = document.getElementById('s-language');
     if (langSelect && langSelect.value !== 'es') {
@@ -91,7 +94,20 @@ async function loadJobs(isSilent = false) {
         container.innerHTML = '';
 
         if (jobs.length === 0) {
-            container.innerHTML = '<p class="px-3 text-xs text-slate-500 italic">No hay jobs configurados.</p>';
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 px-4 text-center">
+                    <div class="w-14 h-14 bg-slate-100 dark:bg-surface-800 rounded-full flex items-center justify-center mb-3">
+                        <svg class="w-6 h-6 text-slate-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                    </div>
+                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mb-1">No hay tareas</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">No has configurado ningún backup aún.</p>
+                    <button onclick="document.getElementById('jobName').focus();" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-xs font-medium transition-all shadow-sm">
+                        Nueva Tarea
+                    </button>
+                </div>
+            `;
             return;
         }
 
@@ -162,27 +178,36 @@ async function handleRunJob(event) {
     event.stopPropagation(); // Evitar que dispare el modo edición
     const button = event.currentTarget;
     const jobId = button.dataset.id;
-    const icon = button.querySelector('i');
 
-    // Deshabilitar botón y mostrar 'Ejecutando...'
+    // 1. Guardar el estado original del botón (clases y contenido HTML)
+    const originalHtml = button.innerHTML;
+    const originalClass = button.className;
+
+    // 2. Deshabilitar y cambiar la UI a modo 'Cargando'
     button.disabled = true;
-    button.classList.add('opacity-50', 'cursor-not-allowed');
-    icon.className = 'fa-solid fa-spinner fa-spin text-[10px]';
+    // Como era un botón cuadrado pequeño (w-6 h-6), le cambiamos las clases para que quepa el texto
+    button.className = 'btn-ejecutar flex items-center gap-1.5 px-2 py-1 rounded bg-brand-500/10 text-brand-500 opacity-70 cursor-not-allowed transition-all';
+    button.innerHTML = `
+        <svg class="animate-spin h-3 w-3 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="text-[10px] font-semibold">Ejecutando...</span>
+    `;
 
     try {
         // Llama al endpoint de ejecución manual
         await api.runJob(jobId);
         showToast(`¡Job ${jobId} ejecutado con éxito!`, 'success');
         loadHistory();
-
     } catch (error) {
         console.error(`Error al ejecutar el job ${jobId}:`, error);
         showToast(`Hubo un error al ejecutar el Job ${jobId}.`, 'error');
     } finally {
-        // Restaurar estado del botón
+        // 3. Restaurar estado original del botón sea cual sea el resultado
         button.disabled = false;
-        button.classList.remove('opacity-50', 'cursor-not-allowed');
-        icon.className = 'fa-solid fa-play text-[10px]';
+        button.className = originalClass;
+        button.innerHTML = originalHtml;
     }
 }
 
@@ -828,12 +853,44 @@ function setupPolling() {
             // isSilent = true para no sobreescribir la UI con errores si cae el servidor
             await Promise.all([
                 loadJobs(true),
-                loadHistory(true)
+                loadHistory(true),
+                loadStats(true)
             ]);
         } catch (error) {
             console.warn('Polling error (silenciado):', error);
         }
     }, 8000);
+}
+
+/**
+ * Carga las estadísticas del Dashboard (Centro de Mando).
+ * Actualiza los widgets de Total Jobs, Tasa de Éxito y Espacio Ocupado.
+ * @param {boolean} isSilent - Si es true, silencia los errores en la UI.
+ */
+async function loadStats(isSilent = false) {
+    const elTotal = document.getElementById('stat-total-jobs');
+    const elSuccess = document.getElementById('stat-success-rate');
+    const elStorage = document.getElementById('stat-storage-used');
+
+    // Si los elementos no existen en el DOM, no hacer nada
+    if (!elTotal || !elSuccess || !elStorage) return;
+
+    try {
+        const stats = await api.getStats();
+        
+        elTotal.textContent = stats.total_jobs !== undefined ? stats.total_jobs : 'N/A';
+        elSuccess.textContent = stats.success_rate || 'N/A';
+        elStorage.textContent = stats.storage_used || 'N/A';
+        
+    } catch (error) {
+        if (!isSilent) {
+            console.error('Error cargando estadísticas:', error);
+            // Si el backend aún no lo soporta o falla, mostrar valores por defecto bonitos
+            elTotal.textContent = 'N/A';
+            elSuccess.textContent = 'N/A';
+            elStorage.textContent = 'N/A';
+        }
+    }
 }
 
 /**
