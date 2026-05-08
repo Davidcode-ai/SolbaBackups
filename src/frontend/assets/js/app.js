@@ -242,9 +242,12 @@ async function loadHistory(isSilent = false) {
                 ? 'border-slate-300 dark:border-slate-700 hover:border-brand-500'
                 : 'border-red-500/30 hover:border-red-500';
 
-            // Formatear la fecha
-            const dateObj = new Date(record.timestamp || record.end_time || Date.now());
-            const dateStr = dateObj.toLocaleString();
+            // Formatear fecha real del registro (sin fallback a Date.now para evitar "fechas que cambian" en cada refresh)
+            const rawDate = record.started_at || record.finished_at || record.timestamp || record.end_time || null;
+            const dateObj = rawDate ? new Date(rawDate) : null;
+            const dateStr = dateObj && !Number.isNaN(dateObj.getTime())
+                ? dateObj.toLocaleString()
+                : 'N/A';
 
             const runId = record._id || record.id || record.run_id || null;
 
@@ -261,9 +264,17 @@ async function loadHistory(isSilent = false) {
                         </span>
                     </div>
                 </div>
-                <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <div class="flex items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
                     <div class="flex items-center gap-1.5">
                         <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isSuccess ? `<button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> ${t('btn_restore')}
+                        </button>` : ''}
+                        <button class="btn-view-logs px-2 py-1 rounded bg-slate-500/10 text-slate-400 hover:bg-slate-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_view_logs">
+                            <i class="fa-solid fa-terminal mr-1"></i> ${t('btn_view_logs')}
+                        </button>
                     </div>
                 </div>
                 ${!isSuccess && record.error_message ? `<p class="text-[11px] text-red-400 truncate mt-2">Error: ${record.error_message}</p>` : ''}
@@ -271,16 +282,43 @@ async function loadHistory(isSilent = false) {
             
             // Clic en el ítem completo -> cargar terminal
             historyItem.addEventListener('click', (e) => {
-                if (e.target.closest('.btn-view-logs')) return;
+                if (e.target.closest('.btn-view-logs') || e.target.closest('.btn-restore')) return;
                 loadTerminalLogs(runId);
             });
             
-            // Si el html sigue teniendo el botón interno de vista, lo asociamos a un modal grande
+            // Botón de ver logs
             const logBtn = historyItem.querySelector('.btn-view-logs');
             if (logBtn) {
                 logBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (runId) openLogViewer(runId, dateStr);
+                });
+            }
+
+            // Botón de restaurar
+            const restoreBtn = historyItem.querySelector('.btn-restore');
+            if (restoreBtn) {
+                restoreBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const btnRunId = restoreBtn.dataset.runId;
+                    console.log('DEBUG - Restore button clicked, runId:', btnRunId);
+                    console.log('DEBUG - Button dataset:', restoreBtn.dataset);
+                    if (!btnRunId) {
+                        console.error('ERROR: No runId found on restore button');
+                        alert('Error: No se pudo obtener el ID de la ejecución');
+                        return;
+                    }
+                    
+                    if (!confirm(t('confirm_restore'))) return;
+                    
+                    try {
+                        console.log('DEBUG - Calling api.restoreBackup with runId:', btnRunId);
+                        await api.restoreBackup(btnRunId);
+                        alert(t('restore_success'));
+                    } catch (error) {
+                        console.error('Error al restaurar:', error);
+                        alert(t('restore_error') + '\n' + error.message);
+                    }
                 });
             }
 
@@ -491,6 +529,7 @@ function initJobFormValidation() {
             dest_type: destType ? destType.value : 'local',
             dest_local_path: destLocalPath && destLocalPath.value.trim() ? destLocalPath.value.trim() : null,
             dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
+            dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value) || null : null,
         };
         // Limpiar claves con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
@@ -1803,7 +1842,14 @@ const i18n = {
         "Ej: 0 2 * * *": "Ej: 0 2 * * *",
         "Ej: 60": "Ej: 60",
         "/ruta/absoluta/credentials.json": "/ruta/absoluta/credentials.json",
-        "Raíz de Mi Unidad": "Raíz de Mi Unidad"
+        "Raíz de Mi Unidad": "Raíz de Mi Unidad",
+        "btn_restore": "Restaurar",
+        "btn_view_logs": "Ver Logs",
+        "confirm_restore": "¿Estás seguro de que quieres restaurar este backup? Esta acción sobrescribirá los datos actuales.",
+        "restore_success": "Backup restaurado correctamente.",
+        "restore_error": "Error al restaurar el backup. Revisa los logs para más detalles.",
+        "label_retention_days": "Días de retención",
+        "ph_retention_days": "Ej: 30"
     },
     en: {
         app_title: "SolbaBackups",
@@ -1910,6 +1956,13 @@ const i18n = {
         ph_gdrive_root: "Root of My Drive",
         ph_admin_email: "admin@company.com",
         ph_log_retention_days: "30",
+        btn_restore: "Restore",
+        btn_view_logs: "View Logs",
+        confirm_restore: "Are you sure you want to restore this backup? This action will overwrite current data.",
+        restore_success: "Backup restored successfully.",
+        restore_error: "Error restoring backup. Check logs for details.",
+        label_retention_days: "Retention Days",
+        ph_retention_days: "Ex: 30",
         empty_jobs_title: "No jobs yet",
         empty_jobs_desc: "You have not configured any backup yet.",
         empty_jobs_cta: "New Job",

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import traceback
+import zipfile
 from pathlib import Path
 
 from src.db import crud
@@ -34,6 +35,332 @@ class JobManager:
         para reducir el tamaño de los volcados SQL extraídos.
         """
         self.compressor = Compressor()
+
+    def restore_backup(self, run_id: int) -> dict:
+        """
+        Restaura un backup previamente generado a partir de un run exitoso.
+
+        Flujo:
+        1) Localiza el archivo comprimido asociado al run.
+        2) Descomprime en carpeta temporal.
+        3) Ejecuta restauración según db_type (postgresql/mysql).
+        4) Registra progreso y errores en los logs del mismo run_id.
+        """
+        history_manager = HistoryManager()
+
+        with SessionLocal() as db:
+            run = crud.run_get_by_id(db, run_id)
+            if not run:
+                raise ValueError(f"Run {run_id} no encontrado.")
+            if (run.status or "").lower() != "success":
+                raise ValueError(
+                    f"Solo se puede restaurar un run en estado SUCCESS. Estado actual: {run.status}"
+                )
+
+            job = crud.job_get_by_id(db, run.job_id)
+            if not job:
+                raise ValueError(f"No se encontró el Job asociado al run {run_id}.")
+
+            backup_file_path = run.backup_file_path or ""
+            print(f"DEBUG RESTORE: backup_file_path del run={run_id}: '{backup_file_path}'")
+            
+            # Inicializar variables para cleanup
+            temp_dir_to_cleanup = None
+            is_cloud_backup = False
+            
+            # Detectar si es un backup en Google Drive (URL) o local (ruta de archivo)
+            if backup_file_path.startswith("https://drive.google.com"):
+                # Es un backup en Google Drive - necesitamos descargarlo
+                print(f"DEBUG RESTORE: Detectado backup en Google Drive")
+                from src.destinations.google_drive import GoogleDriveDestination
+                
+                gdrive = GoogleDriveDestination()
+                
+                # Verificar que existe el archivo de credenciales
+                credentials_file = os.path.join(os.getcwd(), "credentials.json")
+                if not os.path.exists(credentials_file):
+                    raise ValueError(
+                        "No se encontró credentials.json para acceder a Google Drive."
+                    )
+                
+                # Extraer file_id de la URL
+                # URL format: https://drive.google.com/file/d/{file_id}/view?...
+                file_id = backup_file_path.split("/d/")[1].split("/")[0] if "/d/" in backup_file_path else None
+                if not file_id:
+                    raise ValueError(f"No se pudo extraer el file_id de la URL de Google Drive: {backup_file_path}")
+                
+                print(f"DEBUG RESTORE: file_id extraído: {file_id}")
+                
+                # Crear directorio temporal para descargar
+                import tempfile
+                temp_dir_to_cleanup = tempfile.mkdtemp(prefix="solba_restore_")
+                backup_path = Path(temp_dir_to_cleanup) / f"backup_{run_id}.zip"
+                
+                # Descargar el archivo desde Google Drive
+                print(f"DEBUG RESTORE: Descargando archivo desde Google Drive a: {backup_path}")
+                gdrive.download_file(file_id, str(backup_path))
+                
+                if not backup_path.exists():
+                    raise FileNotFoundError(f"No se pudo descargar el archivo desde Google Drive")
+                
+                print(f"DEBUG RESTORE: Archivo descargado exitosamente")
+                is_cloud_backup = True
+                temp_dir_to_cleanup = str(backup_path.parent)
+            else:
+                # Es un backup local
+                backup_path = Path(backup_file_path)
+                print(f"DEBUG RESTORE: backup_path como Path: {backup_path}")
+                print(f"DEBUG RESTORE: backup_path.exists(): {backup_path.exists()}")
+                if not str(backup_path).strip():
+                    raise ValueError(
+                        "El run no contiene la ruta del backup (backup_file_path vacío)."
+                    )
+                if not backup_path.exists():
+                    raise FileNotFoundError(
+                        f"No se encontró el archivo de backup en disco: {backup_path}"
+                    )
+
+            history_manager.add_log(
+                db,
+                run_id,
+                "INFO",
+                f"Iniciando restauración desde backup: {backup_path}",
+                stage="restore_init",
+            )
+
+            try:
+                with tempfile.TemporaryDirectory(prefix="solba_restore_") as tmp_dir:
+                    tmp_dir_path = Path(tmp_dir)
+                    extracted_sql_path: Path | None = None
+
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        "Descomprimiendo backup en carpeta temporal...",
+                        stage="restore_extract",
+                    )
+
+                    if zipfile.is_zipfile(backup_path):
+                        with zipfile.ZipFile(backup_path, "r") as zf:
+                            zf.extractall(tmp_dir_path)
+
+                    db_type = (job.db_type or "").lower()
+                    
+                    # Detectar archivo/carpeta a restaurar según el tipo
+                    extracted_path: Path | None = None
+                    
+                    if db_type in ["postgresql", "mysql"]:
+                        sql_candidates = sorted(tmp_dir_path.rglob("*.sql"))
+                        if sql_candidates:
+                            extracted_path = sql_candidates[0]
+                        else:
+                            extracted_files = [p for p in tmp_dir_path.rglob("*") if p.is_file()]
+                            if len(extracted_files) == 1:
+                                extracted_path = extracted_files[0]
+                    elif db_type == "sqlite":
+                        db_candidates = sorted(tmp_dir_path.rglob("*.db"))
+                        if db_candidates:
+                            extracted_path = db_candidates[0]
+                        else:
+                            db_candidates = sorted(tmp_dir_path.rglob("*.sqlite"))
+                            if db_candidates:
+                                extracted_path = db_candidates[0]
+                            else:
+                                db_candidates = sorted(tmp_dir_path.rglob("*.sqlite3"))
+                                if db_candidates:
+                                    extracted_path = db_candidates[0]
+                    elif db_type == "folder":
+                        # Para folder, el contenido extraído es la carpeta
+                        extracted_path = tmp_dir_path
+
+                    if not extracted_path or not extracted_path.exists():
+                        raise FileNotFoundError(
+                            f"No se pudo localizar archivo/carpeta restaurable para db_type='{db_type}'."
+                        )
+
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        f"Archivo listo para restauración: {extracted_path.name if extracted_path.is_file() else extracted_path}",
+                        stage="restore_extract",
+                    )
+
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        f"Ejecutando restauración para motor: {db_type}",
+                        stage="restore_execute",
+                    )
+
+                    if db_type == "postgresql":
+                        if not job.db_host or not job.db_name or not job.db_user:
+                            raise ValueError(
+                                "Faltan datos de conexión PostgreSQL (host, db_name o db_user)."
+                            )
+
+                        cmd = [
+                            "psql",
+                            "-h",
+                            str(job.db_host),
+                            "-p",
+                            str(job.db_port or 5432),
+                            "-U",
+                            str(job.db_user),
+                            "-d",
+                            str(job.db_name),
+                            "-f",
+                            str(extracted_path),
+                        ]
+                        env = os.environ.copy()
+                        if job.db_password:
+                            env["PGPASSWORD"] = str(job.db_password)
+
+                        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+                        if result.returncode != 0:
+                            raise RuntimeError(
+                                f"Restauración PostgreSQL falló (code={result.returncode}): "
+                                f"{(result.stderr or result.stdout).strip()}"
+                            )
+
+                    elif db_type == "mysql":
+                        if not job.db_host or not job.db_name or not job.db_user:
+                            raise ValueError(
+                                "Faltan datos de conexión MySQL (host, db_name o db_user)."
+                            )
+
+                        cmd = [
+                            "mysql",
+                            "-h",
+                            str(job.db_host),
+                            "-P",
+                            str(job.db_port or 3306),
+                            "-u",
+                            str(job.db_user),
+                        ]
+                        if job.db_password:
+                            cmd.append(f"--password={job.db_password}")
+                        cmd.append(str(job.db_name))
+
+                        with extracted_path.open("r", encoding="utf-8", errors="ignore") as sql_fp:
+                            result = subprocess.run(
+                                cmd,
+                                stdin=sql_fp,
+                                capture_output=True,
+                                text=True,
+                            )
+                        if result.returncode != 0:
+                            raise RuntimeError(
+                                f"Restauración MySQL falló (code={result.returncode}): "
+                                f"{(result.stderr or result.stdout).strip()}"
+                            )
+
+                    elif db_type == "sqlite":
+                        if not job.db_name:
+                            raise ValueError(
+                                "Falta la ruta del archivo de base de datos SQLite (db_name)."
+                            )
+                        
+                        original_db_path = Path(job.db_name)
+                        if not original_db_path.exists():
+                            raise FileNotFoundError(
+                                f"El archivo de base de datos original no existe: {original_db_path}"
+                            )
+
+                        history_manager.add_log(
+                            db,
+                            run_id,
+                            "INFO",
+                            f"Sobrescribiendo archivo SQLite original: {original_db_path}",
+                            stage="restore_execute",
+                        )
+
+                        try:
+                            shutil.copy2(extracted_path, original_db_path)
+                            history_manager.add_log(
+                                db,
+                                run_id,
+                                "INFO",
+                                f"Archivo SQLite restaurado exitosamente.",
+                                stage="restore_execute",
+                            )
+                        except PermissionError as perm_err:
+                            raise RuntimeError(
+                                f"Error de permisos al sobrescribir archivo SQLite: {perm_err}"
+                            )
+
+                    elif db_type == "folder":
+                        if not job.db_name:
+                            raise ValueError(
+                                "Falta la ruta de la carpeta original (db_name)."
+                            )
+
+                        original_folder_path = Path(job.db_name)
+                        if not original_folder_path.exists() or not original_folder_path.is_dir():
+                            raise FileNotFoundError(
+                                f"La carpeta original no existe: {original_folder_path}"
+                            )
+
+                        history_manager.add_log(
+                            db,
+                            run_id,
+                            "INFO",
+                            f"Restaurando contenido de carpeta: {original_folder_path}",
+                            stage="restore_execute",
+                        )
+
+                        try:
+                            shutil.copytree(extracted_path, original_folder_path, dirs_exist_ok=True)
+                            history_manager.add_log(
+                                db,
+                                run_id,
+                                "INFO",
+                                f"Carpeta restaurada exitosamente.",
+                                stage="restore_execute",
+                            )
+                        except PermissionError as perm_err:
+                            raise RuntimeError(
+                                f"Error de permisos al restaurar carpeta: {perm_err}"
+                            )
+
+                    else:
+                        raise NotImplementedError(
+                            f"Restauración no implementada para db_type='{db_type}'."
+                        )
+
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        "Restauración completada correctamente.",
+                        stage="restore_done",
+                    )
+
+                    return {
+                        "success": True,
+                        "run_id": run_id,
+                        "db_type": db_type,
+                        "message": "Restauración ejecutada correctamente.",
+                    }
+            except Exception as exc:
+                history_manager.add_log(
+                    db,
+                    run_id,
+                    "ERROR",
+                    f"Error durante restauración: {str(exc)}",
+                    stage="restore_error",
+                )
+                raise
+            finally:
+                # Limpiar directorio temporal si fue un backup de Google Drive
+                if temp_dir_to_cleanup:
+                    try:
+                        shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
+                        print(f"DEBUG RESTORE: Directorio temporal limpiado: {temp_dir_to_cleanup}")
+                    except Exception as cleanup_err:
+                        print(f"DEBUG RESTORE: Error limpiando directorio temporal: {cleanup_err}")
 
     async def run_job(self, job_id: int, trigger: str = "manual") -> None:
         """

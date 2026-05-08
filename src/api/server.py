@@ -97,6 +97,15 @@ def _register_routers(app: FastAPI) -> None:
     app.include_router(stats.router, prefix="/api/v1")
     app.include_router(utils.router, prefix="/api/v1")
     app.include_router(auth.router)
+    
+    # Debug: Imprimir rutas registradas
+    print("\n=== RUTAS REGISTRADAS ===")
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = list(route.methods) if route.methods else []
+            if 'GET' in methods or 'POST' in methods or 'PUT' in methods or 'DELETE' in methods or 'PATCH' in methods:
+                print(f"{methods}: {route.path}")
+    print("=========================\n")
 
 def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
     """Monta el HTML y JS."""

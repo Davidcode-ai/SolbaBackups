@@ -345,6 +345,51 @@ class GoogleDriveDestination(BaseDestination):
             # Restaurar folder_id original.
             self._folder_id = original_folder_id
 
+    def download_file(self, file_id: str, destination_path: str) -> None:
+        """
+        Descarga un archivo desde Google Drive a una ruta local.
+
+        Args:
+            file_id: ID del archivo en Google Drive.
+            destination_path: Ruta local donde guardar el archivo.
+
+        Raises:
+            GoogleDriveError: Si no se puede descargar el archivo.
+        """
+        from googleapiclient.http import MediaIoBaseDownload
+        import io
+        from pathlib import Path
+
+        try:
+            service = self._get_service()
+            request = service.files().get_media(fileId=file_id)
+            
+            # Crear directorio padre si no existe
+            dest_path = Path(destination_path)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            fh = io.BytesIO()
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while done is False:
+                status, done = downloader.next_chunk()
+                if status:
+                    log.info(f"Descargando: {int(status.progress() * 100)}%")
+            
+            # Guardar archivo
+            fh.seek(0)
+            with open(destination_path, 'wb') as f:
+                f.write(fh.read())
+            
+            log.info(f"✅ Archivo descargado exitosamente a: {destination_path}")
+            
+        except HttpError as exc:
+            if exc.resp.status == 404:
+                raise GoogleDriveError(f"Archivo no encontrado en Google Drive: {file_id}") from exc
+            raise GoogleDriveError(f"Error HTTP {exc.resp.status}: {exc.reason}") from exc
+        except Exception as exc:
+            raise GoogleDriveError(f"Error descargando archivo: {exc}") from exc
+
     def test_connection(self) -> bool:
         """
         Verifica que las credenciales son válidas y Drive es accesible.

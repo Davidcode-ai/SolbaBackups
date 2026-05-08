@@ -211,13 +211,17 @@ def log_add(
     level: str,
     stage: str,
     message: str,
+    timestamp: datetime.datetime | None = None,
 ) -> LogEntry:
+    if timestamp is None:
+        timestamp = datetime.datetime.utcnow()
+
     log_entry = LogEntry(
         run_id=run_id,
         level=level,
         stage=stage,
         message=message,
-        timestamp=datetime.datetime.utcnow()
+        timestamp=timestamp
     )
     db.add(log_entry)
     db.commit()
