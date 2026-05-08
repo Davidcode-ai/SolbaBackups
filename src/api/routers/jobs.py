@@ -6,7 +6,7 @@ La validación de entrada/salida la realiza Pydantic usando los modelos
 de ``src.core.models``.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from src.core import models
@@ -18,6 +18,7 @@ from src.core.job_scheduler import JobScheduler
 from src.core.discovery import scan_local_databases
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
 
 @router.get("/discovery")
 async def get_discovery():
@@ -57,12 +58,14 @@ def create_job(
     new_job = crud.job_create(db, job_data)
 
     # Registrar en el scheduler si tiene schedule automático
-    if new_job.schedule_type and new_job.schedule_type.lower() not in ("manual", "none", ""):
+    if new_job.schedule_type and new_job.schedule_type.lower() not in (
+        "manual",
+        "none",
+        "",
+    ):
         scheduler.add_job(new_job)
 
     return new_job
-
-
 
 
 @router.get("/{job_id}", response_model=models.JobRead)
@@ -106,10 +109,14 @@ def update_job(
     updated_job = crud.job_update(db, job_id, job_data)
 
     # Reprogramar en tiempo real (remove + add con la nueva config)
-    if updated_job.schedule_type and updated_job.schedule_type.lower() not in ("manual", "none", ""):
-        scheduler.add_job(updated_job)   # add_job ya hace remove internamente
+    if updated_job.schedule_type and updated_job.schedule_type.lower() not in (
+        "manual",
+        "none",
+        "",
+    ):
+        scheduler.add_job(updated_job)  # add_job ya hace remove internamente
     else:
-        scheduler.remove_job(job_id)     # Si el usuario quitó el schedule, cancelar
+        scheduler.remove_job(job_id)  # Si el usuario quitó el schedule, cancelar
 
     return updated_job
 
@@ -134,9 +141,9 @@ def delete_job(
 
 @router.post("/{job_id}/run")
 async def run_job_manually(
-    job_id: int, 
+    job_id: int,
     db: Session = Depends(get_db),
-    manager: JobManager = Depends(get_job_manager)
+    manager: JobManager = Depends(get_job_manager),
 ):
     """
     Ejecuta un Job manualmente bajo demanda.
@@ -147,7 +154,7 @@ async def run_job_manually(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
-    
+
     # Inicia la ejecución síncrona/esperada
     await manager.run_job(job_id, trigger="manual")
 

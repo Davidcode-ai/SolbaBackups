@@ -216,7 +216,24 @@ class AppSettingsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class AppSettingsUpdate(BaseModel):
-    """Payload para actualizar múltiples configuraciones globales."""
+    """
+    Payload para actualizar múltiples configuraciones globales.
+    Soporta los campos de Google Drive y SMTP explícitamente para validación.
+    """
+    cloud_enabled: bool | None = None
+    drive_folder_id: str | None = None
+    credentials_path: str | None = None
+    
+    smtp_enabled: bool | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    alert_email_to: str | None = None
+    
+    local_retention_days: int | None = None
+    cloud_retention_days: int | None = None
+    
     settings: dict[str, Any] | None = None
     
     # El Frontend puede estar enviando los datos planos en lugar de dentro de 'settings'
