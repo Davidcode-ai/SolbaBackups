@@ -1,88 +1,78 @@
-# SolbaBackups 🗄️
+# 🛡️ SolbaBackups
 
-**SolbaBackups** es una solución automatizada, integral y reactiva para la gestión de copias de seguridad de bases de datos. Diseñada para operar sin fricciones, permite centralizar el volcado (dump), compresión, cifrado y transferencia de múltiples motores de bases de datos hacia destinos locales o en la nube (como Google Drive). Todo ello orquestado desde una interfaz web moderna, responsiva y orientada a la experiencia del usuario (UI/UX).
+**SolbaBackups** es un sistema automatizado, resiliente y autogestionado para la creación, encriptación y subida de copias de seguridad de bases de datos y carpetas, diseñado para funcionar tanto en entornos locales como en la nube. 
 
----
-
-## 🚀 Arquitectura y Features
-
-*   **Motor de Orquestación Asíncrono**: Integrado con `APScheduler`, gestiona las tareas en segundo plano dentro del propio Event Loop de FastAPI. Sin bloqueos, de forma concurrente y eficiente.
-*   **Interfaz Web UI/UX Reactiva**: Un panel de control *single-page* creado con Vanilla JS y Tailwind CSS (tema oscuro nativo). Proporciona alertas visuales, modales de confirmación, validación reactiva de formularios y *streaming* de logs sin necesidad de recargar.
-*   **Almacenamiento Híbrido**: Descarga y comprime tus volcados localmente, o prográmalos para subir automáticamente a **Google Drive** asegurando la redundancia.
-*   **Garbage Collector (Política de Retención)**: Define cuántos días mantener tus backups. SolbaBackups se encargará de purgar automáticamente los archivos obsoletos para ahorrar espacio de almacenamiento.
-*   **Alertas y Notificaciones**: Soporte para notificaciones por correo (SMTP) para alertar a los administradores en caso de que alguna tarea de backup falle críticamente.
+Desarrollado con una arquitectura moderna que separa el motor de ejecución del dashboard de gestión, garantizando un rendimiento óptimo y una gestión sencilla sin necesidad de tocar una sola línea de código tras la instalación.
 
 ---
 
-## 📂 Estructura del Proyecto
+## ✨ Características Principales
 
-El código está estructurado mediante arquitectura por capas para facilitar su mantenimiento y expansión:
+* **☁️ Integración Nube (Google Drive)**: Subida asíncrona de archivos pesados con soporte resumible y tolerancia a fallos.
+* **🕰️ Programación Avanzada (APScheduler)**: Ejecución de copias bajo demanda o programadas mediante expresiones Cron o intervalos regulares.
+* **🗑️ Garbage Collector (Retención Inteligente)**: Sistema de purga automática que elimina copias antiguas tanto en el disco local como en la nube, basándose en políticas globales o específicas por Job.
+* **📧 Alertas Inteligentes (SMTP)**: Notificaciones automáticas por correo electrónico al administrador en caso de que un proceso de backup falle, adjuntando logs detallados.
+* **🔒 Seguridad de Origen a Fin**: Compresión `.zip` nativa y capacidad de encriptación modular para proteger la integridad y confidencialidad de los datos.
+* **📊 Dashboard Gráfico (Web GUI)**: Panel de control moderno en modo oscuro para crear tareas, ver el historial de ejecuciones y configurar opciones globales, todo en tiempo real (vía SSE).
 
-```text
-SolbaBackups/
-├── solba_web.py                # Punto de entrada de la aplicación (Inicia FastAPI + Uvicorn)
-├── .env.example                # Plantilla de variables de entorno
-└── src/
-    ├── api/                    # Capa de transporte y endpoints REST (Routers)
-    │   ├── server.py           # Configuración principal de FastAPI
-    │   └── routers/            # Endpoints (Jobs, Historial, Settings)
-    ├── core/                   # Lógica de negocio core
-    │   ├── job_manager.py      # Orquestador del pipeline (Dump -> Compress -> Upload)
-    │   ├── job_scheduler.py    # Enlace con APScheduler
-    │   └── models.py           # Modelos de validación (Pydantic)
-    ├── db/                     # Capa de persistencia (SQLAlchemy + SQLite)
-    │   ├── crud.py             # Operaciones Create, Read, Update, Delete
-    │   └── database.py         # Conexión a la base de datos
-    ├── frontend/               # Interfaz gráfica de usuario
-    │   ├── index.html          # Estructura del panel web
-    │   └── assets/             # Estilos y JS (app.js)
-    ├── connectors/             # Motores de base de datos soportados (PostgreSQL, MySQL...)
-    └── destinations/           # Adaptadores de destino (Local, Google Drive)
+---
+
+## 🏗️ Arquitectura Técnica
+
+El proyecto está diseñado sobre un stack ligero pero extremadamente robusto:
+
+* **Backend / Core**: 🐍 `Python 3.12+` junto con el framework asíncrono **FastAPI**.
+* **Base de Datos Local**: 🗄️ `SQLite` gestionada a través del ORM **SQLAlchemy 2.0**.
+* **Frontend**: 🖥️ **Vanilla JavaScript** y HTML5, estilizado de manera impecable con **Tailwind CSS**. 
+* **Gestión de Tareas**: ⚙️ `APScheduler` para la automatización en segundo plano de manera nativa sin necesidad de workers externos como Celery.
+
+---
+
+## 🚀 Guía de Instalación Rápida
+
+Sigue estos pasos para desplegar el proyecto en tu entorno local o servidor:
+
+### 1. Clonar el Repositorio
+```bash
+git clone https://github.com/Davidcode-ai/SolbaBackups.git
+cd SolbaBackups
 ```
 
+### 2. Crear y Activar el Entorno Virtual (Recomendado)
+Para evitar conflictos de dependencias, aisla el entorno de la aplicación:
+
+**En Windows:**
+```bash
+python -m venv venv
+.\venv\Scripts\activate
+```
+
+**En Linux / macOS:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Instalar las Dependencias
+El proyecto incluye un archivo preparado con todas las librerías necesarias:
+```bash
+pip install -r requirements.txt
+# Opcionalmente, para la versión que incluye entorno web local:
+pip install -r requirements_web.txt
+```
+
+### 4. Inicializar y Ejecutar
+Una vez instaladas las dependencias, inicializa la base de datos (se creará automáticamente `solba_data.db`) y arranca el servidor.
+
+```bash
+# Arranca el servidor FastAPI y el Dashboard en el puerto 8000
+python solba_web.py
+```
+
+Accede al dashboard de gestión abriendo en tu navegador:
+👉 **[http://localhost:8000](http://localhost:8000)**
+
 ---
 
-## ⚙️ Configuración Inicial
-
-Antes de arrancar SolbaBackups por primera vez, necesitas definir tus parámetros de entorno.
-
-1. **Renombra el archivo de entorno**:
-   Copia el archivo `.env.example` y renómbralo a `.env`.
-   
-2. **Configura tus variables clave** en `.env`:
-   ```env
-   # Base de Datos Interna de SolbaBackups
-   DATABASE_URL=sqlite:///./solba.db
-
-   # Configuración de Google Drive (Ruta absoluta recomendada)
-   GDRIVE_CREDENTIALS_PATH=/ruta/absoluta/a/tus/credentials.json
-
-   # Configuración de Alertas por Email (SMTP)
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_USER=tu_correo@gmail.com
-   SMTP_PASSWORD=tu_contraseña_de_aplicacion
-   ```
-
----
-
-## 💻 Uso y Ejecución
-
-SolbaBackups se ejecuta a través de Python y FastAPI. 
-
-1. **Instala las dependencias** (si no lo has hecho ya):
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Arranca el servidor**:
-   Desde la raíz del proyecto, ejecuta el script principal:
-   ```bash
-   python solba_web.py
-   ```
-
-3. **Accede a la Interfaz Web**:
-   Abre tu navegador de confianza y dirígete a:
-   [http://localhost:8765](http://localhost:8765)
-
-   Desde el panel de control podrás crear tus primeros Jobs, definir la frecuencia (Cron, Diaria, por Intervalos) y ejecutar simulaciones manuales.
+## 🤝 Contribuciones y Equipo
+Este proyecto es desarrollado por **Davidcode-ai**. Las contribuciones, sugerencias y reportes de bugs son bienvenidos a través de los Issues y Pull Requests del repositorio.

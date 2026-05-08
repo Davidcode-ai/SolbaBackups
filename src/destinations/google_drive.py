@@ -487,6 +487,56 @@ class GoogleDriveDestination(BaseDestination):
             log.error("Error listando backups en Drive: %s", exc)
             return []
 
+    async def download_file(self, file_id: str, dest_path: str) -> bool:
+        """
+        Descarga asíncronamente un archivo desde Google Drive a la ruta local especificada.
+
+        Args:
+            file_id: ID del archivo en Google Drive a descargar.
+            dest_path: Ruta local donde se almacenará el archivo.
+
+        Returns:
+            bool: True si la descarga fue exitosa, False en caso contrario.
+        """
+        import io
+        import asyncio
+        from googleapiclient.http import MediaIoBaseDownload
+
+        def _sync_download():
+            try:
+                service = self._get_service()
+                request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
+                
+                fh = io.BytesIO()
+                downloader = MediaIoBaseDownload(fh, request)
+                
+                done = False
+                log.info("Descargando archivo %s desde Google Drive...", file_id)
+                while not done:
+                    status, done = downloader.next_chunk()
+                    if status:
+                        log.debug("Progreso de descarga: %d%%", int(status.progress() * 100))
+                
+                fh.seek(0)
+                
+                # Guardar al disco
+                with open(dest_path, "wb") as f:
+                    f.write(fh.read())
+                    
+                log.info("✅ Archivo restaurado con éxito desde Drive en: %s", dest_path)
+                return True
+                
+            except HttpError as exc:
+                log.error("Error en la API descargando desde Drive (ID: %s): %s", file_id, exc)
+                return False
+            except Exception as exc:
+                log.error("Error inesperado durante la descarga desde Drive: %s", exc)
+                return False
+
+        # Ejecutamos la lógica bloqueante en un hilo separado para no bloquear el event loop de FastAPI
+        return await asyncio.to_thread(_sync_download)
+
+
     # -------------------------------------------------------------------------
     # Métodos internos de autenticación y construcción del servicio
     # -------------------------------------------------------------------------

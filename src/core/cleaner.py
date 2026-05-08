@@ -18,18 +18,17 @@ class GarbageCollector:
     """
 
     @staticmethod
-    def clean_local_backups(retention_days: int, backups_dir: str = "backups") -> int:
+    def clean_local_backups(global_retention_days: int, job_name: str | None = None, job_retention_days: int | None = None, backups_dir: str = "backups") -> int:
         """
         Escanea el directorio local de backups y elimina los archivos .zip
-        más antiguos que `retention_days`.
+        más antiguos que la retención configurada.
         
-        Args:
-            retention_days: Número de días de retención permitidos.
-            backups_dir: Ruta al directorio de backups.
-            
-        Returns:
-            int: Cantidad de archivos locales eliminados.
+        Si se especifica `job_name` y `job_retention_days`, aplica ese límite 
+        solo a los archivos de ese job. Si `job_retention_days` es nulo, 
+        usa `global_retention_days`.
         """
+        retention_days = job_retention_days if job_retention_days is not None else global_retention_days
+        
         if retention_days <= 0:
             return 0
             
@@ -43,7 +42,11 @@ class GarbageCollector:
 
         try:
             for file_path in target_dir.glob("*.zip"):
-                # Obtenemos el tiempo de modificación o creación (en Windows ctime es creación)
+                # Si estamos filtrando por job, comprobamos que el archivo empiece por el nombre del job
+                if job_name and not file_path.name.startswith(f"{job_name}_"):
+                    continue
+                    
+                # Obtenemos el tiempo de modificación o creación
                 file_time = file_path.stat().st_mtime
                 file_dt = datetime.fromtimestamp(file_time, tz=timezone.utc)
                 
@@ -60,7 +63,7 @@ class GarbageCollector:
         return deleted_count
 
     @staticmethod
-    def clean_cloud_backups(retention_days: int, credentials_path: str, folder_id: str | None = None) -> int:
+    def clean_cloud_backups(global_retention_days: int, credentials_path: str, folder_id: str | None = None, job_name: str | None = None, job_retention_days: int | None = None) -> int:
         """
         Usa GoogleDriveDestination para listar y borrar los backups 
         en la nube que excedan el límite de `retention_days`.
@@ -73,6 +76,8 @@ class GarbageCollector:
         Returns:
             int: Cantidad de archivos en la nube eliminados.
         """
+        retention_days = job_retention_days if job_retention_days is not None else global_retention_days
+        
         if retention_days <= 0:
             return 0
             
@@ -84,7 +89,8 @@ class GarbageCollector:
             drive_dest = GoogleDriveDestination(
                 credentials_file=credentials_path, 
                 folder_id=folder_id,
-                retention_days=retention_days
+                retention_days=retention_days,
+                job_name=job_name or "backup"
             )
             
             # La clase GoogleDriveDestination ya tiene la lógica de retención lista!
