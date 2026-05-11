@@ -19,10 +19,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3. Obtener Historial y pintar panel derecho
     await loadHistory();
-    
+
     // 3.5 Obtener Estadísticas (Centro de Mando)
     await loadStats();
-    
+
     // Aplicar traducción de nuevo por si se generó contenido dinámico en español
     const langSelect = document.getElementById('s-language');
     if (langSelect && langSelect.value !== 'es') {
@@ -67,7 +67,7 @@ function initTheme() {
 
     // Leer de localStorage o sistema por defecto
     const isDark = localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    
+
     if (isDark) {
         document.documentElement.classList.add('dark');
     } else {
@@ -119,8 +119,8 @@ async function loadJobs(isSilent = false) {
             jobBtn.dataset.jobId = jobId;
 
             let iconClass = "fa-solid fa-server";
-            if(job.db_type === 'folder') iconClass = "fa-solid fa-folder-tree";
-            else if(job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
+            if (job.db_type === 'folder') iconClass = "fa-solid fa-folder-tree";
+            else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
 
             jobBtn.innerHTML = `
                 <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer btn-edit-job" 
@@ -193,17 +193,17 @@ async function handleRunJob(event) {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <span class="text-[10px] font-semibold">Ejecutando...</span>
+        <span class="text-[10px] font-semibold">${t('status_running')}</span>
     `;
 
     try {
         // Llama al endpoint de ejecución manual
         await api.runJob(jobId);
-        showToast(`¡Job ${jobId} ejecutado con éxito!`, 'success');
+        showToast(`${t('toast_job_run_success')} (${jobId})`, 'success');
         loadHistory();
     } catch (error) {
-        console.error(`Error al ejecutar el job ${jobId}:`, error);
-        showToast(`Hubo un error al ejecutar el Job ${jobId}.`, 'error');
+        console.error(`Error running job ${jobId}:`, error);
+        showToast(`${t('toast_job_run_error')} (${jobId})`, 'error');
     } finally {
         // 3. Restaurar estado original del botón sea cual sea el resultado
         button.disabled = false;
@@ -280,13 +280,13 @@ async function loadHistory(isSilent = false) {
                 </div>
                 ${!isSuccess && record.error_message ? `<p class="text-[11px] text-red-400 truncate mt-2">Error: ${record.error_message}</p>` : ''}
             `;
-            
+
             // Clic en el ítem completo -> cargar terminal
             historyItem.addEventListener('click', (e) => {
                 if (e.target.closest('.btn-view-logs') || e.target.closest('.btn-restore')) return;
                 loadTerminalLogs(runId);
             });
-            
+
             // Botón de ver logs
             const logBtn = historyItem.querySelector('.btn-view-logs');
             if (logBtn) {
@@ -312,11 +312,11 @@ async function loadHistory(isSilent = false) {
  */
 let currentRestoreRunId = null;
 
-window.openRestoreConfirmModal = function(runId) {
+window.openRestoreConfirmModal = function (runId) {
     currentRestoreRunId = runId;
     const modal = document.getElementById('restoreConfirmModal');
     if (!modal) return;
-    
+
     modal.classList.remove('hidden');
     // Pequeño timeout para permitir que la clase hidden se aplique antes de animar
     setTimeout(() => {
@@ -325,13 +325,13 @@ window.openRestoreConfirmModal = function(runId) {
     }, 10);
 };
 
-window.closeRestoreConfirmModal = function() {
+window.closeRestoreConfirmModal = function () {
     const modal = document.getElementById('restoreConfirmModal');
     if (!modal) return;
-    
+
     modal.classList.remove('opacity-100', 'scale-100');
     modal.classList.add('opacity-0', 'scale-95');
-    
+
     setTimeout(() => {
         modal.classList.add('hidden');
         currentRestoreRunId = null;
@@ -345,21 +345,21 @@ window.closeRestoreConfirmModal = function() {
 async function restoreBackup(runId) {
     if (!runId) {
         console.error('ERROR: No runId found on restore button');
-        showToast('Error: No se pudo obtener el ID de la ejecución', 'error');
+        showToast(t('toast_restore_no_id'), 'error');
         return;
     }
-    
+
     // Eliminado native confirm() aquí. Ahora la confirmación es por UI.
-    
+
     try {
-        showToast(t('restore_in_progress') || 'Iniciando restauración...', 'info');
+        showToast(t('restore_in_progress'), 'info');
         console.log('DEBUG - Calling api.restoreBackup with runId:', runId);
         // Usar api.restoreBackup si existe, de lo contrario un fetch directo
         if (typeof api !== 'undefined' && typeof api.restoreBackup === 'function') {
             await api.restoreBackup(runId);
         } else {
             const res = await fetch(`/api/v1/history/restore/${runId}`, { method: 'POST' });
-            if (!res.ok) throw new Error('Error al restaurar en el servidor');
+            if (!res.ok) throw new Error(t('toast_restore_server_error'));
         }
         showToast(t('restore_success'), 'success');
     } catch (error) {
@@ -384,7 +384,7 @@ function initJobFormValidation() {
     const dbName = document.getElementById('dbName');
     const dbUser = document.getElementById('dbUser');
     const dbPassword = document.getElementById('dbPassword');
-    
+
     // Destinos
     const destType = document.getElementById('destType');
     const destLocalPath = document.getElementById('destLocalPath');
@@ -395,7 +395,7 @@ function initJobFormValidation() {
     const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
     const networkDetails = document.querySelector('details.group');
     const dbFilePath = document.getElementById('dbFilePath');
-    
+
     // Marcar el formulario como "dirty" cuando algo cambie
     form.addEventListener('input', () => { isFormDirty = true; });
     form.addEventListener('change', () => { isFormDirty = true; });
@@ -405,10 +405,10 @@ function initJobFormValidation() {
     if (btnNewJobSidebar) {
         btnNewJobSidebar.addEventListener('click', () => {
             if (isFormDirty) {
-                const confirmDiscard = confirm("Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos y crear un nuevo Job?");
+                const confirmDiscard = confirm(t('confirm_discard_new'));
                 if (!confirmDiscard) return;
             }
-            
+
             // Limpiar formulario y estado
             resetFormToCreateMode();
         });
@@ -431,11 +431,11 @@ function initJobFormValidation() {
     if (jobSched) {
         jobSched.addEventListener('change', () => {
             const s = jobSched.value;
-            [scheduleIntervalContainer, scheduleCronContainer, scheduleTimeContainer, 
-             scheduleDayOfWeekContainer, scheduleDayOfMonthContainer].forEach(el => {
-                if(el) el.classList.add('hidden');
-            });
-            
+            [scheduleIntervalContainer, scheduleCronContainer, scheduleTimeContainer,
+                scheduleDayOfWeekContainer, scheduleDayOfMonthContainer].forEach(el => {
+                    if (el) el.classList.add('hidden');
+                });
+
             if (s === 'interval' && scheduleIntervalContainer) scheduleIntervalContainer.classList.remove('hidden');
             else if (s === 'cron' && scheduleCronContainer) scheduleCronContainer.classList.remove('hidden');
             else if (s === 'daily' && scheduleTimeContainer) scheduleTimeContainer.classList.remove('hidden');
@@ -495,11 +495,11 @@ function initJobFormValidation() {
         clearErrors(dbType);
 
         if (jobName.value.trim() === '') {
-            showError(jobName, 'Este campo es obligatorio');
+            showError(jobName, t('error_field_required'));
             isValid = false;
         }
         if (dbType.value.trim() === '') {
-            showError(dbType, 'Debes seleccionar un motor de BD');
+            showError(dbType, t('error_select_engine'));
             isValid = false;
         }
 
@@ -510,13 +510,13 @@ function initJobFormValidation() {
         }
 
         const editingId = form.dataset.editingId || null;
-        
+
         let finalDbName = dbName ? dbName.value.trim() || null : null;
         if (dbType.value === 'sqlite' || dbType.value === 'folder' || dbType.value === 'mdb') {
             const dbFilePathEl = document.getElementById('dbFilePath');
             const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
             if (!pathValue) {
-                alert('Debes especificar la ruta absoluta del archivo/carpeta');
+                showToast(t('error_path_required'), 'error');
                 btnSave.classList.add('animate-shake');
                 setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
                 return;
@@ -576,28 +576,28 @@ function initJobFormValidation() {
         }
 
         btnSave.disabled = true;
-        btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+        btnSave.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_saving')}`;
 
         try {
             if (editingId) {
                 // ── MODO EDICIÓN: PUT ──────────────────────────────────────
                 await api.updateJob(editingId, jobData);
-                showToast(`¡Job «${jobData.name}» actualizado con éxito!`, 'success');
+                showToast(`${t('toast_job_updated')} «${jobData.name}»`, 'success');
                 resetFormToCreateMode();
             } else {
                 // ── MODO CREACIÓN: POST ────────────────────────────────────
                 await api.createJob(jobData);
-                showToast('¡Job creado con éxito!', 'success');
+                showToast(t('toast_job_created'), 'success');
                 form.reset();
             }
             loadJobs();
         } catch (error) {
-            showToast('Error al guardar el Job. Revisa la consola.', 'error');
+            showToast(t('toast_job_save_error'), 'error');
         } finally {
             btnSave.disabled = false;
             btnSave.innerHTML = editingId
-                ? '<i class="fa-solid fa-floppy-disk"></i> Actualizar Job'
-                : '<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración';
+                ? `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`
+                : `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
             isFormDirty = false; // Reset de dirty al guardar con éxito (o error, pero asume flow completo)
         }
     });
@@ -609,7 +609,7 @@ function initJobFormValidation() {
  */
 function handleEditJob(event) {
     if (isFormDirty) {
-        const confirmDiscard = confirm("Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos para editar este Job?");
+        const confirmDiscard = confirm(t('confirm_discard_edit'));
         if (!confirmDiscard) return;
     }
 
@@ -648,7 +648,7 @@ function handleEditJob(event) {
 function handleDeleteJob(event) {
     const btn = event.currentTarget;
     const jobId = btn.dataset.id;
-    const name = btn.dataset.name || `Job ${jobId}`;
+    const name = btn.dataset.name || `${t('label_job')} ${jobId}`;
     showDeleteConfirm(jobId, name);
 }
 
@@ -722,7 +722,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
 
     // Rellenar campo de programación
     if (jobSched) jobSched.value = displaySchedule;
-    
+
     const jobScheduleInterval = document.getElementById('jobScheduleInterval');
     const jobScheduleCron = document.getElementById('jobScheduleCron');
     const jobScheduleTime = document.getElementById('jobScheduleTime');
@@ -742,10 +742,10 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (destType) destType.value = extra.dest_type || 'local';
     if (destLocalPath) destLocalPath.value = extra.dest_local_path || '';
     if (destGDriveFolderId) destGDriveFolderId.value = extra.dest_gdrive_folder_id || '';
-    
+
     const jobRetention = document.getElementById('jobRetention');
     if (jobRetention) jobRetention.value = extra.dest_retention_days !== undefined ? extra.dest_retention_days : '0';
-    
+
     // Disparar eventos para ocultar/mostrar secciones de destino, programación y base de datos
     if (dbType) dbType.dispatchEvent(new Event('change'));
     if (destType) destType.dispatchEvent(new Event('change'));
@@ -754,16 +754,16 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     // Cambiar título con badge
     if (heading) {
         heading.innerHTML = `
-            Editando Job
+            ${t('title_editing_job')}
             <span id="edit-mode-badge"
                   class="ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-amber-400/10 text-amber-400 border border-amber-400/30">
-                modo edición
+                ${t('badge_edit_mode')}
             </span>`;
     }
 
     // Cambiar botón guardar
     if (btnSave) {
-        btnSave.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Actualizar Job';
+        btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`;
         btnSave.classList.replace('bg-brand-500', 'bg-amber-500');
         btnSave.classList.replace('hover:bg-brand-600', 'hover:bg-amber-600');
     }
@@ -774,7 +774,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
         cancelBtn.id = 'btnCancelEdit';
         cancelBtn.type = 'button';
         cancelBtn.className = 'ml-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-800 transition-colors';
-        cancelBtn.innerHTML = '<i class="fa-solid fa-xmark mr-1.5"></i>Cancelar';
+        cancelBtn.innerHTML = `<i class="fa-solid fa-xmark mr-1.5"></i>${t('btn_cancel')}`;
         btnSave.parentElement.appendChild(cancelBtn);
     }
 }
@@ -794,11 +794,11 @@ function resetFormToCreateMode() {
     delete form.dataset.editingSchedule;
 
     // Restaurar título
-    if (heading) heading.innerHTML = 'Nuevo Job de Backup';
+    if (heading) heading.innerHTML = t('title_new_backup_job');
 
     // Restaurar botón guardar
     if (btnSave) {
-        btnSave.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración';
+        btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
         btnSave.classList.replace('bg-amber-500', 'bg-brand-500');
         btnSave.classList.replace('hover:bg-amber-600', 'hover:bg-brand-600');
     }
@@ -808,7 +808,7 @@ function resetFormToCreateMode() {
     if (cancelBtn) cancelBtn.remove();
     const badge = form.querySelector('#edit-mode-badge');
     if (badge) badge.remove();
-    
+
     // Limpiar selección visual (Discovery)
     document.querySelectorAll('.discovery-card').forEach(c => {
         c.classList.remove('border-brand-500', 'bg-brand-500/10', 'dark:bg-brand-500/10', 'bg-brand-500/5');
@@ -847,20 +847,20 @@ function showDeleteConfirm(jobId, name) {
         <div class="flex items-start gap-3">
             <i class="fa-solid fa-triangle-exclamation text-red-400 text-lg mt-0.5"></i>
             <div>
-                <p class="text-white text-sm font-semibold">¿Eliminar este job?</p>
+                <p class="text-white text-sm font-semibold">${t('confirm_delete_title')}</p>
                 <p class="text-slate-400 text-xs mt-0.5 leading-relaxed">
-                    «${name}» se borrará de forma permanente.
+                    «${name}» ${t('confirm_delete_body')}
                 </p>
             </div>
         </div>
         <div class="flex gap-2 w-full">
             <button id="toast-delete-ok"
                     class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
-                <i class="fa-solid fa-trash-can mr-1"></i> Sí, eliminar
+                <i class="fa-solid fa-trash-can mr-1"></i> ${t('btn_confirm_delete')}
             </button>
             <button id="toast-delete-cancel"
                     class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
-                Cancelar
+                ${t('btn_cancel')}
             </button>
         </div>
     `;
@@ -877,11 +877,11 @@ function showDeleteConfirm(jobId, name) {
         removeToast();
         try {
             await api.deleteJob(jobId);
-            showToast(`Job «${name}» eliminado correctamente.`, 'success');
+            showToast(`${t('toast_job_deleted')} «${name}»`, 'success');
             loadJobs();
         } catch (err) {
-            console.error('Error al eliminar el job:', err);
-            showToast(`No se pudo eliminar «${name}». Revisa la consola.`, 'error');
+            console.error('Error deleting job:', err);
+            showToast(`${t('toast_job_delete_error')} «${name}»`, 'error');
         }
     });
 
@@ -974,7 +974,7 @@ function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type} bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white border shadow-lg`;
-    if(type === 'success') toast.classList.add('border-green-500');
+    if (type === 'success') toast.classList.add('border-green-500');
     else toast.classList.add('border-red-500');
 
     const icon = type === 'success'
@@ -1048,7 +1048,7 @@ async function openLogViewer(runId, dateStr = '') {
     output.innerHTML = [
         '<div id="log-modal-loader">',
         '  <span class="terminal-cursor"></span>',
-        '  <span class="text-slate-600 dark:text-slate-400">Cargando logs...</span>',
+        `  <span class="text-slate-600 dark:text-slate-400">${t('status_loading_logs')}</span>`,
         '</div>'
     ].join('');
 
@@ -1066,9 +1066,9 @@ async function openLogViewer(runId, dateStr = '') {
     } catch (error) {
         console.error('Error al cargar los logs:', error);
         output.innerHTML = [
-            '<span class="log-line-error text-red-500">[ERROR] No se pudieron cargar los logs.</span>\n',
-            `<span class="log-line-error text-red-500">Detalle: ${escapeHtml(String(error.message))}</span>\n`,
-            '<span class="log-line-default text-slate-600 dark:text-slate-400">Verifica que el endpoint GET /api/v1/history/{runId}/logs esté disponible.</span>'
+            `<span class="log-line-error text-red-500">[ERROR] ${t('error_load_logs')}</span>\n`,
+            `<span class="log-line-error text-red-500">${t('label_detail')}: ${escapeHtml(String(error.message))}</span>\n`,
+            `<span class="log-line-default text-slate-600 dark:text-slate-400">${t('hint_check_endpoint')}</span>`
         ].join('');
     }
 }
@@ -1095,7 +1095,7 @@ function renderLogs(outputEl, rawLogs) {
         : String(rawLogs).split('\\n');
 
     if (lines.length === 0 || (lines.length === 1 && lines[0].trim() === '')) {
-        outputEl.innerHTML = '<span class="log-line-default text-slate-600 dark:text-slate-400">(sin logs disponibles)</span>';
+        outputEl.innerHTML = `<span class="log-line-default text-slate-600 dark:text-slate-400">(${t('status_no_logs')})</span>`;
         return;
     }
 
@@ -1192,28 +1192,27 @@ function initSettingsModal() {
     if (btnTestEmail) {
         btnTestEmail.addEventListener('click', async (e) => {
             e.preventDefault();
-            
-            // Requerido por el usuario: Mostrar alert
-            alert('Enviando correo de prueba. Por favor espera...');
-            
+
+            showToast(t('toast_sending_test_email'), 'success');
+
             btnTestEmail.disabled = true;
             const originalHtml = btnTestEmail.innerHTML;
-            btnTestEmail.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
+            btnTestEmail.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_sending')}`;
             try {
                 // Guardar antes por si ha cambiado el email en la interfaz
-                await handleSaveSettings(true); 
-                
+                await handleSaveSettings(true);
+
                 const response = await fetch('/api/v1/settings/test-email', { method: 'POST' });
                 const result = await response.json();
-                
+
                 if (response.ok && result.success) {
-                    alert('ÉXITO: ' + result.message);
+                    showToast(`${t('label_success')}: ` + result.message, 'success');
                 } else {
-                    alert('ERROR: ' + (result.message || result.detail || 'Fallo desconocido al enviar email'));
+                    showToast(`${t('label_error')}: ` + (result.message || result.detail || t('error_email_unknown')), 'error');
                 }
             } catch (err) {
                 console.error(err);
-                alert('ERROR CRÍTICO: No se pudo contactar con el servidor. Revisa la consola.');
+                showToast(t('error_critical_server'), 'error');
             } finally {
                 btnTestEmail.disabled = false;
                 btnTestEmail.innerHTML = originalHtml;
@@ -1339,22 +1338,22 @@ async function handleSaveSettings(silent = false) {
 
     // Estado de carga
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_saving')}`;
 
     try {
         await api.saveSettings(payload);
         if (!silent) {
-            alert('✅ Ajustes guardados correctamente');
+            showToast(`✅ ${t('toast_settings_saved')}`, 'success');
             applyTranslations(payload.language);
             closeSettingsModal();
-            setTimeout(() => { location.reload(); }, 500);
+            setTimeout(() => { location.reload(); }, 1500);
         }
     } catch (err) {
         console.error('Error al guardar los ajustes:', err);
-        if (!silent) alert('❌ Error al guardar los ajustes. Revisa la consola.');
+        if (!silent) showToast(`❌ ${t('toast_settings_error')}`, 'error');
     } finally {
         saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar cambios';
+        saveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_changes')}`;
     }
 }
 
@@ -1371,7 +1370,7 @@ async function loadDiscovery() {
 
     try {
         const response = await fetch('/api/v1/jobs/discovery');
-        if (!response.ok) throw new Error('Error al escanear red');
+        if (!response.ok) throw new Error(t('error_scan_network'));
         const services = await response.json();
 
         services.forEach(svc => {
@@ -1384,7 +1383,7 @@ async function loadDiscovery() {
             card.dataset.host = svc.host;
             card.dataset.port = svc.port;
             card.dataset.name = translatedName;
-            
+
             card.innerHTML = `
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none">
@@ -1464,11 +1463,11 @@ function handleDiscoveryClick(event) {
         }
         if (dbHostEl) dbHostEl.value = '';
         if (dbPortEl) dbPortEl.value = '';
-        
+
         if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
         if (networkDetails) networkDetails.classList.add('hidden');
         if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
-        
+
         // Foco en la ruta del archivo/carpeta
         const dbFilePathEl = document.getElementById('dbFilePath');
         if (dbFilePathEl) dbFilePathEl.focus();
@@ -1481,7 +1480,7 @@ function handleDiscoveryClick(event) {
         }
         if (dbHostEl) dbHostEl.value = card.dataset.host || '127.0.0.1';
         if (dbPortEl) dbPortEl.value = card.dataset.port || '';
-        
+
         if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
         if (networkDetails) networkDetails.classList.remove('hidden');
         if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
@@ -1516,7 +1515,7 @@ async function checkGoogleDriveStatus() {
     try {
         const res = await fetch('/api/v1/auth/google/status');
         const data = await res.json();
-        
+
         if (data.authorized) {
             authBox.classList.add('hidden');
             pickerBox.classList.remove('hidden');
@@ -1533,8 +1532,8 @@ document.getElementById('btnConnectDrive')?.addEventListener('click', () => {
     // Abrir popup de login
     const w = 500;
     const h = 600;
-    const left = (screen.width/2)-(w/2);
-    const top = (screen.height/2)-(h/2);
+    const left = (screen.width / 2) - (w / 2);
+    const top = (screen.height / 2) - (h / 2);
     window.open('/api/v1/auth/google/login', 'GDrive Auth', `width=${w},height=${h},top=${top},left=${left}`);
 });
 
@@ -1546,25 +1545,25 @@ window.addEventListener("message", (event) => {
 });
 
 document.getElementById('btnDisconnectDrive')?.addEventListener('click', async () => {
-    if (!confirm("¿Seguro que quieres desvincular la cuenta de Google Drive?")) return;
-    
+    if (!confirm(t('confirm_gdrive_disconnect'))) return;
+
     try {
         const res = await fetch('/api/v1/auth/google/disconnect', { method: 'DELETE' });
         if (res.ok) {
-            showToast("Cuenta de Google Drive desvinculada", "success");
+            showToast(t('toast_gdrive_disconnected'), "success");
             checkGoogleDriveStatus();
-            
-            // Limpiar campos visuales
+
+            // Clear visual fields
             const destGDriveFolderId = document.getElementById('destGDriveFolderId');
             const destGDriveFolderName = document.getElementById('destGDriveFolderName');
             if (destGDriveFolderId) destGDriveFolderId.value = '';
             if (destGDriveFolderName) destGDriveFolderName.value = '';
         } else {
-            showToast("Error al desvincular la cuenta", "error");
+            showToast(t('toast_gdrive_disconnect_error'), "error");
         }
     } catch (e) {
-        console.error("Error al desvincular", e);
-        showToast("Error de conexión", "error");
+        console.error("Error disconnecting", e);
+        showToast(t('toast_connection_error'), "error");
     }
 });
 
@@ -1586,29 +1585,29 @@ const gapiInterval = setInterval(() => {
 
 document.getElementById('btnSelectDriveFolder')?.addEventListener('click', async () => {
     if (!pickerApiLoaded) {
-        showToast("La API de Google Picker aún se está cargando...", "error");
+        showToast(t('toast_picker_loading'), "error");
         return;
     }
 
     try {
         // Pedir token temporal al backend
         const res = await fetch('/api/v1/auth/google/token');
-        if (!res.ok) throw new Error("No se pudo obtener el token");
-        
+        if (!res.ok) throw new Error(t('error_get_token'));
+
         const data = await res.json();
         gdriveAccessToken = data.access_token;
         gdriveClientId = data.client_id;
-        
+
         createPicker();
     } catch (e) {
         console.error(e);
-        showToast("Error al abrir el explorador de Drive. ¿Estás conectado?", "error");
+        showToast(t('toast_picker_open_error'), "error");
     }
 });
 
 function createPicker() {
     if (!gdriveAccessToken) return;
-    
+
     // Crear la vista solo de carpetas
     const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
     view.setIncludeFolders(true);
@@ -1621,10 +1620,10 @@ function createPicker() {
         // .setAppId(gdriveClientId.split('-')[0]) // Opcional
         .setOAuthToken(gdriveAccessToken)
         .addView(view)
-        .setTitle("Selecciona la carpeta para los backups")
+        .setTitle(t('picker_select_folder_title'))
         .setCallback(pickerCallback)
         .build();
-    
+
     picker.setVisible(true);
 }
 
@@ -1633,11 +1632,11 @@ function pickerCallback(data) {
         const doc = data.docs[0];
         const folderId = doc.id;
         const folderName = doc.name;
-        
+
         document.getElementById('destGDriveFolderId').value = folderId;
         document.getElementById('destGDriveFolderName').value = folderName;
-        
-        showToast(`Carpeta "${folderName}" seleccionada`, "success");
+
+        showToast(`${t('toast_folder_selected')} "${folderName}"`, "success");
     }
 }
 
@@ -1649,39 +1648,39 @@ async function loadTerminalLogs(runId) {
     const terminal = document.getElementById('bottomLogsTerminal');
     if (!terminal) return;
 
-    terminal.innerHTML = '<span class="text-slate-500 italic">Cargando logs... <i class="fa-solid fa-circle-notch fa-spin"></i></span>';
+    terminal.innerHTML = `<span class="text-slate-500 italic">${t('status_loading_logs')} <i class="fa-solid fa-circle-notch fa-spin"></i></span>`;
 
     try {
         const res = await fetch(`/api/v1/history/run/${runId}/logs`);
-        if (!res.ok) throw new Error("No se pudieron cargar los logs");
-        
+        if (!res.ok) throw new Error(t('error_load_logs'));
+
         const data = await res.json();
-        const logs = data.logs || "No hay logs disponibles para esta ejecución.";
-        
+        const logs = data.logs || t('status_no_logs_run');
+
         terminal.innerHTML = ''; // Limpiar
-        
+
         // Pintar por líneas para añadir colorines
         const lines = Array.isArray(logs) ? logs : String(logs).split('\\n');
         lines.forEach(line => {
             const div = document.createElement('div');
             div.textContent = line;
-            
+
             // Coloreado sintáctico simple de logs
             if (line.includes('[SUCCESS]')) div.className = 'text-green-500 font-medium';
             else if (line.includes('[ERROR]') || line.includes('[CRITICAL]')) div.className = 'text-red-500 font-medium';
             else if (line.includes('[WARNING]')) div.className = 'text-yellow-500';
             else if (line.includes('[INFO]')) div.className = 'text-brand-500';
             else div.className = 'text-slate-600 dark:text-slate-400';
-            
+
             terminal.appendChild(div);
         });
 
         // Autoscroll al final
         terminal.scrollTop = terminal.scrollHeight;
-        
+
     } catch (e) {
         console.error("Error cargando logs:", e);
-        terminal.innerHTML = '<span class="text-red-500 italic">Error al cargar los logs.</span>';
+        terminal.innerHTML = `<span class="text-red-500 italic">${t('error_load_logs')}.</span>`;
     }
 }
 
@@ -1890,7 +1889,87 @@ const i18n = {
         "label_retention_days": "Días de retención",
         "ph_retention_days": "Ej: 30",
         "help_retention": "Número de días a conservar. 0 para mantenerlos indefinidamente.",
-        "engine_folder_sync": "Sincronización de Carpetas (Espejo)"
+        "engine_folder_sync": "Sincronización de Carpetas (Espejo)",
+        // --- New keys ---
+        status_loading: "Cargando...",
+        status_running: "Ejecutando...",
+        status_saving: "Guardando...",
+        status_sending: "Enviando...",
+        status_scanning: "Escaneando...",
+        status_waiting_path: "Esperando ruta...",
+        status_loading_logs: "Cargando logs...",
+        status_no_logs: "sin logs disponibles",
+        status_no_logs_run: "No hay logs disponibles para esta ejecución.",
+        stat_free_space_title: "Espacio Libre en Destino",
+        badge_active: "Activo",
+        badge_edit_mode: "modo edición",
+        title_editing_job: "Editando Job",
+        title_success: "¡Éxito!",
+        title_restore_confirm: "Confirmar Restauración",
+        title_file_explorer: "Explorador de Archivos",
+        title_service_credentials: "Credenciales de servicio",
+        title_upload_behavior: "Comportamiento de subida",
+        label_sqlite_access: "SQLite / Access",
+        label_job: "Job",
+        label_free: "Libres",
+        label_this_pc: "Este equipo",
+        label_empty_folder: "Carpeta vacía",
+        label_success: "ÉXITO",
+        label_error: "ERROR",
+        label_detail: "Detalle",
+        label_credentials_path: "Ruta al archivo credentials.json",
+        label_gdrive_folder_id: "ID de carpeta de destino",
+        label_gdrive_scope: "Scope de acceso",
+        label_auto_upload: "Subida automática tras backup",
+        label_delete_local: "Borrar archivo local tras subida",
+        label_max_files: "Máximo de archivos por carpeta en Drive",
+        subtitle_file_explorer: "Selecciona una ruta para la configuración",
+        btn_update_job: "Actualizar Job",
+        btn_confirm_delete: "Sí, eliminar",
+        btn_select_path: "Seleccionar Ruta",
+        btn_accept: "Aceptar",
+        btn_close_esc: "[ESC] Cerrar",
+        title_run_logs: "solba-backups — run logs",
+        msg_operation_success: "Operación realizada correctamente.",
+        confirm_discard_new: "Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos y crear un nuevo Job?",
+        confirm_discard_edit: "Tienes cambios sin guardar. ¿Estás seguro de que quieres descartarlos para editar este Job?",
+        confirm_delete_title: "¿Eliminar este job?",
+        confirm_delete_body: "se borrará de forma permanente.",
+        confirm_gdrive_disconnect: "¿Seguro que quieres desvincular la cuenta de Google Drive?",
+        error_field_required: "Este campo es obligatorio",
+        error_select_engine: "Debes seleccionar un motor de BD",
+        error_path_required: "Debes especificar la ruta absoluta del archivo/carpeta",
+        error_load_logs: "No se pudieron cargar los logs",
+        error_scan_network: "Error al escanear red",
+        error_get_token: "No se pudo obtener el token",
+        error_read_path: "Error al leer",
+        error_email_unknown: "Fallo desconocido al enviar email",
+        error_critical_server: "ERROR CRÍTICO: No se pudo contactar con el servidor. Revisa la consola.",
+        hint_check_endpoint: "Verifica que el endpoint GET /api/v1/history/{runId}/logs esté disponible.",
+        hint_gdrive_folder_id: "El ID aparece al final de la URL de la carpeta en Drive.",
+        hint_auto_upload: "Sube el archivo comprimido a Drive al terminar.",
+        hint_delete_local: "Libera espacio en disco después de la subida.",
+        hint_max_files: "Los archivos más antiguos se eliminarán para no superar este límite.",
+        toast_job_run_success: "Job ejecutado con éxito",
+        toast_job_run_error: "Error al ejecutar el Job",
+        toast_job_created: "¡Job creado con éxito!",
+        toast_job_updated: "¡Job actualizado con éxito!",
+        toast_job_save_error: "Error al guardar el Job. Revisa la consola.",
+        toast_job_deleted: "Job eliminado correctamente",
+        toast_job_delete_error: "No se pudo eliminar",
+        toast_restore_no_id: "Error: No se pudo obtener el ID de la ejecución",
+        toast_restore_server_error: "Error al restaurar en el servidor",
+        toast_settings_saved: "Ajustes guardados correctamente",
+        toast_settings_error: "Error al guardar los ajustes. Revisa la consola.",
+        toast_sending_test_email: "Enviando correo de prueba, por favor espera...",
+        toast_gdrive_disconnected: "Cuenta de Google Drive desvinculada",
+        toast_gdrive_disconnect_error: "Error al desvincular la cuenta",
+        toast_connection_error: "Error de conexión",
+        toast_picker_loading: "La API de Google Picker aún se está cargando...",
+        toast_picker_open_error: "Error al abrir el explorador de Drive. ¿Estás conectado?",
+        toast_folder_selected: "Carpeta seleccionada",
+        restore_in_progress: "Iniciando restauración...",
+        picker_select_folder_title: "Selecciona la carpeta para los backups"
     },
     en: {
         app_title: "SolbaBackups",
@@ -2092,7 +2171,87 @@ const i18n = {
         "Ej: 0 2 * * *": "Ex: 0 2 * * *",
         "Ej: 60": "Ex: 60",
         "/ruta/absoluta/credentials.json": "/absolute/path/to/credentials.json",
-        "Raíz de Mi Unidad": "Root of My Drive"
+        "Raíz de Mi Unidad": "Root of My Drive",
+        // --- New keys ---
+        status_loading: "Loading...",
+        status_running: "Running...",
+        status_saving: "Saving...",
+        status_sending: "Sending...",
+        status_scanning: "Scanning...",
+        status_waiting_path: "Waiting for path...",
+        status_loading_logs: "Loading logs...",
+        status_no_logs: "no logs available",
+        status_no_logs_run: "No logs available for this execution.",
+        stat_free_space_title: "Free Space at Destination",
+        badge_active: "Active",
+        badge_edit_mode: "edit mode",
+        title_editing_job: "Editing Job",
+        title_success: "Success!",
+        title_restore_confirm: "Confirm Restore",
+        title_file_explorer: "File Explorer",
+        title_service_credentials: "Service Credentials",
+        title_upload_behavior: "Upload Behavior",
+        label_sqlite_access: "SQLite / Access",
+        label_job: "Job",
+        label_free: "Free",
+        label_this_pc: "This PC",
+        label_empty_folder: "Empty folder",
+        label_success: "SUCCESS",
+        label_error: "ERROR",
+        label_detail: "Detail",
+        label_credentials_path: "Path to credentials.json file",
+        label_gdrive_folder_id: "Destination folder ID",
+        label_gdrive_scope: "Access scope",
+        label_auto_upload: "Auto-upload after backup",
+        label_delete_local: "Delete local file after upload",
+        label_max_files: "Maximum files per Drive folder",
+        subtitle_file_explorer: "Select a path for configuration",
+        btn_update_job: "Update Job",
+        btn_confirm_delete: "Yes, delete",
+        btn_select_path: "Select Path",
+        btn_accept: "Accept",
+        btn_close_esc: "[ESC] Close",
+        title_run_logs: "solba-backups — run logs",
+        msg_operation_success: "Operation completed successfully.",
+        confirm_discard_new: "You have unsaved changes. Are you sure you want to discard them and create a new Job?",
+        confirm_discard_edit: "You have unsaved changes. Are you sure you want to discard them to edit this Job?",
+        confirm_delete_title: "Delete this job?",
+        confirm_delete_body: "will be permanently deleted.",
+        confirm_gdrive_disconnect: "Are you sure you want to unlink your Google Drive account?",
+        error_field_required: "This field is required",
+        error_select_engine: "Please select a database engine",
+        error_path_required: "You must specify the absolute path of the file or folder",
+        error_load_logs: "Failed to load logs",
+        error_scan_network: "Error scanning network",
+        error_get_token: "Could not obtain token",
+        error_read_path: "Error reading path",
+        error_email_unknown: "Unknown failure sending email",
+        error_critical_server: "CRITICAL ERROR: Could not reach the server. Check the console.",
+        hint_check_endpoint: "Verify that the endpoint GET /api/v1/history/{runId}/logs is available.",
+        hint_gdrive_folder_id: "The ID appears at the end of the folder URL in Drive.",
+        hint_auto_upload: "Uploads the compressed file to Drive upon completion.",
+        hint_delete_local: "Frees up disk space after uploading.",
+        hint_max_files: "Older files will be removed to stay within this limit.",
+        toast_job_run_success: "Job executed successfully",
+        toast_job_run_error: "Error running Job",
+        toast_job_created: "Job created successfully!",
+        toast_job_updated: "Job updated successfully!",
+        toast_job_save_error: "Error saving the Job. Check the console.",
+        toast_job_deleted: "Job deleted successfully",
+        toast_job_delete_error: "Could not delete",
+        toast_restore_no_id: "Error: Could not retrieve the execution ID",
+        toast_restore_server_error: "Error restoring on the server",
+        toast_settings_saved: "Settings saved successfully",
+        toast_settings_error: "Error saving settings. Check the console.",
+        toast_sending_test_email: "Sending test email, please wait...",
+        toast_gdrive_disconnected: "Google Drive account unlinked",
+        toast_gdrive_disconnect_error: "Error unlinking the account",
+        toast_connection_error: "Connection error",
+        toast_picker_loading: "Google Picker API is still loading...",
+        toast_picker_open_error: "Error opening Drive explorer. Are you connected?",
+        toast_folder_selected: "Folder selected",
+        restore_in_progress: "Initiating restore...",
+        picker_select_folder_title: "Select the folder for backups"
     }
 };
 
@@ -2164,7 +2323,7 @@ function applyTranslations(lang) {
 
 // Interceptar populateSettingsForm para aplicar idioma guardado
 const originalPopulateSettingsForm = populateSettingsForm;
-populateSettingsForm = function(s) {
+populateSettingsForm = function (s) {
     originalPopulateSettingsForm(s);
     if (s.language) {
         applyTranslations(s.language);
@@ -2185,13 +2344,13 @@ async function scanFreeSpace(path) {
     if (!statEl || !icon) return;
 
     if (!path) {
-        statEl.textContent = 'Esperando ruta...';
+        statEl.textContent = t('status_waiting_path');
         return;
     }
-    
+
     icon.classList.add('fa-spin');
-    statEl.textContent = 'Escaneando...';
-    
+    statEl.textContent = t('status_scanning');
+
     try {
         const data = await api.getFreeSpace(path);
         let space = data.free_space_mb;
@@ -2200,9 +2359,9 @@ async function scanFreeSpace(path) {
             space = (space / 1024).toFixed(2);
             unit = 'GB';
         }
-        statEl.textContent = `${space} ${unit} Libres`;
+        statEl.textContent = `${space} ${unit} ${t('label_free')}`;
     } catch (error) {
-        statEl.textContent = 'Error al leer';
+        statEl.textContent = t('error_read_path');
         console.warn(`No se pudo escanear la ruta: ${error.message}`);
     } finally {
         icon.classList.remove('fa-spin');
@@ -2247,19 +2406,19 @@ async function renderExplorerPath(path) {
     const container = document.getElementById('explorerListContainer');
     const pathDisplay = document.getElementById('explorerCurrentPath');
     const btnUp = document.getElementById('btnExplorerUp');
-    
+
     container.innerHTML = '<div class="flex justify-center items-center h-40"><i class="fa-solid fa-spinner fa-spin text-brand-500 text-2xl"></i></div>';
-    
+
     try {
         const data = await api.listDirectory(path);
-        
-        pathDisplay.textContent = data.current_path || "Este equipo";
+
+        pathDisplay.textContent = data.current_path || t('label_this_pc');
         btnUp.disabled = !data.parent_path;
         btnUp.onclick = () => renderExplorerPath(data.parent_path);
-        
+
         let html = '';
         if (data.folders.length === 0 && data.files.length === 0) {
-            html = '<div class="text-center py-8 text-slate-500 text-sm">Carpeta vacía</div>';
+            html = `<div class="text-center py-8 text-slate-500 text-sm">${t('label_empty_folder')}</div>`;
         } else {
             // Renderizar carpetas
             data.folders.forEach(f => {
@@ -2281,7 +2440,7 @@ async function renderExplorerPath(path) {
             });
         }
         container.innerHTML = html;
-        
+
         // Listeners
         container.querySelectorAll('.explorer-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -2297,7 +2456,7 @@ async function renderExplorerPath(path) {
                 }
             });
         });
-        
+
     } catch (error) {
         container.innerHTML = `<div class="text-center py-8 text-red-500 text-sm"><i class="fa-solid fa-triangle-exclamation mb-2 text-xl"></i><br>Error: ${error.message}</div>`;
     }

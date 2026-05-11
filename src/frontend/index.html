@@ -762,7 +762,7 @@
             class="h-16 flex items-center justify-between px-8 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-surface-950/80 backdrop-blur-md sticky top-0 z-10 transition-colors">
             <div class="flex items-center gap-4">
                 <h2 class="text-xl font-semibold text-slate-800 dark:text-white" id="mainHeaderTitle" data-i18n="title_create_job">Crear Nuevo Job</h2>
-                <span id="mainHeaderBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
+                <span id="mainHeaderBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20" data-i18n="badge_active">
                     Activo
                 </span>
             </div>
@@ -787,7 +787,7 @@
                 <div class="bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm flex items-center justify-between transition-colors">
                     <div>
                         <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1" data-i18n="stat_total_jobs">Total de Tareas</p>
-                        <h4 id="stat-total-jobs" class="text-2xl font-bold text-slate-800 dark:text-white">Cargando...</h4>
+                        <h4 id="stat-total-jobs" class="text-2xl font-bold text-slate-800 dark:text-white">-</h4>
                     </div>
                     <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400">
                         <i class="fa-solid fa-layer-group text-lg"></i>
@@ -797,7 +797,7 @@
                 <div id="widgetScanSpace" class="md:col-span-2 bg-gradient-to-r from-brand-600 to-brand-500 border border-brand-500/20 rounded-xl p-5 shadow-sm flex items-center justify-between transition-all">
                     <div class="text-left">
                         <p class="text-xs font-semibold text-brand-100 uppercase tracking-wider mb-1" data-i18n="stat_free_space_title">Espacio Libre en Destino</p>
-                        <h4 id="stat-free-space" class="text-2xl font-bold text-white">Esperando ruta...</h4>
+                        <h4 id="stat-free-space" class="text-2xl font-bold text-white" data-i18n="status_waiting_path">Esperando ruta...</h4>
                     </div>
                     <div class="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white">
                         <i class="fa-solid fa-radar text-lg" id="iconScanSpace"></i>
@@ -831,7 +831,7 @@
                                 </div>
                                 <div class="pointer-events-none">
                                     <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="engine_local_file">Fichero Local</p>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">SQLite / Access</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="label_sqlite_access">SQLite / Access</p>
                                 </div>
                             </div>
                         </div>
@@ -1132,9 +1132,9 @@
                     <span class="dot-max"></span>
                 </div>
 
-                <span id="log-modal-title">solba-backups — run logs</span>
+                <span id="log-modal-title" data-i18n="title_run_logs">solba-backups — run logs</span>
 
-                <button id="log-modal-close-btn" aria-label="Cerrar visor de logs">
+                <button id="log-modal-close-btn" aria-label="Cerrar visor de logs" data-i18n="btn_close_esc">
                     [ESC] Cerrar
                 </button>
             </div>
@@ -1247,10 +1247,10 @@
                 <div id="tab-gdrive" class="s-tab-panel" role="tabpanel" aria-labelledby="tab-gdrive-btn">
 
                     <div class="s-field-group">
-                        <p class="s-section-title">Credenciales de servicio</p>
+                        <p class="s-section-title" data-i18n="title_service_credentials">Credenciales de servicio</p>
 
                         <div class="s-field">
-                            <label for="s-gdrive-credentials" class="s-label">Ruta al archivo credentials.json</label>
+                            <label for="s-gdrive-credentials" class="s-label" data-i18n="label_credentials_path">Ruta al archivo credentials.json</label>
                             <input id="s-gdrive-credentials" type="text" class="s-input"
                                 placeholder="/ruta/absoluta/credentials.json">
                             <p class="s-hint">
@@ -1261,14 +1261,14 @@
                         </div>
 
                         <div class="s-field">
-                            <label for="s-gdrive-folder" class="s-label">ID de carpeta de destino</label>
+                            <label for="s-gdrive-folder" class="s-label" data-i18n="label_gdrive_folder_id">ID de carpeta de destino</label>
                             <input id="s-gdrive-folder" type="text" class="s-input"
                                 placeholder="Ej: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OGAK">
-                            <p class="s-hint">El ID aparece al final de la URL de la carpeta en Drive.</p>
+                            <p class="s-hint" data-i18n="hint_gdrive_folder_id">El ID aparece al final de la URL de la carpeta en Drive.</p>
                         </div>
 
                         <div class="s-field">
-                            <label for="s-gdrive-scope" class="s-label">Scope de acceso</label>
+                            <label for="s-gdrive-scope" class="s-label" data-i18n="label_gdrive_scope">Scope de acceso</label>
                             <input id="s-gdrive-scope" type="text" class="s-input"
                                 placeholder="https://www.googleapis.com/auth/drive.file"
                                 value="https://www.googleapis.com/auth/drive.file">
@@ -1276,12 +1276,12 @@
                     </div>
 
                     <div class="s-field-group">
-                        <p class="s-section-title">Comportamiento de subida</p>
+                        <p class="s-section-title" data-i18n="title_upload_behavior">Comportamiento de subida</p>
 
                         <div class="s-toggle-row">
                             <div class="s-toggle-info">
-                                <p class="s-toggle-label">Subida automática tras backup</p>
-                                <p class="s-toggle-desc">Sube el archivo comprimido a Drive al terminar.</p>
+                                <p class="s-toggle-label" data-i18n="label_auto_upload">Subida automática tras backup</p>
+                                <p class="s-toggle-desc" data-i18n="hint_auto_upload">Sube el archivo comprimido a Drive al terminar.</p>
                             </div>
                             <label class="s-switch">
                                 <input type="checkbox" id="s-gdrive-auto-upload" checked>
@@ -1291,8 +1291,8 @@
 
                         <div class="s-toggle-row">
                             <div class="s-toggle-info">
-                                <p class="s-toggle-label">Borrar archivo local tras subida</p>
-                                <p class="s-toggle-desc">Libera espacio en disco después de la subida.</p>
+                                <p class="s-toggle-label" data-i18n="label_delete_local">Borrar archivo local tras subida</p>
+                                <p class="s-toggle-desc" data-i18n="hint_delete_local">Libera espacio en disco después de la subida.</p>
                             </div>
                             <label class="s-switch">
                                 <input type="checkbox" id="s-gdrive-delete-local">
@@ -1301,11 +1301,10 @@
                         </div>
 
                         <div class="s-field" style="margin-top:1rem">
-                            <label for="s-gdrive-max-files" class="s-label">Máximo de archivos por carpeta en
-                                Drive</label>
+                            <label for="s-gdrive-max-files" class="s-label" data-i18n="label_max_files">Máximo de archivos por carpeta en Drive</label>
                             <input id="s-gdrive-max-files" type="number" min="1" max="999" class="s-input"
                                 placeholder="10">
-                            <p class="s-hint">Los archivos más antiguos se eliminarán para no superar este límite.</p>
+                            <p class="s-hint" data-i18n="hint_max_files">Los archivos más antiguos se eliminarán para no superar este límite.</p>
                         </div>
                     </div>
 
@@ -1328,8 +1327,8 @@
                         <i class="fa-regular fa-folder-open text-xl"></i>
                     </div>
                     <div>
-                        <h2 class="text-lg font-bold text-slate-800 dark:text-white">Explorador de Archivos</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Selecciona una ruta para la configuración</p>
+                        <h2 class="text-lg font-bold text-slate-800 dark:text-white" data-i18n="title_file_explorer">Explorador de Archivos</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="subtitle_file_explorer">Selecciona una ruta para la configuración</p>
                     </div>
                 </div>
                 <button type="button" id="btnCloseExplorer" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-surface-800 transition-colors">
@@ -1342,7 +1341,7 @@
                     <i class="fa-solid fa-arrow-up"></i>
                 </button>
                 <div class="flex-1 px-3 py-2 bg-slate-100 dark:bg-surface-950 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex items-center">
-                    <span id="explorerCurrentPath" class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate font-mono">Cargando...</span>
+                    <span id="explorerCurrentPath" class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate font-mono" data-i18n="status_loading">Cargando...</span>
                 </div>
                 <button type="button" id="btnExplorerRefresh" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-surface-800 text-slate-600 dark:text-slate-300 transition-colors" title="Actualizar">
                     <i class="fa-solid fa-rotate-right"></i>
@@ -1356,11 +1355,31 @@
             </div>
 
             <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-900 flex items-center justify-end gap-3">
-                <button type="button" id="btnExplorerCancel" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-surface-800 font-medium text-sm transition-colors">
+                <button type="button" id="btnExplorerCancel" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-surface-800 font-medium text-sm transition-colors" data-i18n="btn_cancel">
                     Cancelar
                 </button>
-                <button type="button" id="btnExplorerSelect" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors shadow-sm">
+                <button type="button" id="btnExplorerSelect" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors shadow-sm" data-i18n="btn_select_path">
                     Seleccionar Ruta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Alerta de Éxito Personalizada -->
+    <div id="successAlertModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-300 opacity-0 scale-95">
+        <div class="bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col overflow-hidden transform transition-all duration-300">
+            <div class="p-6 bg-white dark:bg-surface-900 text-center flex flex-col items-center">
+                <div class="w-16 h-16 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-check text-3xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-2" id="successAlertTitle" data-i18n="title_success">¡Éxito!</h2>
+                <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed" id="successAlertMessage" data-i18n="msg_operation_success">
+                    Operación realizada correctamente.
+                </p>
+            </div>
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-950 flex justify-center">
+                <button type="button" id="btnSuccessAlertOk" class="px-8 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors shadow-sm w-full" data-i18n="btn_accept">
+                    Aceptar
                 </button>
             </div>
         </div>
