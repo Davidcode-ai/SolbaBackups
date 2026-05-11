@@ -92,7 +92,6 @@ class JobManager:
                 print(f"DEBUG RESTORE: file_id extraído: {file_id}")
                 
                 # Crear directorio temporal para descargar
-                import tempfile
                 temp_dir_to_cleanup = tempfile.mkdtemp(prefix="solba_restore_")
                 backup_path = Path(temp_dir_to_cleanup) / f"backup_{run_id}.zip"
                 
