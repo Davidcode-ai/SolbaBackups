@@ -138,7 +138,8 @@ async function loadJobs(isSilent = false) {
                     data-dest-type="${job.dest_type || 'local'}"
                     data-dest-local-path="${job.dest_local_path || ''}"
                     data-dest-gdrive-folder-id="${job.dest_gdrive_folder_id || ''}"
-                    data-dest-gdrive-folder-name="${job.dest_gdrive_folder_name || ''}">
+                    data-dest-gdrive-folder-name="${job.dest_gdrive_folder_name || ''}"
+                    data-dest-retention-days="${job.dest_retention_days !== undefined ? job.dest_retention_days : 0}">
                     <i class="${iconClass} w-4 text-center group-hover:text-brand-400 transition-colors"></i>
                     <div class="flex-1 truncate">
                         <p class="text-sm font-medium group-hover:text-brand-400 transition-colors">${job.name || 'Job sin nombre'}</p>
@@ -268,8 +269,8 @@ async function loadHistory(isSilent = false) {
                     <div class="flex items-center gap-1.5">
                         <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
                     </div>
-                    <div class="flex items-center gap-2">
-                        ${isSuccess ? `<button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore">
+                    <div class="flex gap-2">
+                        ${isSuccess ? `<button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore" onclick="event.stopPropagation(); openRestoreConfirmModal('${runId}')">
                             <i class="fa-solid fa-rotate-left mr-1"></i> ${t('btn_restore')}
                         </button>` : ''}
                         <button class="btn-view-logs px-2 py-1 rounded bg-slate-500/10 text-slate-400 hover:bg-slate-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_view_logs">
@@ -295,33 +296,6 @@ async function loadHistory(isSilent = false) {
                 });
             }
 
-            // Botón de restaurar
-            const restoreBtn = historyItem.querySelector('.btn-restore');
-            if (restoreBtn) {
-                restoreBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const btnRunId = restoreBtn.dataset.runId;
-                    console.log('DEBUG - Restore button clicked, runId:', btnRunId);
-                    console.log('DEBUG - Button dataset:', restoreBtn.dataset);
-                    if (!btnRunId) {
-                        console.error('ERROR: No runId found on restore button');
-                        alert('Error: No se pudo obtener el ID de la ejecución');
-                        return;
-                    }
-                    
-                    if (!confirm(t('confirm_restore'))) return;
-                    
-                    try {
-                        console.log('DEBUG - Calling api.restoreBackup with runId:', btnRunId);
-                        await api.restoreBackup(btnRunId);
-                        alert(t('restore_success'));
-                    } catch (error) {
-                        console.error('Error al restaurar:', error);
-                        alert(t('restore_error') + '\n' + error.message);
-                    }
-                });
-            }
-
             container.appendChild(historyItem);
         });
 
@@ -330,6 +304,67 @@ async function loadHistory(isSilent = false) {
             console.error('Error cargando historial:', error);
             container.innerHTML = `<p class="text-red-400 text-sm">${t('error_loading_history')}</p>`;
         }
+    }
+}
+
+/**
+ * Lógica del Modal de Confirmación de Restauración
+ */
+let currentRestoreRunId = null;
+
+window.openRestoreConfirmModal = function(runId) {
+    currentRestoreRunId = runId;
+    const modal = document.getElementById('restoreConfirmModal');
+    if (!modal) return;
+    
+    modal.classList.remove('hidden');
+    // Pequeño timeout para permitir que la clase hidden se aplique antes de animar
+    setTimeout(() => {
+        modal.classList.remove('opacity-0', 'scale-95');
+        modal.classList.add('opacity-100', 'scale-100');
+    }, 10);
+};
+
+window.closeRestoreConfirmModal = function() {
+    const modal = document.getElementById('restoreConfirmModal');
+    if (!modal) return;
+    
+    modal.classList.remove('opacity-100', 'scale-100');
+    modal.classList.add('opacity-0', 'scale-95');
+    
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        currentRestoreRunId = null;
+    }, 300);
+};
+
+/**
+ * Restaura el backup de un run especifico
+ * @param {string} runId 
+ */
+async function restoreBackup(runId) {
+    if (!runId) {
+        console.error('ERROR: No runId found on restore button');
+        showToast('Error: No se pudo obtener el ID de la ejecución', 'error');
+        return;
+    }
+    
+    // Eliminado native confirm() aquí. Ahora la confirmación es por UI.
+    
+    try {
+        showToast(t('restore_in_progress') || 'Iniciando restauración...', 'info');
+        console.log('DEBUG - Calling api.restoreBackup with runId:', runId);
+        // Usar api.restoreBackup si existe, de lo contrario un fetch directo
+        if (typeof api !== 'undefined' && typeof api.restoreBackup === 'function') {
+            await api.restoreBackup(runId);
+        } else {
+            const res = await fetch(`/api/v1/history/restore/${runId}`, { method: 'POST' });
+            if (!res.ok) throw new Error('Error al restaurar en el servidor');
+        }
+        showToast(t('restore_success'), 'success');
+    } catch (error) {
+        console.error('Error al restaurar:', error);
+        showToast(t('restore_error') + ' ' + error.message, 'error');
     }
 }
 
@@ -529,7 +564,7 @@ function initJobFormValidation() {
             dest_type: destType ? destType.value : 'local',
             dest_local_path: destLocalPath && destLocalPath.value.trim() ? destLocalPath.value.trim() : null,
             dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
-            dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value) || null : null,
+            dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value || 0) : 0,
         };
         // Limpiar claves con undefined (no enviar la clave si está vacía)
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
@@ -596,6 +631,7 @@ function handleEditJob(event) {
         dest_type: btn.dataset.destType || 'local',
         dest_local_path: btn.dataset.destLocalPath || '',
         dest_gdrive_folder_id: btn.dataset.destGdriveFolderId || '',
+        dest_retention_days: btn.dataset.destRetentionDays || '0',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -706,6 +742,9 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (destType) destType.value = extra.dest_type || 'local';
     if (destLocalPath) destLocalPath.value = extra.dest_local_path || '';
     if (destGDriveFolderId) destGDriveFolderId.value = extra.dest_gdrive_folder_id || '';
+    
+    const jobRetention = document.getElementById('jobRetention');
+    if (jobRetention) jobRetention.value = extra.dest_retention_days !== undefined ? extra.dest_retention_days : '0';
     
     // Disparar eventos para ocultar/mostrar secciones de destino, programación y base de datos
     if (dbType) dbType.dispatchEvent(new Event('change'));
@@ -1613,7 +1652,7 @@ async function loadTerminalLogs(runId) {
     terminal.innerHTML = '<span class="text-slate-500 italic">Cargando logs... <i class="fa-solid fa-circle-notch fa-spin"></i></span>';
 
     try {
-        const res = await fetch(`/api/v1/history/${runId}/logs`);
+        const res = await fetch(`/api/v1/history/run/${runId}/logs`);
         if (!res.ok) throw new Error("No se pudieron cargar los logs");
         
         const data = await res.json();
@@ -1849,7 +1888,9 @@ const i18n = {
         "restore_success": "Backup restaurado correctamente.",
         "restore_error": "Error al restaurar el backup. Revisa los logs para más detalles.",
         "label_retention_days": "Días de retención",
-        "ph_retention_days": "Ej: 30"
+        "ph_retention_days": "Ej: 30",
+        "help_retention": "Número de días a conservar. 0 para mantenerlos indefinidamente.",
+        "engine_folder_sync": "Sincronización de Carpetas (Espejo)"
     },
     en: {
         app_title: "SolbaBackups",
@@ -1963,6 +2004,8 @@ const i18n = {
         restore_error: "Error restoring backup. Check logs for details.",
         label_retention_days: "Retention Days",
         ph_retention_days: "Ex: 30",
+        help_retention: "Number of days to keep. 0 to keep them indefinitely.",
+        engine_folder_sync: "Folder Sync (Mirror)",
         empty_jobs_title: "No jobs yet",
         empty_jobs_desc: "You have not configured any backup yet.",
         empty_jobs_cta: "New Job",
@@ -2276,3 +2319,12 @@ document.getElementById('btnExplorerCancel')?.addEventListener('click', closeFil
 document.getElementById('btnCloseExplorer')?.addEventListener('click', closeFileExplorer);
 document.getElementById('btnExplorerRefresh')?.addEventListener('click', () => renderExplorerPath(currentExplorerPath));
 
+// Eventos del modal de confirmación de restauración
+document.getElementById('btnRestoreCancel')?.addEventListener('click', closeRestoreConfirmModal);
+document.getElementById('btnRestoreConfirm')?.addEventListener('click', async () => {
+    const runId = currentRestoreRunId;
+    closeRestoreConfirmModal();
+    if (runId) {
+        await restoreBackup(runId);
+    }
+});

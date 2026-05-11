@@ -867,6 +867,7 @@
                                     <option value="sqlserver">Microsoft SQL Server</option>
                                     <option value="sqlite" data-i18n="label_file_db">Fichero (SQLite/Access)</option>
                                     <option value="folder" data-i18n="engine_local_folder">Carpeta Local</option>
+                                    <option value="sync" data-i18n="engine_folder_sync">Sincronización de Carpetas (Espejo)</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
                                     <i class="fa-solid fa-chevron-down text-xs"></i>
@@ -1076,9 +1077,10 @@
 
                     <div class="relative form-group mt-4">
                         <label for="jobRetention" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_retention_days">Días de retención</label>
-                        <input type="number" id="jobRetention" min="0"
+                        <input type="number" id="jobRetention" min="0" value="0"
                             class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                             placeholder="Ej: 30" data-i18n-placeholder="ph_retention_days">
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-2" data-i18n="help_retention">Número de días a conservar. 0 para mantenerlos indefinidamente.</p>
                     </div>
                 </div>
 
@@ -1359,6 +1361,35 @@
                 </button>
                 <button type="button" id="btnExplorerSelect" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm transition-colors shadow-sm">
                     Seleccionar Ruta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación de restauración -->
+    <div id="restoreConfirmModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm transition-all duration-300 opacity-0 scale-95">
+        <div class="bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden transform transition-all duration-300">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3 bg-red-500/10">
+                <div class="w-10 h-10 rounded-xl bg-red-500/20 text-red-500 flex items-center justify-center">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-red-600 dark:text-red-400" data-i18n="title_restore_confirm">Confirmar Restauración</h2>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-white dark:bg-surface-900">
+                <p class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed" data-i18n="confirm_restore">
+                    ¿Estás seguro de que quieres restaurar este backup? Esta acción sobrescribirá los datos actuales y no se puede deshacer.
+                </p>
+            </div>
+
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-950 flex items-center justify-end gap-3">
+                <button type="button" id="btnRestoreCancel" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-800 font-medium text-sm transition-colors" data-i18n="btn_cancel">
+                    Cancelar
+                </button>
+                <button type="button" id="btnRestoreConfirm" class="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium text-sm transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-rotate-left"></i> <span data-i18n="btn_restore">Restaurar</span>
                 </button>
             </div>
         </div>
