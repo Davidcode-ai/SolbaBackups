@@ -5,6 +5,14 @@ Este script arranca el servidor web Uvicorn, inicializa el framework FastAPI
 y configura el nivel global de logging para monitorizar las solicitudes HTTP
 y la ejecución de las tareas en segundo plano.
 """
+import sys
+import os
+
+# Asegurar que el directorio del script (raíz del proyecto) esté en el sys.path
+root_dir = os.path.dirname(os.path.abspath(__file__))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 import uvicorn
 import logging
 

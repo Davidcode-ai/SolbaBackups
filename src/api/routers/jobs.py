@@ -28,6 +28,76 @@ async def get_discovery():
     results = await scan_local_databases()
     return results
 
+@router.post("/test-connection")
+async def test_job_connection(conn_in: models.JobTestConnection):
+    """
+    Intenta establecer una conexión rápida a la base de datos o carpeta para verificar que es accesible.
+    No guarda la configuración.
+    """
+    import os
+    from pathlib import Path
+    
+    if conn_in.db_type == "postgresql":
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=conn_in.db_host or "localhost",
+                port=conn_in.db_port or 5432,
+                user=conn_in.db_user or "",
+                password=conn_in.db_password or "",
+                dbname=conn_in.db_name or "",
+                connect_timeout=3
+            )
+            conn.close()
+            return {"success": True, "message": "Conexión a PostgreSQL establecida con éxito."}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Fallo al conectar a PostgreSQL: {str(e)}")
+            
+    elif conn_in.db_type == "mysql":
+        try:
+            import pymysql
+            conn = pymysql.connect(
+                host=conn_in.db_host or "localhost",
+                port=conn_in.db_port or 3306,
+                user=conn_in.db_user or "",
+                password=conn_in.db_password or "",
+                database=conn_in.db_name or "",
+                connect_timeout=3
+            )
+            conn.close()
+            return {"success": True, "message": "Conexión a MySQL/MariaDB establecida con éxito."}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Fallo al conectar a MySQL: {str(e)}")
+            
+    elif conn_in.db_type == "sqlserver":
+        try:
+            import subprocess
+            host_str = f"{conn_in.db_host},{conn_in.db_port}" if conn_in.db_port else f"{conn_in.db_host}"
+            cmd = ["sqlcmd", "-S", host_str, "-U", conn_in.db_user or "", "-P", conn_in.db_password or "", "-d", conn_in.db_name or "master", "-Q", "SELECT 1", "-t", "3"]
+            process = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if process.returncode != 0:
+                raise Exception(process.stderr or process.stdout)
+            return {"success": True, "message": "Conexión a SQL Server (sqlcmd) establecida con éxito."}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Fallo al conectar a SQL Server: {str(e)}")
+            
+    elif conn_in.db_type in ["sqlite", "mdb", "folder"]:
+        if not conn_in.db_name:
+            raise HTTPException(status_code=400, detail="Debe especificar una ruta válida.")
+        path = Path(conn_in.db_name)
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"La ruta especificada no existe: {conn_in.db_name}")
+        
+        if conn_in.db_type == "folder" and not path.is_dir():
+            raise HTTPException(status_code=400, detail="La ruta debe apuntar a un directorio/carpeta.")
+        elif conn_in.db_type in ["sqlite", "mdb"] and not path.is_file():
+            raise HTTPException(status_code=400, detail="La ruta debe apuntar a un archivo válido.")
+            
+        return {"success": True, "message": f"Ruta accesible ({conn_in.db_type})."}
+        
+    else:
+        raise HTTPException(status_code=400, detail=f"Tipo de motor no soportado para test: {conn_in.db_type}")
+
 
 @router.get("", response_model=list[models.JobRead])
 def list_jobs(db: Session = Depends(get_db)):
@@ -109,7 +179,7 @@ def update_job(
     updated_job = crud.job_update(db, job_id, job_data)
 
     # Reprogramar en tiempo real (remove + add con la nueva config)
-    if updated_job.schedule_type and updated_job.schedule_type.lower() not in (
+    if updated_job and updated_job.schedule_type and updated_job.schedule_type.lower() not in (  # type: ignore
         "manual",
         "none",
         "",

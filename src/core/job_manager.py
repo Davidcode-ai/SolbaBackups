@@ -732,49 +732,17 @@ class JobManager:
                     )
                     from src.core.cleaner import GarbageCollector
 
-                    local_retention = int(
-                        global_settings.get("local_retention_days") or 7
-                    )
-                    cloud_retention = int(
-                        global_settings.get("cloud_retention_days") or 30
-                    )
-
-                    # 8.1 Limpieza Local
-                    deleted_local = GarbageCollector.clean_local_backups(
-                        local_retention, 
-                        job_name=job.name, 
-                        job_retention_days=job.dest_retention_days
-                    )
-                    if deleted_local > 0:
+                    # Ejecutar política de retención global/DB (Garbage Collector 2.0)
+                    deleted_total = GarbageCollector.run_retention_policy(db, global_settings)
+                    
+                    if deleted_total > 0:
                         history_manager.add_log(
                             db,
                             run.id,
                             "INFO",
-                            f"Garbage Collector local: Eliminados {deleted_local} backups antiguos del job '{job.name}'.",
+                            f"Garbage Collector: Eliminados {deleted_total} backups antiguos y registros de RunHistory.",
                             stage="cleanup",
                         )
-
-                    # 8.2 Limpieza en la Nube (si está habilitado)
-                    if is_cloud_enabled and job.dest_type != "local":
-                        creds_path = global_settings.get(
-                            "credentials_path", "credentials.json"
-                        )
-                        folder_id = global_settings.get("drive_folder_id", None)
-                        deleted_cloud = GarbageCollector.clean_cloud_backups(
-                            cloud_retention, 
-                            creds_path, 
-                            folder_id,
-                            job_name=job.name,
-                            job_retention_days=job.dest_retention_days
-                        )
-                        if deleted_cloud > 0:
-                            history_manager.add_log(
-                                db,
-                                run.id,
-                                "INFO",
-                                f"Garbage Collector nube: Eliminados {deleted_cloud} backups antiguos del job '{job.name}'.",
-                                stage="cleanup",
-                            )
 
                 except Exception as gc_err:
                     log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
@@ -831,21 +799,13 @@ class JobManager:
                     )
 
                     if smtp_enabled:
-                        smtp_host = global_settings.get("smtp_host", "")
-                        smtp_port = int(global_settings.get("smtp_port", 587))
-                        smtp_user = global_settings.get("smtp_user", "")
-                        smtp_password = global_settings.get("smtp_password", "")
-                        alert_email_to = global_settings.get("alert_email_to", "")
+                        notification_email = global_settings.get("notification_email", "")
 
-                        if smtp_host and smtp_user and alert_email_to:
+                        if notification_email:
                             from src.notifications.mailer import EmailNotifier
 
                             notifier = EmailNotifier(
-                                host=smtp_host,
-                                port=smtp_port,
-                                user=smtp_user,
-                                password=smtp_password,
-                                to_email=alert_email_to,
+                                to_email=notification_email,
                             )
                             # Extraer logs de la BD para adjuntarlos (opcional pero útil)
                             logs_entries = crud.log_get_by_run(db, run.id)
@@ -864,7 +824,7 @@ class JobManager:
                             )
                         else:
                             log.warning(
-                                "SMTP habilitado pero faltan credenciales (host, user o to_email)."
+                                "SMTP habilitado pero falta el email de notificación (notification_email)."
                             )
                 except Exception as smtp_err:
                     log.error(

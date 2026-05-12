@@ -487,6 +487,54 @@ function initJobFormValidation() {
         }
     });
 
+    const btnTestConnection = document.getElementById('btnTestConnection');
+    if (btnTestConnection) {
+        btnTestConnection.addEventListener('click', async () => {
+            clearErrors(dbType);
+            if (dbType.value.trim() === '') {
+                showError(dbType, t('error_select_engine'));
+                return;
+            }
+
+            let finalDbName = dbName ? dbName.value.trim() || null : null;
+            if (dbType.value === 'sqlite' || dbType.value === 'folder' || dbType.value === 'mdb') {
+                const dbFilePathEl = document.getElementById('dbFilePath');
+                const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
+                if (!pathValue) {
+                    showToast(t('error_path_required'), 'error');
+                    return;
+                }
+                finalDbName = pathValue;
+            }
+
+            const connData = {
+                db_type: dbType.value || 'postgresql',
+                db_host: dbHost ? dbHost.value.trim() || null : null,
+                db_port: dbPort ? parseInt(dbPort.value) || null : null,
+                db_user: dbUser ? dbUser.value.trim() || null : null,
+                db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
+                db_name: finalDbName
+            };
+
+            // Limpiar undefined
+            Object.keys(connData).forEach(k => connData[k] === undefined && delete connData[k]);
+
+            const originalHtml = btnTestConnection.innerHTML;
+            btnTestConnection.disabled = true;
+            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Probando...`;
+
+            try {
+                const result = await api.testJobConnection(connData);
+                showToast(`✅ ${result.message || 'Conexión exitosa'}`, 'success');
+            } catch (error) {
+                showToast(`❌ ${error.message || 'Error de conexión'}`, 'error');
+            } finally {
+                btnTestConnection.disabled = false;
+                btnTestConnection.innerHTML = originalHtml;
+            }
+        });
+    }
+
     btnSave.addEventListener('click', async (e) => {
         e.preventDefault();
         let isValid = true;
@@ -1285,10 +1333,8 @@ function populateSettingsForm(s) {
 
     // ── General ───────────────────────────────────────────
     set('s-language', s.language || 'es');
-    set('s-admin-email', s.admin_email);
+    set('s-notification-email', s.notification_email);
     // set('s-timezone', s.timezone); // Se detecta localmente ahora
-    set('s-notify-email', s.notify_email);
-    set('s-notify-errors-only', s.notify_errors_only);
     set('s-log-retention', s.log_retention_days);
 
     // ── Google Drive ─────────────────────────────────────
@@ -1318,10 +1364,8 @@ async function handleSaveSettings(silent = false) {
     const payload = {
         // General
         language: get('s-language') || 'es',
-        admin_email: get('s-admin-email') || undefined,
+        notification_email: get('s-notification-email') || undefined,
         timezone: get('s-timezone') || undefined,
-        notify_email: get('s-notify-email'),
-        notify_errors_only: get('s-notify-errors-only'),
         log_retention_days: Number(get('s-log-retention')) || undefined,
 
         // Google Drive
@@ -1890,6 +1934,15 @@ const i18n = {
         "ph_retention_days": "Ej: 30",
         "help_retention": "Número de días a conservar. 0 para mantenerlos indefinidamente.",
         "engine_folder_sync": "Sincronización de Carpetas (Espejo)",
+        "title_smtp_server": "Servidor SMTP",
+        "label_smtp_host": "Host SMTP",
+        "label_smtp_port": "Puerto",
+        "label_smtp_user": "Usuario SMTP / Email",
+        "label_smtp_password": "Contraseña SMTP (App Password)",
+        "ph_smtp_host": "smtp.gmail.com",
+        "ph_smtp_port": "587",
+        "ph_smtp_user": "tu-correo@gmail.com",
+        "ph_smtp_password": "Contraseña de aplicación",
         // --- New keys ---
         status_loading: "Cargando...",
         status_running: "Ejecutando...",
@@ -2085,6 +2138,15 @@ const i18n = {
         ph_retention_days: "Ex: 30",
         help_retention: "Number of days to keep. 0 to keep them indefinitely.",
         engine_folder_sync: "Folder Sync (Mirror)",
+        title_smtp_server: "SMTP Server",
+        label_smtp_host: "SMTP Host",
+        label_smtp_port: "Port",
+        label_smtp_user: "SMTP User / Email",
+        label_smtp_password: "SMTP Password (App Password)",
+        ph_smtp_host: "smtp.gmail.com",
+        ph_smtp_port: "587",
+        ph_smtp_user: "your-email@gmail.com",
+        ph_smtp_password: "App password",
         empty_jobs_title: "No jobs yet",
         empty_jobs_desc: "You have not configured any backup yet.",
         empty_jobs_cta: "New Job",

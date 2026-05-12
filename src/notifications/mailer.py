@@ -11,14 +11,21 @@ from email.mime.multipart import MIMEMultipart
 
 log = logging.getLogger(__name__)
 
+import os
+
 class EmailNotifier:
     """Gestor para envío de correos electrónicos vía SMTP."""
 
-    def __init__(self, host: str, port: int, user: str, password: str, to_email: str):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
+    def __init__(self, to_email: str):
+        self.host = os.getenv("SOLBA_SMTP_HOST", "smtp.gmail.com")
+        
+        try:
+            self.port = int(os.getenv("SOLBA_SMTP_PORT", "587"))
+        except ValueError:
+            self.port = 587
+            
+        self.user = os.getenv("SOLBA_SMTP_USER", "noreply.solbabackups@gmail.com")
+        self.password = os.getenv("SOLBA_SMTP_PASS", "dummy_password_for_testing")
         self.to_email = to_email
 
     async def send_failure_alert(self, job_name: str, error_message: str, logs: str = "") -> bool:
@@ -75,7 +82,11 @@ class EmailNotifier:
                 server = smtplib.SMTP(self.host, self.port, timeout=10)
                 server.starttls()
                 
-            server.login(self.user, self.password)
+            if self.password and self.password != "dummy_password_for_testing":
+                server.login(self.user, self.password)
+            else:
+                log.warning("Saltando autenticación SMTP: contraseña no configurada o es la de pruebas.")
+                
             server.send_message(msg)
             server.quit()
             

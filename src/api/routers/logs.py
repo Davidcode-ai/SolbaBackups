@@ -77,9 +77,8 @@ def get_run_logs(
         list[LogEntryRead]: Lista de entradas de log, ordenadas por timestamp.
 
     Raises:
-        HTTPException 404: Si la ejecución no existe.
     """
-    pass
+    raise HTTPException(status_code=501, detail="Log stream endpoints are not registered in server lifespan.")
 
 
 @router.get(
@@ -132,7 +131,7 @@ async def stream_run_logs(
     Raises:
         HTTPException 404: Si la ejecución no existe.
     """
-    pass
+    raise HTTPException(status_code=501, detail="Log stream endpoints are not registered in server lifespan.")
 
 
 async def _log_event_generator(run_id: int, db: Session):
@@ -150,4 +149,4 @@ async def _log_event_generator(run_id: int, db: Session):
     Yields:
         str: Fragmento de texto en formato SSE (``event: ...\ndata: ...\n\n``).
     """
-    pass
+    yield "event: error\ndata: Not implemented\n\n"

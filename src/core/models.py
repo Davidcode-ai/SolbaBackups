@@ -190,6 +190,16 @@ class RunHistoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class JobTestConnection(BaseModel):
+    """Payload para testear conexión a base de datos."""
+    db_type: str
+    db_host: str | None = None
+    db_port: int | None = None
+    db_user: str | None = None
+    db_password: str | None = None
+    db_name: str | None = None
+    db_extra_params: str | None = None
+
 # ===========================================================================
 # LOG ENTRY MODELS
 # ===========================================================================
@@ -219,18 +229,15 @@ class AppSettingsRead(BaseModel):
 class AppSettingsUpdate(BaseModel):
     """
     Payload para actualizar múltiples configuraciones globales.
-    Soporta los campos de Google Drive y SMTP explícitamente para validación.
+    Soporta los campos de Google Drive y SMTP de sistema (Solba) explícitamente.
     """
     cloud_enabled: bool | None = None
     drive_folder_id: str | None = None
     credentials_path: str | None = None
     
-    smtp_enabled: bool | None = None
-    smtp_host: str | None = None
-    smtp_port: int | None = None
-    smtp_user: str | None = None
-    smtp_password: str | None = None
-    alert_email_to: str | None = None
+    notification_email: str | None = None
+
+    # Credenciales SMTP centralizadas de Solba eliminadas (ahora por .env)
     
     local_retention_days: int | None = None
     cloud_retention_days: int | None = None

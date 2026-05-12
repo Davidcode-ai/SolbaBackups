@@ -42,6 +42,32 @@ class ApiClient {
     }
 
     /**
+     * Prueba la conexión a la base de datos o ruta especificada.
+     * @param {Object} connData - Datos de conexión
+     * @returns {Promise<Object>} Resultado de la prueba
+     */
+    async testJobConnection(connData) {
+        try {
+            const response = await fetch(`${this.baseUrl}/jobs/test-connection`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(connData)
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error((errorData && errorData.detail) || `Error HTTP: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error en testJobConnection:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Crea un nuevo trabajo enviando los datos al servidor.
      * @param {Object} jobData - Datos del formulario del nuevo trabajo
      * @returns {Promise<Object>} El trabajo creado

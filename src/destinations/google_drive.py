@@ -53,8 +53,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
-from src.destinations.base import BaseDestination
-
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -103,7 +101,7 @@ class ConnectionError(GoogleDriveError):  # noqa: A001
 # ---------------------------------------------------------------------------
 # Clase principal
 # ---------------------------------------------------------------------------
-class GoogleDriveDestination(BaseDestination):
+class GoogleDriveDestination:
     """
     Destino para subir backups a Google Drive via API v3.
 
@@ -585,7 +583,7 @@ class GoogleDriveDestination(BaseDestination):
     # -------------------------------------------------------------------------
     # Métodos internos de autenticación y construcción del servicio
     # -------------------------------------------------------------------------
-    def _get_service(self):
+    def _get_service(self) -> Any:
         """
         Devuelve el cliente de la API de Google Drive v3, construyéndolo
         de forma perezosa (lazy) y reutilizándolo entre llamadas.
@@ -628,10 +626,10 @@ class GoogleDriveDestination(BaseDestination):
         if cred_type == "service_account":
             log.debug("Autenticando con Service Account.")
             try:
-                creds = service_account.Credentials.from_service_account_info(
+                sa_creds = service_account.Credentials.from_service_account_info(
                     creds_data, scopes=SCOPES
                 )
-                return creds
+                return sa_creds  # type: ignore
             except (ValueError, KeyError) as exc:
                 raise AuthenticationError(
                     f"El archivo credentials.json de Service Account es inválido: {exc}"
@@ -671,7 +669,7 @@ class GoogleDriveDestination(BaseDestination):
 
         return creds
 
-    def _build_service(self):
+    def _build_service(self) -> Any:
         """
         Construye y devuelve el cliente de Google Drive API v3.
 

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolbaBackups - Dashboard</title>
+    <link rel="icon" type="image/png" href="assets/logo_solba.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -728,10 +729,7 @@
         class="w-72 bg-white dark:bg-surface-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
         <div class="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-800">
             <div class="flex items-center gap-3 text-slate-900 dark:text-white">
-                <div
-                    class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-                    <i class="fa-solid fa-database text-sm"></i>
-                </div>
+                <img src="assets/logo_solba.png" alt="SolbaBackups Logo" class="h-8 object-contain drop-shadow-md">
                 <span class="font-bold text-lg tracking-tight" data-i18n="app_title">SolbaBackups</span>
             </div>
         </div>
@@ -1084,7 +1082,11 @@
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-slate-800 flex justify-end">
+                <div class="pt-4 border-t border-slate-800 flex justify-end gap-3">
+                    <button type="button" id="btnTestConnection"
+                        class="bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm border border-slate-300 dark:border-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-plug"></i> <span data-i18n="btn_test_connection">Probar Conexión</span>
+                    </button>
                     <button id="btnSaveJob" type="submit"
                         class="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2">
                         <i class="fa-solid fa-floppy-disk"></i> <span data-i18n="btn_save_job">Guardar Configuración</span>
@@ -1186,9 +1188,9 @@
                         </div>
 
                         <div class="s-field">
-                            <label for="s-admin-email" class="s-label" data-i18n="label_admin_email">Email del administrador</label>
-                            <input id="s-admin-email" type="email" class="s-input" placeholder="admin@empresa.com" data-i18n-placeholder="ph_admin_email">
-                            <p class="s-hint" data-i18n="hint_admin_email">Se usará para enviar alertas de errores críticos.</p>
+                            <label for="s-notification-email" class="s-label" data-i18n="label_notification_email">Correo para recibir alertas</label>
+                            <input id="s-notification-email" type="email" class="s-input" placeholder="tu-correo@gmail.com" data-i18n-placeholder="ph_notification_email">
+                            <p class="s-hint" data-i18n="hint_notification_email">Se usará para enviar alertas y resúmenes diarios.</p>
                         </div>
 
                         <div class="s-field">
@@ -1225,6 +1227,13 @@
                             </label>
                         </div>
 
+                        <div class="s-field mt-4">
+                            <label for="s-notification-email" class="s-label" data-i18n="label_notification_email">Correo de notificaciones</label>
+                            <input id="s-notification-email" type="email" class="s-input"
+                                placeholder="tu@email.com" data-i18n-placeholder="ph_notification_email">
+                            <p class="s-hint" data-i18n="hint_notification_email">Email donde se enviarán los reportes y alertas.</p>
+                        </div>
+
                         <div class="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                             <button type="button" id="btnTestEmail" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 font-medium py-2 px-4 rounded-lg transition-colors border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-paper-plane text-brand-500"></i> <span data-i18n="btn_test_email">Enviar Notificación de Prueba</span>
@@ -1242,7 +1251,11 @@
                             <p class="s-hint" data-i18n="hint_log_retention">Los registros más antiguos se eliminarán automáticamente.</p>
                         </div>
                     </div>
+
+
+
                 </div>
+
 
                 <div id="tab-gdrive" class="s-tab-panel" role="tabpanel" aria-labelledby="tab-gdrive-btn">
 

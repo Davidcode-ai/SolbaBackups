@@ -104,3 +104,70 @@ class GarbageCollector:
             log.error(f"Error inesperado durante la limpieza en la nube: {e}")
             
         return deleted_count
+
+    @staticmethod
+    def run_retention_policy(db, global_settings: dict) -> int:
+        """
+        Itera sobre cada Job activo en la base de datos.
+        Calcula la fecha de corte (dest_retention_days).
+        Busca ejecuciones en RunHistory más antiguas que la fecha de corte y las borra,
+        eliminando también el archivo físico o en Google Drive.
+        """
+        deleted_count = 0
+        try:
+            from src.db import crud
+            from sqlalchemy import select
+            from src.db.models import RunHistory
+            
+            jobs = crud.job_get_all(db)
+            
+            for job in jobs:
+                retention_days = job.dest_retention_days or 0
+                if retention_days <= 0:
+                    continue  # 0 significa que no caducan nunca
+                    
+                cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=retention_days)
+                
+                # Buscar ejecuciones más antiguas que la fecha de corte
+                stmt = select(RunHistory).where(
+                    RunHistory.job_id == job.id,
+                    RunHistory.started_at < cutoff_date
+                )
+                old_runs = list(db.scalars(stmt).all())
+                
+                for run in old_runs:
+                    # 1. Borrar archivo físico o en Drive
+                    if run.backup_file_path:
+                        try:
+                            if "drive.google.com" in run.backup_file_path:
+                                # Es un enlace de Google Drive
+                                file_id = run.backup_file_path.split("/d/")[1].split("/")[0] if "/d/" in run.backup_file_path else None
+                                if file_id:
+                                    creds_path = global_settings.get("credentials_path", "credentials.json")
+                                    from src.destinations.google_drive import GoogleDriveDestination
+                                    gdrive = GoogleDriveDestination(credentials_file=creds_path)
+                                    service = gdrive._get_service()
+                                    service.files().delete(fileId=file_id, supportsAllDrives=True).execute()  # type: ignore
+                                    log.info(f"☁️ Eliminado backup antiguo de GDrive: {file_id}")
+                            else:
+                                # Archivo local o carpeta sincronizada
+                                file_path = Path(run.backup_file_path)
+                                if file_path.exists():
+                                    if file_path.is_dir():
+                                        import shutil
+                                        shutil.rmtree(file_path, ignore_errors=True)
+                                        log.info(f"🗑️ Eliminada carpeta antigua local: {file_path}")
+                                    else:
+                                        file_path.unlink()
+                                        log.info(f"🗑️ Eliminado archivo antiguo local: {file_path.name}")
+                        except Exception as e:
+                            log.error(f"Error borrando archivo físico para Run {run.id}: {e}")
+                    
+                    # 2. Borrar registro de la Base de Datos
+                    crud.run_delete(db, run.id)
+                    deleted_count += 1
+                    
+        except Exception as exc:
+            log.error(f"Error crítico en el Garbage Collector: {exc}")
+            
+        return deleted_count
