@@ -270,7 +270,11 @@ async function loadHistory(isSilent = false) {
                         <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
                     </div>
                     <div class="flex gap-2">
-                        ${isSuccess ? `<button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore" onclick="event.stopPropagation(); openRestoreConfirmModal('${runId}')">
+                        ${isSuccess ? `
+                        <button class="btn-download px-2 py-1 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_download" onclick="event.stopPropagation(); window.open('/api/v1/history/run/${runId}/download', '_blank')">
+                            <i class="fa-solid fa-download mr-1"></i> ${t('btn_download')}
+                        </button>
+                        <button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore" onclick="event.stopPropagation(); openRestoreConfirmModal('${runId}')">
                             <i class="fa-solid fa-rotate-left mr-1"></i> ${t('btn_restore')}
                         </button>` : ''}
                         <button class="btn-view-logs px-2 py-1 rounded bg-slate-500/10 text-slate-400 hover:bg-slate-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_view_logs">
@@ -521,7 +525,7 @@ function initJobFormValidation() {
 
             const originalHtml = btnTestConnection.innerHTML;
             btnTestConnection.disabled = true;
-            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Probando...`;
+            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_checking')}`;
 
             try {
                 const result = await api.testJobConnection(connData);
@@ -1033,7 +1037,7 @@ function showToast(message, type = 'success') {
 
     toast.innerHTML = `
         ${icon}
-        <span>${message}</span>
+        <span class="flex-1 break-words">${message}</span>
     `;
 
     container.appendChild(toast);
@@ -1955,6 +1959,10 @@ const i18n = {
         "ph_smtp_port": "587",
         "ph_smtp_user": "tu-correo@gmail.com",
         "ph_smtp_password": "Contraseña de aplicación",
+        btn_test_connection: "Probar Conexión",
+        btn_download: "Descargar",
+        status_testing: "Probando...",
+        status_checking: "Comprobando...",
         // --- New keys ---
         status_loading: "Cargando...",
         status_running: "Ejecutando...",
@@ -2246,6 +2254,10 @@ const i18n = {
         "Ej: 60": "Ex: 60",
         "/ruta/absoluta/credentials.json": "/absolute/path/to/credentials.json",
         "Raíz de Mi Unidad": "Root of My Drive",
+        btn_test_connection: "Test Connection",
+        btn_download: "Download",
+        status_testing: "Testing...",
+        status_checking: "Checking...",
         // --- New keys ---
         status_loading: "Loading...",
         status_running: "Running...",
