@@ -51,7 +51,7 @@ async def test_job_connection(conn_in: models.JobTestConnection):
             conn.close()
             return {"success": True, "message": "Conexión a PostgreSQL establecida con éxito."}
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Fallo al conectar a PostgreSQL: {str(e)}")
+            raise HTTPException(status_code=400, detail="No se pudo conectar a PostgreSQL. Revisa host/puerto/usuario/contraseña y que el servidor esté accesible.")
             
     elif conn_in.db_type == "mysql":
         try:
@@ -67,7 +67,7 @@ async def test_job_connection(conn_in: models.JobTestConnection):
             conn.close()
             return {"success": True, "message": "Conexión a MySQL/MariaDB establecida con éxito."}
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Fallo al conectar a MySQL: {str(e)}")
+            raise HTTPException(status_code=400, detail="No se pudo conectar a MySQL/MariaDB. Revisa host/puerto/usuario/contraseña y que el servidor esté accesible.")
             
     elif conn_in.db_type == "sqlserver":
         try:
@@ -79,7 +79,7 @@ async def test_job_connection(conn_in: models.JobTestConnection):
                 raise Exception(process.stderr or process.stdout)
             return {"success": True, "message": "Conexión a SQL Server (sqlcmd) establecida con éxito."}
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Fallo al conectar a SQL Server: {str(e)}")
+            raise HTTPException(status_code=400, detail="No se pudo conectar a SQL Server. Revisa host/puerto/usuario/contraseña y que el servidor esté accesible.")
             
     elif conn_in.db_type in ["sqlite", "mdb", "folder"]:
         if not conn_in.db_name:
@@ -121,7 +121,7 @@ def create_job(
     if existing_job:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ya existe un Job con ese nombre.",
+            detail=f"Ya existe una tarea con el nombre '{job_in.name}'. Por favor, elige otro.",
         )
 
     job_data = job_in.model_dump(exclude_unset=True)
@@ -172,7 +172,7 @@ def update_job(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ya existe otro Job con ese nombre.",
+                detail=f"Ya existe una tarea con el nombre '{job_in.name}'. Por favor, elige otro.",
             )
 
     job_data = job_in.model_dump(exclude_unset=True)

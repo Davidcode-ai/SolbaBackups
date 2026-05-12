@@ -46,12 +46,27 @@ def test_email(db: Session = Depends(get_db)):
     frontend pueda mostrar una solución concreta al usuario.
     """
     from fastapi import HTTPException
+    from dotenv import load_dotenv
+    import os
     from src.core.notifications import (
         send_email_notification,
         SmtpNotConfiguredError,
         SmtpAuthError,
         SmtpConnectionError,
     )
+
+    load_dotenv()
+
+    smtp_host = (os.getenv("SOLBA_SMTP_HOST") or "").strip()
+    smtp_port = (os.getenv("SOLBA_SMTP_PORT") or "").strip()
+    smtp_user = (os.getenv("SOLBA_SMTP_USER") or "").strip()
+    smtp_pass = (os.getenv("SOLBA_SMTP_PASS") or "").strip()
+    if not smtp_host or not smtp_port or not smtp_user or not smtp_pass:
+        raise HTTPException(
+            status_code=400,
+            detail="Faltan las credenciales SMTP en el archivo .env",
+        )
+
     settings = crud.setting_get_all(db)
     notification_email = settings.get("notification_email")
     

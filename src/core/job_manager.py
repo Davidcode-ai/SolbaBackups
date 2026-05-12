@@ -6,6 +6,7 @@ los conectores, compresores y destinos.
 """
 
 import logging
+import filecmp
 import os
 import shutil
 import subprocess
@@ -171,8 +172,31 @@ class JobManager:
                                 if db_candidates:
                                     extracted_path = db_candidates[0]
                     elif db_type == "folder":
-                        # Para folder, el contenido extraído es la carpeta
                         extracted_path = tmp_dir_path
+                        top_level = [
+                            p for p in tmp_dir_path.iterdir() if p.name not in ("__MACOSX",)
+                        ]
+                        if len(top_level) == 1 and top_level[0].is_dir():
+                            extracted_path = top_level[0]
+                        else:
+                            zip_candidates = sorted(
+                                [p for p in tmp_dir_path.rglob("*.zip") if p.is_file()]
+                            )
+                            if len(zip_candidates) == 1:
+                                inner_zip = zip_candidates[0]
+                                inner_extract_dir = tmp_dir_path / "_folder_restore"
+                                inner_extract_dir.mkdir(parents=True, exist_ok=True)
+                                with zipfile.ZipFile(inner_zip, "r") as zf:
+                                    zf.extractall(inner_extract_dir)
+                                inner_top = [
+                                    p
+                                    for p in inner_extract_dir.iterdir()
+                                    if p.name not in ("__MACOSX",)
+                                ]
+                                if len(inner_top) == 1 and inner_top[0].is_dir():
+                                    extracted_path = inner_top[0]
+                                else:
+                                    extracted_path = inner_extract_dir
 
                     if not extracted_path or not extracted_path.exists():
                         raise FileNotFoundError(
@@ -312,6 +336,10 @@ class JobManager:
                         )
 
                         try:
+                            if not extracted_path or not Path(extracted_path).is_dir():
+                                raise FileNotFoundError(
+                                    "No se pudo localizar el contenido descomprimido de la carpeta para restaurar."
+                                )
                             shutil.copytree(extracted_path, original_folder_path, dirs_exist_ok=True)
                             history_manager.add_log(
                                 db,
@@ -513,10 +541,63 @@ class JobManager:
                     if dump_path.exists():
                         dump_path.unlink()
                         
-                    # La sincornización copia directamente a la ruta final
                     dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
-                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta: {src_folder} -> {dest_sync_folder}", stage="dump")
-                    shutil.copytree(src_folder, dest_sync_folder, dirs_exist_ok=True)
+                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (incremental): {src_folder} -> {dest_sync_folder}", stage="dump")
+                    dest_sync_folder.mkdir(parents=True, exist_ok=True)
+
+                    copied = 0
+                    updated = 0
+                    skipped = 0
+                    total = 0
+
+                    for src_path in src_folder.rglob("*"):
+                        if src_path.is_dir():
+                            continue
+                        total += 1
+                        rel = src_path.relative_to(src_folder)
+                        dst_path = dest_sync_folder / rel
+
+                        if not dst_path.exists():
+                            dst_path.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(src_path, dst_path)
+                            copied += 1
+                            continue
+
+                        try:
+                            src_stat = src_path.stat()
+                            dst_stat = dst_path.stat()
+                        except OSError:
+                            shutil.copy2(src_path, dst_path)
+                            updated += 1
+                            continue
+
+                        if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
+                            skipped += 1
+                            continue
+
+                        if filecmp.cmp(src_path, dst_path, shallow=False):
+                            skipped += 1
+                            continue
+
+                        shutil.copy2(src_path, dst_path)
+                        updated += 1
+
+                    history_manager.add_log(
+                        db,
+                        run.id,
+                        "INFO",
+                        f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
+                        stage="dump",
+                    )
+                    log.info(
+                        "SYNC incremental %s -> %s | total=%d, copiados=%d, actualizados=%d, sin cambios=%d",
+                        src_folder,
+                        dest_sync_folder,
+                        total,
+                        copied,
+                        updated,
+                        skipped,
+                    )
                     
                     dump_path = dest_sync_folder
 

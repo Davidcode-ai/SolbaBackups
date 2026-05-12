@@ -147,7 +147,7 @@ async function loadJobs(isSilent = false) {
                     </div>
                 </div>
                 
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <div class="flex items-center gap-1 shrink-0">
                     <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="Ejecutar">
                         <i class="fa-solid fa-play text-[10px]"></i>
                     </button>
@@ -640,7 +640,7 @@ function initJobFormValidation() {
             }
             loadJobs();
         } catch (error) {
-            showToast(t('toast_job_save_error'), 'error');
+            showToast((error && error.message) ? error.message : t('toast_job_save_error'), 'error');
         } finally {
             btnSave.disabled = false;
             btnSave.innerHTML = editingId
@@ -890,6 +890,7 @@ function showDeleteConfirm(jobId, name) {
         'gap:0.75rem',
         'align-items:flex-start'
     ].join(';');
+    toast.style.pointerEvents = 'auto';
 
     toast.innerHTML = `
         <div class="flex items-start gap-3">
@@ -1022,6 +1023,7 @@ function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type} bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white border shadow-lg`;
+    toast.style.pointerEvents = 'auto';
     if (type === 'success') toast.classList.add('border-green-500');
     else toast.classList.add('border-red-500');
 
@@ -1251,12 +1253,22 @@ function initSettingsModal() {
                 await handleSaveSettings(true);
 
                 const response = await fetch('/api/v1/settings/test-email', { method: 'POST' });
-                const result = await response.json();
+                let result = null;
+                try {
+                    result = await response.json();
+                } catch (_) {
+                    result = null;
+                }
 
-                if (response.ok && result.success) {
-                    showToast(`${t('label_success')}: ` + result.message, 'success');
+                if (response.ok) {
+                    const msg = (result && result.message) ? result.message : 'OK';
+                    showToast(`${t('label_success')}: ` + msg, 'success');
                 } else {
-                    showToast(`${t('label_error')}: ` + (result.message || result.detail || t('error_email_unknown')), 'error');
+                    let detail = result ? (result.detail ?? result.message) : null;
+                    if (detail && typeof detail === 'object') {
+                        detail = detail.message ?? JSON.stringify(detail);
+                    }
+                    showToast(`${t('label_error')}: ` + (detail || t('error_email_unknown')), 'error');
                 }
             } catch (err) {
                 console.error(err);

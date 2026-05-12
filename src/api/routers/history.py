@@ -30,7 +30,10 @@ Modelo de datos de una ejecución (RunHistory):
 
 import logging
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
@@ -256,3 +259,90 @@ def get_run_logs(
         lines.append(f"[{time_str}] [{entry.level}] {entry.stage}: {entry.message}")
 
     return {"logs": lines}
+
+
+@router.get(
+    "/run/{run_id}/download",
+    summary="Descargar el backup asociado a un run",
+    openapi_extra={
+        "responses": {
+            "200": {
+                "description": "Archivo local o JSON con URL de descarga (Google Drive).",
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "google_drive": {
+                                "summary": "Backup en Google Drive",
+                                "value": {
+                                    "run_id": 123,
+                                    "provider": "google_drive",
+                                    "download_url": "https://drive.google.com/uc?export=download&id=FILE_ID",
+                                    "view_url": "https://drive.google.com/file/d/FILE_ID/view",
+                                },
+                            }
+                        }
+                    }
+                },
+            },
+            "400": {
+                "description": "Ruta/URL inválida",
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "invalid_gdrive_url": {
+                                "value": {"detail": "No se pudo extraer el file_id de la URL de Google Drive."}
+                            }
+                        }
+                    }
+                },
+            },
+            "404": {
+                "description": "Run o archivo no encontrado",
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "run_not_found": {"value": {"detail": "Ejecución no encontrada."}},
+                            "file_not_found": {"value": {"detail": "No se encontró el archivo de backup en disco."}},
+                        }
+                    }
+                },
+            },
+        }
+    },
+)
+def download_run_backup(
+    run_id: int,
+    db: Session = Depends(get_db),
+):
+    run = crud.run_get_by_id(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Ejecución no encontrada.")
+
+    backup_file_path = (run.backup_file_path or "").strip()
+    if not backup_file_path:
+        raise HTTPException(status_code=404, detail="La ejecución no contiene backup_file_path.")
+
+    if backup_file_path.startswith("https://drive.google.com"):
+        if "/d/" not in backup_file_path:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo extraer el file_id de la URL de Google Drive.",
+            )
+        file_id = backup_file_path.split("/d/")[1].split("/")[0]
+        download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        return {
+            "run_id": run_id,
+            "provider": "google_drive",
+            "download_url": download_url,
+            "view_url": backup_file_path,
+        }
+
+    path = Path(backup_file_path)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="No se encontró el archivo de backup en disco.")
+
+    return FileResponse(
+        path=str(path),
+        filename=path.name,
+        media_type="application/octet-stream",
+    )

@@ -7,6 +7,40 @@ class ApiClient {
         this.baseUrl = baseUrl;
     }
 
+    async _buildErrorFromResponse(response) {
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (_) {
+            data = null;
+        }
+
+        const fallback = `Error HTTP: ${response.status}`;
+        if (!data) return new Error(fallback);
+
+        const detail = data.detail ?? data.message ?? data.error ?? null;
+
+        if (Array.isArray(detail)) {
+            const parts = detail.map((item) => {
+                const loc = Array.isArray(item.loc) ? item.loc.filter((x) => x !== 'body').join('.') : '';
+                const msg = item.msg || 'Valor inválido';
+                return loc ? `${loc}: ${msg}` : msg;
+            });
+            return new Error(parts.join(' | ') || fallback);
+        }
+
+        if (detail && typeof detail === 'object') {
+            const msg = detail.message ?? JSON.stringify(detail);
+            return new Error(msg || fallback);
+        }
+
+        if (typeof detail === 'string' && detail.trim()) {
+            return new Error(detail);
+        }
+
+        return new Error(fallback);
+    }
+
     /**
      * Obtiene la lista de trabajos (jobs) desde el servidor.
      * @returns {Promise<Array>} Lista de trabajos
@@ -15,7 +49,7 @@ class ApiClient {
         try {
             const response = await fetch(`${this.baseUrl}/jobs`);
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -32,7 +66,7 @@ class ApiClient {
         try {
             const response = await fetch(`${this.baseUrl}/history`);
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -57,8 +91,7 @@ class ApiClient {
             });
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => null);
-                throw new Error((errorData && errorData.detail) || `Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -83,7 +116,7 @@ class ApiClient {
             });
             
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -107,7 +140,7 @@ class ApiClient {
             });
             
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -125,7 +158,7 @@ class ApiClient {
         try {
             const response = await fetch(`${this.baseUrl}/history/run/${runId}/logs`);
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -148,7 +181,7 @@ class ApiClient {
                 }
             });
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -171,7 +204,7 @@ class ApiClient {
                 body: JSON.stringify(jobData)
             });
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {
@@ -191,7 +224,7 @@ class ApiClient {
                 method: 'DELETE'
             });
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             // 204 No Content no tiene body — devolvemos vacío
             return response.status === 204 ? {} : await response.json();
@@ -209,7 +242,7 @@ class ApiClient {
         try {
             const response = await fetch(`${this.baseUrl}/settings`);
             if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
+                throw await this._buildErrorFromResponse(response);
             }
             return await response.json();
         } catch (error) {

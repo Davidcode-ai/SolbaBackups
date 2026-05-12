@@ -1,11 +1,83 @@
 import os
 import shutil
+import socket
 import string
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/utils", tags=["Utils"])
+
+class TestConnectionRequest(BaseModel):
+    host: str = Field(..., min_length=1, examples=["localhost"])
+    port: int = Field(..., ge=1, le=65535, examples=[5432])
+    user: str = Field(..., min_length=1, examples=["postgres"])
+    password: str = Field(..., min_length=1, examples=["secret"])
+    engine: str = Field(..., min_length=1, examples=["postgresql"])
+
+
+@router.post(
+    "/test-connection",
+    summary="Probar conexión (host:puerto)",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "postgres": {
+                            "summary": "PostgreSQL",
+                            "value": {
+                                "host": "localhost",
+                                "port": 5432,
+                                "user": "postgres",
+                                "password": "secret",
+                                "engine": "postgresql",
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        "responses": {
+            "200": {
+                "description": "OK",
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "ok": {
+                                "value": {
+                                    "success": True,
+                                    "message": "Conexión TCP establecida correctamente.",
+                                }
+                            }
+                        }
+                    }
+                },
+            },
+            "400": {
+                "description": "No alcanzable / error de conexión",
+                "content": {
+                    "application/json": {
+                        "examples": {
+                            "refused": {
+                                "value": {
+                                    "detail": "No se pudo conectar: [Errno 111] Connection refused"
+                                }
+                            }
+                        }
+                    }
+                },
+            },
+        },
+    },
+)
+def test_connection(payload: TestConnectionRequest) -> dict:
+    try:
+        with socket.create_connection((payload.host, payload.port), timeout=3):
+            return {"success": True, "message": "Conexión TCP establecida correctamente."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo conectar: {str(e)}")
+
 
 @router.get("/drives")
 def get_drives():
