@@ -48,19 +48,17 @@ class PostgreSQLConnector(BaseConnector):
             cmd.extend(["-U", job.db_user])
             
         # Parámetros adicionales: 
-        # -c (clean)
-        # -O (no owner)
+        # -F c (custom format)
         # -f (output file)
-        cmd.extend(["-c", "-O", "-f", str(output_file_path), job.db_name])
+        cmd.extend(["-F", "c", "-f", str(output_file_path), job.db_name])
         
         # Configurar variables de entorno (seguridad: no pasar password como flag)
         env = os.environ.copy()
         
-        # TODO: En la implementación final, si la password está encriptada (Fernet),
-        # se debe desencriptar aquí. Para este MVP, verificamos ambas columnas.
-        password = getattr(job, "db_password", None) or getattr(job, "db_password_enc", None)
-        if password:
-            env["PGPASSWORD"] = password
+        # Extraemos la contraseña (prioridad a encriptada si estuviera soportado)
+        password_del_job = getattr(job, "db_password", None) or getattr(job, "db_password_enc", None)
+        if password_del_job:
+            env["PGPASSWORD"] = str(password_del_job)
             
         def _run_dump():
             try:

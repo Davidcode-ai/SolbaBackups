@@ -12,13 +12,14 @@ class TestConnectionRequest(BaseModel):
     host: str = Field(..., min_length=1, examples=["localhost"])
     port: int = Field(..., ge=1, le=65535, examples=[5432])
     user: str = Field(..., min_length=1, examples=["postgres"])
-    password: str = Field(..., min_length=1, examples=["secret"])
+    password: str = Field(..., examples=["secret"])
     engine: str = Field(..., min_length=1, examples=["postgresql"])
+    database: str = Field(default="", examples=["postgres"])
 
 
 @router.post(
     "/test-connection",
-    summary="Probar conexión (host:puerto)",
+    summary="Probar conexión (host:puerto o real para DB)",
     openapi_extra={
         "requestBody": {
             "content": {
@@ -32,6 +33,7 @@ class TestConnectionRequest(BaseModel):
                                 "user": "postgres",
                                 "password": "secret",
                                 "engine": "postgresql",
+                                "database": "postgres",
                             },
                         }
                     }
@@ -47,7 +49,7 @@ class TestConnectionRequest(BaseModel):
                             "ok": {
                                 "value": {
                                     "success": True,
-                                    "message": "Conexión TCP establecida correctamente.",
+                                    "message": "Conexión establecida correctamente.",
                                 }
                             }
                         }
@@ -61,7 +63,7 @@ class TestConnectionRequest(BaseModel):
                         "examples": {
                             "refused": {
                                 "value": {
-                                    "detail": "No se pudo conectar: [Errno 111] Connection refused"
+                                    "detail": "No se pudo conectar: Error de credenciales o red"
                                 }
                             }
                         }
@@ -72,6 +74,29 @@ class TestConnectionRequest(BaseModel):
     },
 )
 def test_connection(payload: TestConnectionRequest) -> dict:
+    if payload.engine.lower() == "postgresql":
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=payload.host,
+                port=payload.port,
+                user=payload.user,
+                password=payload.password,
+                dbname=payload.database or "postgres",
+                connect_timeout=5
+            )
+            conn.close()
+            return {"success": True, "message": "Conexión a PostgreSQL establecida correctamente."}
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="Error de autenticación: Verifica tu usuario y contraseña.")
+        except Exception as e:
+            # Usamos repr() para evitar el crash al evaluar caracteres especiales
+            error_msg = repr(e)
+            if 'password' in error_msg.lower() or 'autentica' in error_msg.lower() or 'FATAL' in error_msg:
+                raise HTTPException(status_code=400, detail="Contraseña incorrecta o usuario no válido.")
+            raise HTTPException(status_code=400, detail="No se pudo conectar a la base de datos con los datos proporcionados.")
+
+    # Fallback genérico a conexión TCP
     try:
         with socket.create_connection((payload.host, payload.port), timeout=3):
             return {"success": True, "message": "Conexión TCP establecida correctamente."}

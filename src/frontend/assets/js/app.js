@@ -487,47 +487,52 @@ function initJobFormValidation() {
         }
     });
 
-    const btnTestConnection = document.getElementById('btnTestConnection');
+    const btnTestConnection = document.getElementById('btn-test-connection');
     if (btnTestConnection) {
         btnTestConnection.addEventListener('click', async () => {
-            clearErrors(dbType);
-            if (dbType.value.trim() === '') {
-                showError(dbType, t('error_select_engine'));
-                return;
-            }
-
-            let finalDbName = dbName ? dbName.value.trim() || null : null;
-            if (dbType.value === 'sqlite' || dbType.value === 'folder' || dbType.value === 'mdb') {
-                const dbFilePathEl = document.getElementById('dbFilePath');
-                const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
-                if (!pathValue) {
-                    showToast(t('error_path_required'), 'error');
-                    return;
-                }
-                finalDbName = pathValue;
-            }
-
-            const connData = {
-                db_type: dbType.value || 'postgresql',
-                db_host: dbHost ? dbHost.value.trim() || null : null,
-                db_port: dbPort ? parseInt(dbPort.value) || null : null,
-                db_user: dbUser ? dbUser.value.trim() || null : null,
-                db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
-                db_name: finalDbName
-            };
-
-            // Limpiar undefined
-            Object.keys(connData).forEach(k => connData[k] === undefined && delete connData[k]);
-
             const originalHtml = btnTestConnection.innerHTML;
             btnTestConnection.disabled = true;
-            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Probando...`;
+            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Comprobando...`;
 
             try {
-                const result = await api.testJobConnection(connData);
-                showToast(`✅ ${result.message || 'Conexión exitosa'}`, 'success');
+                // Capturar valores estrictamente en el instante del clic
+                const engine = document.getElementById('dbType') ? document.getElementById('dbType').value : 'postgresql';
+                const hostVal = document.getElementById('dbHost') ? document.getElementById('dbHost').value.trim() : '';
+                const portVal = document.getElementById('dbPort') ? document.getElementById('dbPort').value : '';
+                const userVal = document.getElementById('dbUser') ? document.getElementById('dbUser').value.trim() : '';
+                const passwordVal = document.getElementById('dbPassword') ? document.getElementById('dbPassword').value : '';
+                const databaseVal = document.getElementById('dbName') ? document.getElementById('dbName').value.trim() : '';
+
+                const response = await fetch('/api/v1/utils/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        engine: engine || 'postgresql',
+                        host: hostVal || 'localhost',
+                        port: portVal ? parseInt(portVal) : 5432,
+                        user: userVal || 'postgres',
+                        password: passwordVal,
+                        database: databaseVal
+                    })
+                });
+
+                const errorData = await response.json();
+
+                if (response.ok) {
+                    showToast(`✅ Conexión establecida`, 'success');
+                } else {
+                    let errorMsg = errorData.detail || 'Error de conexión';
+                    if (Array.isArray(errorMsg)) {
+                        errorMsg = errorMsg.map(e => e.msg).join(', ');
+                    } else if (typeof errorMsg === 'object') {
+                        errorMsg = JSON.stringify(errorMsg);
+                    }
+                    showToast(`❌ ${errorMsg}`, 'error');
+                }
             } catch (error) {
-                showToast(`❌ ${error.message || 'Error de conexión'}`, 'error');
+                showToast(`❌ Error de red o servidor: ${error.message}`, 'error');
             } finally {
                 btnTestConnection.disabled = false;
                 btnTestConnection.innerHTML = originalHtml;
