@@ -186,7 +186,6 @@ async function handleRunJob(event) {
 
     // 2. Deshabilitar y cambiar la UI a modo 'Cargando'
     button.disabled = true;
-    // Como era un botón cuadrado pequeño (w-6 h-6), le cambiamos las clases para que quepa el texto
     button.className = 'btn-ejecutar flex items-center gap-1.5 px-2 py-1 rounded bg-brand-500/10 text-brand-500 opacity-70 cursor-not-allowed transition-all';
     button.innerHTML = `
         <svg class="animate-spin h-3 w-3 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -197,7 +196,6 @@ async function handleRunJob(event) {
     `;
 
     try {
-        // Llama al endpoint de ejecución manual
         await api.runJob(jobId);
         showToast(`${t('toast_job_run_success')} (${jobId})`, 'success');
         loadHistory();
@@ -205,7 +203,6 @@ async function handleRunJob(event) {
         console.error(`Error running job ${jobId}:`, error);
         showToast(`${t('toast_job_run_error')} (${jobId})`, 'error');
     } finally {
-        // 3. Restaurar estado original del botón sea cual sea el resultado
         button.disabled = false;
         button.className = originalClass;
         button.innerHTML = originalHtml;
@@ -221,8 +218,6 @@ async function loadHistory(isSilent = false) {
 
     try {
         const historyData = await api.getHistory();
-
-        // Limpiamos contenido estático
         container.innerHTML = '';
 
         if (historyData.length === 0) {
@@ -230,11 +225,9 @@ async function loadHistory(isSilent = false) {
             return;
         }
 
-        // Pintamos cada registro del historial
         historyData.forEach(record => {
             const isSuccess = (record.status || '').toUpperCase() === 'SUCCESS';
 
-            // Clases dinámicas dependiendo del estado
             const statusClass = isSuccess
                 ? 'bg-green-500/10 text-green-400 border-green-500/20'
                 : 'bg-red-500/10 text-red-400 border-red-500/20';
@@ -243,7 +236,6 @@ async function loadHistory(isSilent = false) {
                 ? 'border-slate-300 dark:border-slate-700 hover:border-brand-500'
                 : 'border-red-500/30 hover:border-red-500';
 
-            // Formatear fecha real del registro (sin fallback a Date.now para evitar "fechas que cambian" en cada refresh)
             const rawDate = record.started_at || record.finished_at || record.timestamp || record.end_time || null;
             const dateObj = rawDate ? new Date(rawDate) : null;
             const dateStr = dateObj && !Number.isNaN(dateObj.getTime())
@@ -270,7 +262,11 @@ async function loadHistory(isSilent = false) {
                         <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
                     </div>
                     <div class="flex gap-2">
-                        ${isSuccess ? `<button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore" onclick="event.stopPropagation(); openRestoreConfirmModal('${runId}')">
+                        ${isSuccess ? `
+                        <button class="btn-download px-2 py-1 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_download" onclick="event.stopPropagation(); window.open('/api/v1/history/run/${runId}/download', '_blank')">
+                            <i class="fa-solid fa-download mr-1"></i> ${t('btn_download')}
+                        </button>
+                        <button class="btn-restore px-2 py-1 rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_restore" onclick="event.stopPropagation(); openRestoreConfirmModal('${runId}')">
                             <i class="fa-solid fa-rotate-left mr-1"></i> ${t('btn_restore')}
                         </button>` : ''}
                         <button class="btn-view-logs px-2 py-1 rounded bg-slate-500/10 text-slate-400 hover:bg-slate-500 hover:text-white text-[10px] font-medium transition-colors" data-run-id="${runId}" data-i18n="btn_view_logs">
@@ -281,13 +277,11 @@ async function loadHistory(isSilent = false) {
                 ${!isSuccess && record.error_message ? `<p class="text-[11px] text-red-400 truncate mt-2">Error: ${record.error_message}</p>` : ''}
             `;
 
-            // Clic en el ítem completo -> cargar terminal
             historyItem.addEventListener('click', (e) => {
-                if (e.target.closest('.btn-view-logs') || e.target.closest('.btn-restore')) return;
+                if (e.target.closest('.btn-view-logs') || e.target.closest('.btn-restore') || e.target.closest('.btn-download')) return;
                 loadTerminalLogs(runId);
             });
 
-            // Botón de ver logs
             const logBtn = historyItem.querySelector('.btn-view-logs');
             if (logBtn) {
                 logBtn.addEventListener('click', (e) => {
@@ -318,7 +312,6 @@ window.openRestoreConfirmModal = function (runId) {
     if (!modal) return;
 
     modal.classList.remove('hidden');
-    // Pequeño timeout para permitir que la clase hidden se aplique antes de animar
     setTimeout(() => {
         modal.classList.remove('opacity-0', 'scale-95');
         modal.classList.add('opacity-100', 'scale-100');
@@ -338,23 +331,14 @@ window.closeRestoreConfirmModal = function () {
     }, 300);
 };
 
-/**
- * Restaura el backup de un run especifico
- * @param {string} runId 
- */
 async function restoreBackup(runId) {
     if (!runId) {
-        console.error('ERROR: No runId found on restore button');
         showToast(t('toast_restore_no_id'), 'error');
         return;
     }
 
-    // Eliminado native confirm() aquí. Ahora la confirmación es por UI.
-
     try {
         showToast(t('restore_in_progress'), 'info');
-        console.log('DEBUG - Calling api.restoreBackup with runId:', runId);
-        // Usar api.restoreBackup si existe, de lo contrario un fetch directo
         if (typeof api !== 'undefined' && typeof api.restoreBackup === 'function') {
             await api.restoreBackup(runId);
         } else {
@@ -370,7 +354,6 @@ async function restoreBackup(runId) {
 
 /**
  * Inicializa la validación del formulario.
- * Soporta modo CREACIÓN (POST) y modo EDICIÓN (PUT).
  */
 function initJobFormValidation() {
     const form = document.getElementById('createJobForm');
@@ -394,13 +377,10 @@ function initJobFormValidation() {
     const dbFilePathContainer = document.getElementById('dbFilePathContainer');
     const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
     const networkDetails = document.querySelector('details.group');
-    const dbFilePath = document.getElementById('dbFilePath');
 
-    // Marcar el formulario como "dirty" cuando algo cambie
     form.addEventListener('input', () => { isFormDirty = true; });
     form.addEventListener('change', () => { isFormDirty = true; });
 
-    // Botón "Nuevo Job" de la sidebar
     const btnNewJobSidebar = document.getElementById('btnNewJobSidebar');
     if (btnNewJobSidebar) {
         btnNewJobSidebar.addEventListener('click', () => {
@@ -408,12 +388,10 @@ function initJobFormValidation() {
                 const confirmDiscard = confirm(t('confirm_discard_new'));
                 if (!confirmDiscard) return;
             }
-
-            // Limpiar formulario y estado
             resetFormToCreateMode();
         });
     }
-    // Elementos de programación
+
     const scheduleIntervalContainer = document.getElementById('scheduleIntervalContainer');
     const scheduleCronContainer = document.getElementById('scheduleCronContainer');
     const scheduleTimeContainer = document.getElementById('scheduleTimeContainer');
@@ -427,7 +405,6 @@ function initJobFormValidation() {
 
     if (!form || !btnSave) return;
 
-    // Listener para Programación
     if (jobSched) {
         jobSched.addEventListener('change', () => {
             const s = jobSched.value;
@@ -450,7 +427,6 @@ function initJobFormValidation() {
         });
     }
 
-    // Listener para Tipo de BD
     if (dbType) {
         dbType.addEventListener('change', () => {
             const t = dbType.value;
@@ -466,7 +442,6 @@ function initJobFormValidation() {
         });
     }
 
-    // Listener para Destinos
     if (destType && destLocalPathContainer && destGDriveContainer) {
         destType.addEventListener('change', () => {
             if (destType.value === 'google_drive') {
@@ -479,7 +454,6 @@ function initJobFormValidation() {
         });
     }
 
-    // Botón «Cancelar edición» (se inyecta dinámicamente en setFormEditMode)
     form.addEventListener('click', (e) => {
         if (e.target.closest('#btnCancelEdit')) {
             isFormDirty = false;
@@ -487,15 +461,14 @@ function initJobFormValidation() {
         }
     });
 
-    const btnTestConnection = document.getElementById('btn-test-connection');
+    const btnTestConnection = document.getElementById('btn-test-connection') || document.getElementById('btnTestConnection');
     if (btnTestConnection) {
         btnTestConnection.addEventListener('click', async () => {
             const originalHtml = btnTestConnection.innerHTML;
             btnTestConnection.disabled = true;
-            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Comprobando...`;
+            btnTestConnection.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_testing') || 'Probando...'}`;
 
             try {
-                // Capturar valores estrictamente en el instante del clic
                 const engine = document.getElementById('dbType') ? document.getElementById('dbType').value : 'postgresql';
                 const hostVal = document.getElementById('dbHost') ? document.getElementById('dbHost').value.trim() : '';
                 const portVal = document.getElementById('dbPort') ? document.getElementById('dbPort').value : '';
@@ -577,8 +550,6 @@ function initJobFormValidation() {
             finalDbName = pathValue;
         }
 
-        // ── Payload PLANO según esquema del backend ────────────────────────
-        // Construir lógica de Schedule y convertir visual a Cron si es necesario
         let finalScheduleType = jobSched ? jobSched.value : 'manual';
         let finalCron = jobScheduleCron ? jobScheduleCron.value.trim() || null : null;
         let finalInterval = jobScheduleInterval ? parseInt(jobScheduleInterval.value) || null : null;
@@ -598,7 +569,7 @@ function initJobFormValidation() {
                 const dom = jobScheduleDayOfMonth ? jobScheduleDayOfMonth.value : '1';
                 finalCron = `${min} ${hour} ${dom} * *`;
             }
-            finalScheduleType = 'cron'; // El backend procesa el custom cron exacto
+            finalScheduleType = 'cron';
             finalInterval = null;
         }
 
@@ -619,10 +590,9 @@ function initJobFormValidation() {
             dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
             dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value || 0) : 0,
         };
-        // Limpiar claves con undefined (no enviar la clave si está vacía)
+        
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
 
-        // [PARCHE DE FUERZA BRUTA] - Asegurar el db_type según la UI visual
         const activeCard = document.querySelector('.discovery-card.border-brand-500');
         if (activeCard && activeCard.dataset.engine === 'folder') {
             jobData.db_type = 'folder';
@@ -633,12 +603,10 @@ function initJobFormValidation() {
 
         try {
             if (editingId) {
-                // ── MODO EDICIÓN: PUT ──────────────────────────────────────
                 await api.updateJob(editingId, jobData);
                 showToast(`${t('toast_job_updated')} «${jobData.name}»`, 'success');
                 resetFormToCreateMode();
             } else {
-                // ── MODO CREACIÓN: POST ────────────────────────────────────
                 await api.createJob(jobData);
                 showToast(t('toast_job_created'), 'success');
                 form.reset();
@@ -651,15 +619,11 @@ function initJobFormValidation() {
             btnSave.innerHTML = editingId
                 ? `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`
                 : `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
-            isFormDirty = false; // Reset de dirty al guardar con éxito (o error, pero asume flow completo)
+            isFormDirty = false;
         }
     });
 }
 
-/**
- * Rellena el formulario con los datos del job y activa el modo edición.
- * @param {Event} event
- */
 function handleEditJob(event) {
     if (isFormDirty) {
         const confirmDiscard = confirm(t('confirm_discard_edit'));
@@ -670,7 +634,6 @@ function handleEditJob(event) {
     const id = btn.dataset.id;
     const name = btn.dataset.name;
     const sch = btn.dataset.schedule;
-    // Leer todos los campos extra del dataset
     const extra = {
         db_type: btn.dataset.dbType || '',
         db_host: btn.dataset.dbHost || '',
@@ -689,15 +652,10 @@ function handleEditJob(event) {
 
     setFormEditMode(id, name, extra, sch);
 
-    // Scroll suave hasta el formulario
     const form = document.getElementById('createJobForm');
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/**
- * Muestra el modal de confirmación para borrar un job.
- * @param {Event} event
- */
 function handleDeleteJob(event) {
     const btn = event.currentTarget;
     const jobId = btn.dataset.id;
@@ -705,10 +663,6 @@ function handleDeleteJob(event) {
     showDeleteConfirm(jobId, name);
 }
 
-/**
- * Activa el formulario en modo edición: cambia el título, el botón
- * y guarda el ID del job que se está editando.
- */
 function setFormEditMode(id, name, extra = {}, schedule) {
     const form = document.getElementById('createJobForm');
     const jobName = document.getElementById('jobName');
@@ -724,10 +678,8 @@ function setFormEditMode(id, name, extra = {}, schedule) {
 
     if (!form) return;
 
-    // Guardar ID
     form.dataset.editingId = id;
 
-    // Rellenar campos básicos de BD
     if (jobName) jobName.value = name;
     if (dbType) dbType.value = extra.db_type || '';
     if (jobDesc) jobDesc.value = extra.description || '';
@@ -735,19 +687,16 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbHost) dbHost.value = extra.db_host || '';
     if (dbPort) dbPort.value = extra.db_port || '';
     if (dbUser) dbUser.value = extra.db_user || '';
-    // La contraseña NO se precarga por seguridad
 
-    // Poblar correctamente dbName o dbFilePath según el tipo
     const dbFilePathEl = document.getElementById('dbFilePath');
     if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb') {
         if (dbFilePathEl) dbFilePathEl.value = extra.db_name || '';
-        if (dbName) dbName.value = ''; // limpiar el de red
+        if (dbName) dbName.value = '';
     } else {
         if (dbName) dbName.value = extra.db_name || '';
-        if (dbFilePathEl) dbFilePathEl.value = ''; // limpiar el de fichero
+        if (dbFilePathEl) dbFilePathEl.value = '';
     }
 
-    // Decodificar el cron a formato visual (reverse parse)
     let displaySchedule = schedule || 'manual';
     let displayCron = extra.schedule_cron || '';
     let displayTime = '';
@@ -773,7 +722,6 @@ function setFormEditMode(id, name, extra = {}, schedule) {
         }
     }
 
-    // Rellenar campo de programación
     if (jobSched) jobSched.value = displaySchedule;
 
     const jobScheduleInterval = document.getElementById('jobScheduleInterval');
@@ -788,7 +736,6 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (jobScheduleDayOfWeek && displayDow) jobScheduleDayOfWeek.value = displayDow;
     if (jobScheduleDayOfMonth && displayDom) jobScheduleDayOfMonth.value = displayDom;
 
-    // Rellenar Destinos
     const destType = document.getElementById('destType');
     const destLocalPath = document.getElementById('destLocalPath');
     const destGDriveFolderId = document.getElementById('destGDriveFolderId');
@@ -799,12 +746,10 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     const jobRetention = document.getElementById('jobRetention');
     if (jobRetention) jobRetention.value = extra.dest_retention_days !== undefined ? extra.dest_retention_days : '0';
 
-    // Disparar eventos para ocultar/mostrar secciones de destino, programación y base de datos
     if (dbType) dbType.dispatchEvent(new Event('change'));
     if (destType) destType.dispatchEvent(new Event('change'));
     if (jobSched) jobSched.dispatchEvent(new Event('change'));
 
-    // Cambiar título con badge
     if (heading) {
         heading.innerHTML = `
             ${t('title_editing_job')}
@@ -814,14 +759,12 @@ function setFormEditMode(id, name, extra = {}, schedule) {
             </span>`;
     }
 
-    // Cambiar botón guardar
     if (btnSave) {
         btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`;
         btnSave.classList.replace('bg-brand-500', 'bg-amber-500');
         btnSave.classList.replace('hover:bg-brand-600', 'hover:bg-amber-600');
     }
 
-    // Añadir botón «Cancelar» si no existe ya
     if (!form.querySelector('#btnCancelEdit')) {
         const cancelBtn = document.createElement('button');
         cancelBtn.id = 'btnCancelEdit';
@@ -832,9 +775,6 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     }
 }
 
-/**
- * Resetea el formulario a modo creación (limpia todo el estado de edición).
- */
 function resetFormToCreateMode() {
     const form = document.getElementById('createJobForm');
     const btnSave = document.getElementById('btnSaveJob');
@@ -846,23 +786,19 @@ function resetFormToCreateMode() {
     delete form.dataset.editingId;
     delete form.dataset.editingSchedule;
 
-    // Restaurar título
     if (heading) heading.innerHTML = t('title_new_backup_job');
 
-    // Restaurar botón guardar
     if (btnSave) {
         btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
         btnSave.classList.replace('bg-amber-500', 'bg-brand-500');
         btnSave.classList.replace('hover:bg-amber-600', 'hover:bg-brand-600');
     }
 
-    // Eliminar botón cancelar
     const cancelBtn = form.querySelector('#btnCancelEdit');
     if (cancelBtn) cancelBtn.remove();
     const badge = form.querySelector('#edit-mode-badge');
     if (badge) badge.remove();
 
-    // Limpiar selección visual (Discovery)
     document.querySelectorAll('.discovery-card').forEach(c => {
         c.classList.remove('border-brand-500', 'bg-brand-500/10', 'dark:bg-brand-500/10', 'bg-brand-500/5');
         c.classList.add('border-slate-300', 'dark:border-slate-700', 'bg-white', 'dark:bg-surface-950');
@@ -871,17 +807,10 @@ function resetFormToCreateMode() {
     isFormDirty = false;
 }
 
-/**
- * Muestra un Toast de confirmación de borrado en lugar del confirm() bloqueante.
- * Incluye dos botones: Confirmar y Cancelar.
- * @param {string|number} jobId - ID del job a borrar
- * @param {string}        name  - Nombre legible del job
- */
 function showDeleteConfirm(jobId, name) {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
-    // Evitar duplicados si se pulsa muy rápido
     if (document.getElementById('toast-delete-confirm')) return;
 
     const toast = document.createElement('div');
@@ -926,7 +855,6 @@ function showDeleteConfirm(jobId, name) {
         toast.addEventListener('animationend', () => toast.remove(), { once: true });
     };
 
-    // Confirmar → DELETE
     toast.querySelector('#toast-delete-ok').addEventListener('click', async () => {
         removeToast();
         try {
@@ -939,50 +867,30 @@ function showDeleteConfirm(jobId, name) {
         }
     });
 
-    // Cancelar → solo cierra
     toast.querySelector('#toast-delete-cancel').addEventListener('click', removeToast);
 
-    // Auto-cierre tras 8 segundos si el usuario no hace nada
     setTimeout(removeToast, 8000);
 }
 
-/**
- * Pinta de rojo el input y añade el texto de error debajo
- */
 function showError(inputElement, message) {
     inputElement.classList.add('input-error');
-
-    // Crear el elemento del mensaje de error
     const errorText = document.createElement('div');
     errorText.className = 'error-message text-red-500 text-xs mt-1';
-    // Le añadimos un pequeño icono de alerta
     errorText.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> ${message}`;
-
-    // Lo insertamos justo después del input (al final del div contenedor)
     inputElement.parentElement.appendChild(errorText);
 }
 
-/**
- * Limpia el estado de error de un input
- */
 function clearErrors(inputElement) {
     inputElement.classList.remove('input-error');
-
-    // Buscar si ya existe un mensaje de error y borrarlo
     const existingError = inputElement.parentElement.querySelector('.error-message');
     if (existingError) {
         existingError.remove();
     }
 }
 
-/**
- * Tarea 1: El Radar (Polling Automático)
- * Configura un polling silencioso cada 8 segundos.
- */
 function setupPolling() {
     setInterval(async () => {
         try {
-            // isSilent = true para no sobreescribir la UI con errores si cae el servidor
             await Promise.all([
                 loadJobs(true),
                 loadHistory(true),
@@ -994,15 +902,8 @@ function setupPolling() {
     }, 8000);
 }
 
-/**
- * Carga las estadísticas del Dashboard (Centro de Mando).
- * Actualiza los widgets de Total Jobs, Tasa de Éxito y Espacio Ocupado.
- * @param {boolean} isSilent - Si es true, silencia los errores en la UI.
- */
 async function loadStats(isSilent = false) {
     const elTotal = document.getElementById('stat-total-jobs');
-
-    // Si los elementos no existen en el DOM, no hacer nada
     if (!elTotal) return;
 
     try {
@@ -1016,12 +917,6 @@ async function loadStats(isSilent = false) {
     }
 }
 
-/**
- * Tarea 2: Sistema de Notificaciones Flotantes (Toasts)
- * Muestra una notificación flotante.
- * @param {string} message - El mensaje a mostrar.
- * @param {string} type - Tipo de toast: 'success' o 'error'.
- */
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -1038,12 +933,11 @@ function showToast(message, type = 'success') {
 
     toast.innerHTML = `
         ${icon}
-        <span>${message}</span>
+        <span class="flex-1 break-words">${message}</span>
     `;
 
     container.appendChild(toast);
 
-    // Auto-desaparecer tras 3 segundos
     setTimeout(() => {
         toast.classList.add('hiding');
         toast.addEventListener('animationend', () => {
@@ -1056,25 +950,18 @@ function showToast(message, type = 'success') {
    LOG VIEWER — Módulo completo del Visor de Logs (Modal Terminal)
 ============================================================================= */
 
-/**
- * Inicializa los listeners del modal de logs (cerrar con botón, Escape y backdrop).
- * Llamar una sola vez al cargar el DOM.
- */
 function initLogViewer() {
     const backdrop = document.getElementById('log-modal-backdrop');
     const closeBtn = document.getElementById('log-modal-close-btn');
 
     if (!backdrop || !closeBtn) return;
 
-    // Botón [ESC] Cerrar
     closeBtn.addEventListener('click', closeLogViewer);
 
-    // Clic en el fondo oscuro cierra el modal
     backdrop.addEventListener('click', (e) => {
         if (e.target === backdrop) closeLogViewer();
     });
 
-    // Tecla Escape cierra el modal
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !backdrop.classList.contains('hidden')) {
             closeLogViewer();
@@ -1082,11 +969,6 @@ function initLogViewer() {
     });
 }
 
-/**
- * Abre el modal de logs, actualiza el título y dispara la carga de datos.
- * @param {string|number} runId   - ID de la ejecución
- * @param {string}        dateStr - Fecha formateada para mostrar en el título
- */
 async function openLogViewer(runId, dateStr = '') {
     const backdrop = document.getElementById('log-modal-backdrop');
     const title = document.getElementById('log-modal-title');
@@ -1094,12 +976,10 @@ async function openLogViewer(runId, dateStr = '') {
 
     if (!backdrop || !output) return;
 
-    // Actualizar título con el run_id y fecha
     if (title) {
         title.textContent = `solba-backups — run ${runId}${dateStr ? '  ·  ' + dateStr : ''}`;
     }
 
-    // Mostrar estado de carga dentro del terminal
     output.innerHTML = [
         '<div id="log-modal-loader">',
         '  <span class="terminal-cursor"></span>',
@@ -1107,14 +987,11 @@ async function openLogViewer(runId, dateStr = '') {
         '</div>'
     ].join('');
 
-    // Mostrar el backdrop
     backdrop.classList.remove('hidden');
-    document.body.style.overflow = 'hidden'; // Evitar scroll del fondo
+    document.body.style.overflow = 'hidden';
 
     try {
         const data = await api.getRunLogs(runId);
-
-        // El backend puede devolver { logs: "texto" } o { logs: ["linea1", ...] }
         const rawLogs = data.logs ?? data.output ?? data.content ?? '';
         renderLogs(output, rawLogs);
 
@@ -1128,33 +1005,22 @@ async function openLogViewer(runId, dateStr = '') {
     }
 }
 
-/**
- * Cierra el modal de logs y restaura el estado.
- */
 function closeLogViewer() {
     const backdrop = document.getElementById('log-modal-backdrop');
     if (backdrop) backdrop.classList.add('hidden');
     document.body.style.overflow = '';
 }
 
-/**
- * Convierte el texto de logs (string o array) en HTML coloreado y lo inyecta
- * en el elemento <pre> del modal.
- * @param {HTMLElement} outputEl - El elemento <pre id="log-output">
- * @param {string|Array} rawLogs - El texto crudo de logs
- */
 function renderLogs(outputEl, rawLogs) {
-    // Normalizar a array de líneas
     const lines = Array.isArray(rawLogs)
         ? rawLogs
-        : String(rawLogs).split('\\n');
+        : String(rawLogs).split('\n');
 
     if (lines.length === 0 || (lines.length === 1 && lines[0].trim() === '')) {
         outputEl.innerHTML = `<span class="log-line-default text-slate-600 dark:text-slate-400">(${t('status_no_logs')})</span>`;
         return;
     }
 
-    // Colorizar cada línea según el nivel
     outputEl.innerHTML = lines.map(line => {
         const safe = escapeHtml(line);
         const upper = line.toUpperCase();
@@ -1164,18 +1030,12 @@ function renderLogs(outputEl, rawLogs) {
         if (upper.includes('[WARN]') || upper.includes('WARNING')) return `<span class="text-yellow-500 font-medium">${safe}</span>`;
         if (upper.includes('[INFO]') || upper.includes('[DEBUG]')) return `<span class="text-brand-500 font-medium">${safe}</span>`;
         return `<span class="text-slate-600 dark:text-slate-400">${safe}</span>`;
-    }).join('\\n');
+    }).join('\n');
 
-    // Hacer scroll hasta el final (como una terminal real)
     const body = document.getElementById('log-modal-body');
     if (body) body.scrollTop = body.scrollHeight;
 }
 
-/**
- * Escapa caracteres HTML especiales para prevenir XSS al inyectar texto de logs.
- * @param {string} str
- * @returns {string}
- */
 function escapeHtml(str) {
     return str
         .replace(/&/g, '&amp;')
@@ -1189,10 +1049,6 @@ function escapeHtml(str) {
    SETTINGS MODAL — Módulo de Ajustes Globales
 ============================================================================= */
 
-/**
- * Inicializa el modal de Ajustes: conecta todos los listeners de UI.
- * Llama una única vez al cargar el DOM.
- */
 function initSettingsModal() {
     const openBtn = document.getElementById('openSettingsBtn');
     const backdrop = document.getElementById('settings-backdrop');
@@ -1200,9 +1056,8 @@ function initSettingsModal() {
     const cancelBtn = document.getElementById('settings-cancel-btn');
     const saveBtn = document.getElementById('settings-save-btn');
 
-    if (!backdrop) return; // El modal no está en el DOM — salir silenciosamente
+    if (!backdrop) return; 
 
-    // Rellenar zona horaria actual automáticamente si no tiene valor
     const tzSelect = document.getElementById('s-timezone');
     if (tzSelect) {
         const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1213,50 +1068,40 @@ function initSettingsModal() {
         tzSelect.classList.add('bg-slate-100', 'dark:bg-slate-800', 'opacity-80');
     }
 
-    // ── Abrir modal ───────────────────────────────────────────
     if (openBtn) openBtn.addEventListener('click', openSettingsModal);
 
-    // ── Cerrar modal ─────────────────────────────────────────
     const closeModal = () => closeSettingsModal();
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
-    // Clic en el fondo oscuro cierra el modal
     backdrop.addEventListener('click', (e) => {
         if (e.target === backdrop) closeModal();
     });
 
-    // Tecla Escape
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !backdrop.classList.contains('hidden')) closeModal();
     });
 
-    // ── Sistema de pestañas ──────────────────────────────────
     document.querySelectorAll('.s-tab-btn').forEach(btn => {
         btn.addEventListener('click', () => switchSettingsTab(btn.getAttribute('aria-controls')));
     });
 
-    // ── Guardar ajustes ────────────────────────────────────
     if (saveBtn) saveBtn.addEventListener('click', (e) => {
         e.preventDefault();
         handleSaveSettings(false);
     });
 
-    // ── Enviar Email de Prueba ──────────────────────────────
     const btnTestEmail = document.getElementById('btnTestEmail');
     if (btnTestEmail) {
         btnTestEmail.addEventListener('click', async (e) => {
             e.preventDefault();
-
             showToast(t('toast_sending_test_email'), 'success');
-
             btnTestEmail.disabled = true;
             const originalHtml = btnTestEmail.innerHTML;
             btnTestEmail.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_sending')}`;
+            
             try {
-                // Guardar antes por si ha cambiado el email en la interfaz
                 await handleSaveSettings(true);
-
                 const response = await fetch('/api/v1/settings/test-email', { method: 'POST' });
                 let result = null;
                 try {
@@ -1286,48 +1131,32 @@ function initSettingsModal() {
     }
 }
 
-/**
- * Abre el modal de ajustes y carga los datos actuales desde el backend.
- */
 async function openSettingsModal() {
     const backdrop = document.getElementById('settings-backdrop');
     if (!backdrop) return;
 
     backdrop.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-
-    // Resetear a la primera pestaña
     switchSettingsTab('tab-general');
 
-    // Intentar cargar configuración actual del backend
     try {
         const settings = await api.getSettings();
         populateSettingsForm(settings);
     } catch (err) {
-        // Si la API aún no existe o falla, el formulario queda en blanco
         console.warn('No se pudieron cargar los ajustes del servidor:', err.message);
     }
 }
 
-/**
- * Cierra el modal de ajustes.
- */
 function closeSettingsModal() {
     const backdrop = document.getElementById('settings-backdrop');
     if (backdrop) backdrop.classList.add('hidden');
     document.body.style.overflow = '';
 }
 
-/**
- * Activa la pestaña indicada y desactiva las demás.
- * @param {string} targetPanelId - ID del panel a mostrar ('tab-general' | 'tab-gdrive')
- */
 function switchSettingsTab(targetPanelId) {
-    // Paneles
     document.querySelectorAll('.s-tab-panel').forEach(panel => {
         panel.classList.toggle('active', panel.id === targetPanelId);
     });
-    // Botones de pestaña
     document.querySelectorAll('.s-tab-btn').forEach(btn => {
         const isActive = btn.getAttribute('aria-controls') === targetPanelId;
         btn.classList.toggle('active', isActive);
@@ -1335,11 +1164,6 @@ function switchSettingsTab(targetPanelId) {
     });
 }
 
-/**
- * Rellena todos los campos del formulario con los datos recibidos del backend.
- * Solo asigna el campo si la clave existe en el objeto para respetar defaults.
- * @param {Object} s - Objeto de configuración tal como lo devuelve el backend
- */
 function populateSettingsForm(s) {
     const set = (id, val) => {
         const el = document.getElementById(id);
@@ -1348,25 +1172,21 @@ function populateSettingsForm(s) {
         else el.value = val;
     };
 
-    // ── General ───────────────────────────────────────────
     set('s-language', s.language || 'es');
     set('s-notification-email', s.notification_email);
-    // set('s-timezone', s.timezone); // Se detecta localmente ahora
     set('s-log-retention', s.log_retention_days);
-
-    // ── Google Drive ─────────────────────────────────────
     set('s-gdrive-credentials', s.gdrive_credentials_path);
     set('s-gdrive-folder', s.gdrive_folder_id);
     set('s-gdrive-scope', s.gdrive_scope);
     set('s-gdrive-auto-upload', s.gdrive_auto_upload);
     set('s-gdrive-delete-local', s.gdrive_delete_local);
     set('s-gdrive-max-files', s.gdrive_max_files);
+
+    if (s.language) {
+        applyTranslations(s.language);
+    }
 }
 
-/**
- * Recoge todos los valores del formulario y los envía al backend.
- * El payload sigue el esquema de claves que espera el servidor.
- */
 async function handleSaveSettings(silent = false) {
     const saveBtn = document.getElementById('settings-save-btn');
     if (!saveBtn) return;
@@ -1377,15 +1197,11 @@ async function handleSaveSettings(silent = false) {
         return el.type === 'checkbox' ? el.checked : el.value.trim();
     };
 
-    // Construir payload tipado
     const payload = {
-        // General
         language: get('s-language') || 'es',
         notification_email: get('s-notification-email') || undefined,
         timezone: get('s-timezone') || undefined,
         log_retention_days: Number(get('s-log-retention')) || undefined,
-
-        // Google Drive
         gdrive_credentials_path: get('s-gdrive-credentials') || undefined,
         gdrive_folder_id: get('s-gdrive-folder') || undefined,
         gdrive_scope: get('s-gdrive-scope') || undefined,
@@ -1394,10 +1210,8 @@ async function handleSaveSettings(silent = false) {
         gdrive_max_files: Number(get('s-gdrive-max-files')) || undefined,
     };
 
-    // Eliminar claves undefined para no enviar campos vacíos innecesarios
     Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
-    // Estado de carga
     saveBtn.disabled = true;
     saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_saving')}`;
 
@@ -1422,9 +1236,6 @@ async function handleSaveSettings(silent = false) {
 // AUTO-DESCUBRIMIENTO DE BASES DE DATOS
 // ============================================================================
 
-/**
- * Llama a la API de autodescubrimiento y dibuja las tarjetas dinámicamente.
- */
 async function loadDiscovery() {
     const container = document.getElementById('discoveryContainer');
     if (!container) return;
@@ -1459,14 +1270,12 @@ async function loadDiscovery() {
             container.appendChild(card);
         });
 
-        // Añadir event listeners a todas las tarjetas (incluyendo la estática)
         document.querySelectorAll('.discovery-card').forEach(card => {
             card.addEventListener('click', handleDiscoveryClick);
         });
 
     } catch (error) {
         console.error('Error en autodescubrimiento:', error);
-        // Asegurar que la tarjeta estática funcione aunque falle la API
         document.querySelectorAll('.discovery-card').forEach(card => {
             card.addEventListener('click', handleDiscoveryClick);
         });
@@ -1493,20 +1302,15 @@ function translateDiscoveryEngineName(service, lang = getCurrentLanguage()) {
     return rawName || t('engine_unknown', lang);
 }
 
-/**
- * Maneja el clic en una tarjeta de descubrimiento, autocompletando el formulario.
- */
 function handleDiscoveryClick(event) {
     const card = event.currentTarget;
     const engine = card.dataset.engine;
 
-    // Resaltar tarjeta seleccionada visualmente
     document.querySelectorAll('.discovery-card').forEach(c => {
         c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
     });
     card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
 
-    // Elementos del formulario
     const dbTypeEl = document.getElementById('dbType');
     const dbHostEl = document.getElementById('dbHost');
     const dbPortEl = document.getElementById('dbPort');
@@ -1517,7 +1321,6 @@ function handleDiscoveryClick(event) {
     const networkDetails = document.querySelector('details.group');
 
     if (engine === 'sqlite' || engine === 'folder' || engine === 'mdb') {
-        // Fichero Local o Carpeta
         if (dbTypeEl) {
             dbTypeEl.value = engine;
             dbTypeEl.dispatchEvent(new Event('change'));
@@ -1529,12 +1332,10 @@ function handleDiscoveryClick(event) {
         if (networkDetails) networkDetails.classList.add('hidden');
         if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
 
-        // Foco en la ruta del archivo/carpeta
         const dbFilePathEl = document.getElementById('dbFilePath');
         if (dbFilePathEl) dbFilePathEl.focus();
 
     } else {
-        // Motor de Base de Datos en Red (Autodescubierto)
         if (dbTypeEl) {
             dbTypeEl.value = engine;
             dbTypeEl.dispatchEvent(new Event('change'));
@@ -1546,7 +1347,6 @@ function handleDiscoveryClick(event) {
         if (networkDetails) networkDetails.classList.remove('hidden');
         if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
 
-        // Ajustar placeholder del usuario como sugerencia
         if (dbUserEl) {
             const lang = getCurrentLanguage();
             if (engine === 'postgresql') dbUserEl.placeholder = t('ph_db_user', lang);
@@ -1555,7 +1355,6 @@ function handleDiscoveryClick(event) {
             else dbUserEl.placeholder = t('label_user', lang);
         }
 
-        // Dar foco automáticamente al Nombre de la Base de Datos para seguir el flujo
         if (dbNameEl) dbNameEl.focus();
     }
 }
@@ -1590,7 +1389,6 @@ async function checkGoogleDriveStatus() {
 }
 
 document.getElementById('btnConnectDrive')?.addEventListener('click', () => {
-    // Abrir popup de login
     const w = 500;
     const h = 600;
     const left = (screen.width / 2) - (w / 2);
@@ -1598,7 +1396,6 @@ document.getElementById('btnConnectDrive')?.addEventListener('click', () => {
     window.open('/api/v1/auth/google/login', 'GDrive Auth', `width=${w},height=${h},top=${top},left=${left}`);
 });
 
-// Escuchar mensaje del popup cuando termina el login
 window.addEventListener("message", (event) => {
     if (event.data === "GOOGLE_AUTH_SUCCESS") {
         checkGoogleDriveStatus();
@@ -1614,7 +1411,6 @@ document.getElementById('btnDisconnectDrive')?.addEventListener('click', async (
             showToast(t('toast_gdrive_disconnected'), "success");
             checkGoogleDriveStatus();
 
-            // Clear visual fields
             const destGDriveFolderId = document.getElementById('destGDriveFolderId');
             const destGDriveFolderName = document.getElementById('destGDriveFolderName');
             if (destGDriveFolderId) destGDriveFolderId.value = '';
@@ -1628,7 +1424,6 @@ document.getElementById('btnDisconnectDrive')?.addEventListener('click', async (
     }
 });
 
-// Cuando la API de google se cargue, llamar a loadPicker()
 function loadGoogleApi() {
     gapi.load('picker', { 'callback': onPickerApiLoad });
 }
@@ -1636,7 +1431,6 @@ function onPickerApiLoad() {
     pickerApiLoaded = true;
 }
 
-// Interceptar carga global de script si gapi ya existe
 const gapiInterval = setInterval(() => {
     if (typeof gapi !== 'undefined') {
         clearInterval(gapiInterval);
@@ -1651,7 +1445,6 @@ document.getElementById('btnSelectDriveFolder')?.addEventListener('click', async
     }
 
     try {
-        // Pedir token temporal al backend
         const res = await fetch('/api/v1/auth/google/token');
         if (!res.ok) throw new Error(t('error_get_token'));
 
@@ -1669,7 +1462,6 @@ document.getElementById('btnSelectDriveFolder')?.addEventListener('click', async
 function createPicker() {
     if (!gdriveAccessToken) return;
 
-    // Crear la vista solo de carpetas
     const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
     view.setIncludeFolders(true);
     view.setSelectFolderEnabled(true);
@@ -1678,7 +1470,6 @@ function createPicker() {
     const picker = new google.picker.PickerBuilder()
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
         .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
-        // .setAppId(gdriveClientId.split('-')[0]) // Opcional
         .setOAuthToken(gdriveAccessToken)
         .addView(view)
         .setTitle(t('picker_select_folder_title'))
@@ -1701,10 +1492,6 @@ function pickerCallback(data) {
     }
 }
 
-/**
- * Carga los logs reales de una ejecución desde la API y los pinta en la terminal inferior
- * @param {string} runId 
- */
 async function loadTerminalLogs(runId) {
     const terminal = document.getElementById('bottomLogsTerminal');
     if (!terminal) return;
@@ -1718,15 +1505,13 @@ async function loadTerminalLogs(runId) {
         const data = await res.json();
         const logs = data.logs || t('status_no_logs_run');
 
-        terminal.innerHTML = ''; // Limpiar
+        terminal.innerHTML = ''; 
 
-        // Pintar por líneas para añadir colorines
-        const lines = Array.isArray(logs) ? logs : String(logs).split('\\n');
+        const lines = Array.isArray(logs) ? logs : String(logs).split('\n');
         lines.forEach(line => {
             const div = document.createElement('div');
             div.textContent = line;
 
-            // Coloreado sintáctico simple de logs
             if (line.includes('[SUCCESS]')) div.className = 'text-green-500 font-medium';
             else if (line.includes('[ERROR]') || line.includes('[CRITICAL]')) div.className = 'text-red-500 font-medium';
             else if (line.includes('[WARNING]')) div.className = 'text-yellow-500';
@@ -1736,7 +1521,6 @@ async function loadTerminalLogs(runId) {
             terminal.appendChild(div);
         });
 
-        // Autoscroll al final
         terminal.scrollTop = terminal.scrollHeight;
 
     } catch (e) {
@@ -1907,19 +1691,14 @@ const i18n = {
         "Ejecutar": "Ejecutar",
         "Cancelar": "Cancelar",
         "Google Drive no vinculado": "Google Drive no vinculado",
-        "Aplicación": "Aplicación",
         "Zona horaria del sistema": "Zona horaria del sistema",
         "La zona horaria es detectada automáticamente por el sistema local.": "La zona horaria es detectada automáticamente por el sistema local.",
         "Notificaciones": "Notificaciones",
         "Recibe un resumen diario de las ejecuciones.": "Recibe un resumen diario de las ejecuciones.",
         "Solo notifica cuando un backup falla.": "Solo notifica cuando un backup falla.",
-        "Retención de logs": "Retención de logs",
         "Días de retención de historial": "Días de retención de historial",
         "Los registros más antiguos se eliminarán automáticamente.": "Los registros más antiguos se eliminarán automáticamente.",
         "Se usará para enviar alertas de errores críticos.": "Se usará para enviar alertas de errores críticos.",
-        "Enviar Notificación de Prueba": "Enviar Notificación de Prueba",
-        "Cancelar": "Cancelar",
-        "Guardar cambios": "Guardar cambios",
         "Vincular con Google": "Vincular con Google",
         "Desvincular Google Drive": "Desvincular Google Drive",
         "No hay tareas configuradas": "No hay tareas configuradas",
@@ -1936,31 +1715,34 @@ const i18n = {
         "Ej: 127.0.0.1 o mi-servidor.local": "Ej: 127.0.0.1 o mi-servidor.local",
         "Ej: mi_base_de_datos": "Ej: mi_base_de_datos",
         "Ej: postgres": "Ej: postgres",
-        "Ej: C:\MisBackups o \\Servidor\Backups": "Ej: C:\MisBackups o \\Servidor\Backups",
-        "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos": "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos",
+        "Ej: C:\\MisBackups o \\\\Servidor\\Backups": "Ej: C:\\MisBackups o \\\\Servidor\\Backups",
+        "Ej: C:\\Backups\\mi_base_datos.db o C:\\MisArchivos": "Ej: C:\\Backups\\mi_base_datos.db o C:\\MisArchivos",
         "Ej: 0 2 * * *": "Ej: 0 2 * * *",
         "Ej: 60": "Ej: 60",
         "/ruta/absoluta/credentials.json": "/ruta/absoluta/credentials.json",
         "Raíz de Mi Unidad": "Raíz de Mi Unidad",
-        "btn_restore": "Restaurar",
-        "btn_view_logs": "Ver Logs",
-        "confirm_restore": "¿Estás seguro de que quieres restaurar este backup? Esta acción sobrescribirá los datos actuales.",
-        "restore_success": "Backup restaurado correctamente.",
-        "restore_error": "Error al restaurar el backup. Revisa los logs para más detalles.",
-        "label_retention_days": "Días de retención",
-        "ph_retention_days": "Ej: 30",
-        "help_retention": "Número de días a conservar. 0 para mantenerlos indefinidamente.",
-        "engine_folder_sync": "Sincronización de Carpetas (Espejo)",
-        "title_smtp_server": "Servidor SMTP",
-        "label_smtp_host": "Host SMTP",
-        "label_smtp_port": "Puerto",
-        "label_smtp_user": "Usuario SMTP / Email",
-        "label_smtp_password": "Contraseña SMTP (App Password)",
-        "ph_smtp_host": "smtp.gmail.com",
-        "ph_smtp_port": "587",
-        "ph_smtp_user": "tu-correo@gmail.com",
-        "ph_smtp_password": "Contraseña de aplicación",
-        // --- New keys ---
+        btn_restore: "Restaurar",
+        btn_view_logs: "Ver Logs",
+        confirm_restore: "¿Estás seguro de que quieres restaurar este backup? Esta acción sobrescribirá los datos actuales.",
+        restore_success: "Backup restaurado correctamente.",
+        restore_error: "Error al restaurar el backup. Revisa los logs para más detalles.",
+        label_retention_days: "Días de retención",
+        ph_retention_days: "Ej: 30",
+        help_retention: "Número de días a conservar. 0 para mantenerlos indefinidamente.",
+        engine_folder_sync: "Sincronización de Carpetas (Espejo)",
+        title_smtp_server: "Servidor SMTP",
+        label_smtp_host: "Host SMTP",
+        label_smtp_port: "Puerto",
+        label_smtp_user: "Usuario SMTP / Email",
+        label_smtp_password: "Contraseña SMTP (App Password)",
+        ph_smtp_host: "smtp.gmail.com",
+        ph_smtp_port: "587",
+        ph_smtp_user: "tu-correo@gmail.com",
+        ph_smtp_password: "Contraseña de aplicación",
+        btn_test_connection: "Probar Conexión",
+        btn_download: "Descargar",
+        status_testing: "Probando...",
+        status_checking: "Comprobando...",
         status_loading: "Cargando...",
         status_running: "Ejecutando...",
         status_saving: "Guardando...",
@@ -2216,19 +1998,14 @@ const i18n = {
         "Ejecutar": "Run",
         "Cancelar": "Cancel",
         "Google Drive no vinculado": "Google Drive not linked",
-        "Aplicación": "Application",
         "Zona horaria del sistema": "System Timezone",
         "La zona horaria es detectada automáticamente por el sistema local.": "The timezone is automatically detected by the local system.",
         "Notificaciones": "Notifications",
         "Recibe un resumen diario de las ejecuciones.": "Receive a daily summary of executions.",
         "Solo notifica cuando un backup falla.": "Only notify when a backup fails.",
-        "Retención de logs": "Log Retention",
         "Días de retención de historial": "History retention days",
         "Los registros más antiguos se eliminarán automáticamente.": "Older records will be deleted automatically.",
         "Se usará para enviar alertas de errores críticos.": "Will be used to send critical error alerts.",
-        "Enviar Notificación de Prueba": "Send Test Notification",
-        "Cancelar": "Cancel",
-        "Guardar cambios": "Save changes",
         "Vincular con Google": "Link with Google",
         "Desvincular Google Drive": "Unlink Google Drive",
         "No hay tareas configuradas": "No configured jobs",
@@ -2245,13 +2022,16 @@ const i18n = {
         "Ej: 127.0.0.1 o mi-servidor.local": "Ex: 127.0.0.1 or my-server.local",
         "Ej: mi_base_de_datos": "Ex: my_database",
         "Ej: postgres": "Ex: postgres",
-        "Ej: C:\MisBackups o \\Servidor\Backups": "Ex: C:\MyBackups or \\Server\Backups",
-        "Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos": "Ex: C:\Backups\my_db.db or C:\MyFiles",
+        "Ej: C:\\MisBackups o \\\\Servidor\\Backups": "Ex: C:\\MyBackups or \\\\Server\\Backups",
+        "Ej: C:\\Backups\\mi_base_datos.db o C:\\MisArchivos": "Ex: C:\\Backups\\my_db.db or C:\\MyFiles",
         "Ej: 0 2 * * *": "Ex: 0 2 * * *",
         "Ej: 60": "Ex: 60",
         "/ruta/absoluta/credentials.json": "/absolute/path/to/credentials.json",
         "Raíz de Mi Unidad": "Root of My Drive",
-        // --- New keys ---
+        btn_test_connection: "Test Connection",
+        btn_download: "Download",
+        status_testing: "Testing...",
+        status_checking: "Checking...",
         status_loading: "Loading...",
         status_running: "Running...",
         status_saving: "Saving...",
@@ -2400,21 +2180,10 @@ function applyTranslations(lang) {
     });
 }
 
-// Interceptar populateSettingsForm para aplicar idioma guardado
-const originalPopulateSettingsForm = populateSettingsForm;
-populateSettingsForm = function (s) {
-    originalPopulateSettingsForm(s);
-    if (s.language) {
-        applyTranslations(s.language);
-    }
-};
-
-// Escuchar cambios en el selector de idioma en vivo
 document.getElementById('s-language')?.addEventListener('change', (e) => {
     applyTranslations(e.target.value);
 });
 
-// ====== LÓGICA DEL ESCÁNER DE ESPACIO ======
 // ====== LÓGICA DEL ESCÁNER DE ESPACIO ======
 let scanTimeout;
 async function scanFreeSpace(path) {
@@ -2447,7 +2216,6 @@ async function scanFreeSpace(path) {
     }
 }
 
-// Escuchar cambios en el input de destino (con debounce para no saturar la API)
 const destLocalInput = document.getElementById('destLocalPath');
 if (destLocalInput) {
     destLocalInput.addEventListener('input', (e) => {
@@ -2456,7 +2224,6 @@ if (destLocalInput) {
             scanFreeSpace(e.target.value.trim());
         }, 800);
     });
-    // Escanear si ya hay un valor cargado
     if (destLocalInput.value.trim()) {
         scanFreeSpace(destLocalInput.value.trim());
     }
@@ -2470,7 +2237,7 @@ async function openFileExplorer(inputId) {
     currentExplorerInput = document.getElementById(inputId);
     const modal = document.getElementById('fileExplorerModal');
     modal.classList.remove('hidden');
-    await renderExplorerPath(""); // Carga discos inicialmente
+    await renderExplorerPath(""); 
 }
 
 function closeFileExplorer() {
@@ -2499,7 +2266,6 @@ async function renderExplorerPath(path) {
         if (data.folders.length === 0 && data.files.length === 0) {
             html = `<div class="text-center py-8 text-slate-500 text-sm">${t('label_empty_folder')}</div>`;
         } else {
-            // Renderizar carpetas
             data.folders.forEach(f => {
                 html += `
                     <div class="explorer-item flex items-center gap-3 p-2 hover:bg-slate-200 dark:hover:bg-surface-800 rounded cursor-pointer transition-colors" data-path="${f.path.replace(/\\/g, '\\\\')}">
@@ -2508,7 +2274,6 @@ async function renderExplorerPath(path) {
                     </div>
                 `;
             });
-            // Renderizar archivos
             data.files.forEach(f => {
                 html += `
                     <div class="explorer-item flex items-center gap-3 p-2 hover:bg-slate-200 dark:hover:bg-surface-800 rounded cursor-pointer transition-colors" data-path="${f.path.replace(/\\/g, '\\\\')}">
@@ -2520,7 +2285,6 @@ async function renderExplorerPath(path) {
         }
         container.innerHTML = html;
 
-        // Listeners
         container.querySelectorAll('.explorer-item').forEach(item => {
             item.addEventListener('click', () => {
                 const targetPath = item.dataset.path;
@@ -2529,7 +2293,6 @@ async function renderExplorerPath(path) {
                 } else {
                     currentExplorerPath = targetPath;
                     pathDisplay.textContent = targetPath;
-                    // Resaltar seleccionado
                     container.querySelectorAll('.explorer-item').forEach(i => i.classList.remove('bg-brand-500/10', 'border', 'border-brand-500/50'));
                     item.classList.add('bg-brand-500/10', 'border', 'border-brand-500/50');
                 }
@@ -2547,7 +2310,6 @@ document.getElementById('btnBrowseDest')?.addEventListener('click', () => openFi
 document.getElementById('btnExplorerSelect')?.addEventListener('click', () => {
     if (currentExplorerInput && currentExplorerPath) {
         currentExplorerInput.value = currentExplorerPath;
-        // Disparar el evento input para que el escáner (u otros listeners) se enteren del cambio
         currentExplorerInput.dispatchEvent(new Event('input'));
     }
     closeFileExplorer();
@@ -2557,7 +2319,6 @@ document.getElementById('btnExplorerCancel')?.addEventListener('click', closeFil
 document.getElementById('btnCloseExplorer')?.addEventListener('click', closeFileExplorer);
 document.getElementById('btnExplorerRefresh')?.addEventListener('click', () => renderExplorerPath(currentExplorerPath));
 
-// Eventos del modal de confirmación de restauración
 document.getElementById('btnRestoreCancel')?.addEventListener('click', closeRestoreConfirmModal);
 document.getElementById('btnRestoreConfirm')?.addEventListener('click', async () => {
     const runId = currentRestoreRunId;

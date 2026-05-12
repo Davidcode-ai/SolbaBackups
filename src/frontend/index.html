@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SolbaBackups - Dashboard</title>
-    <link rel="icon" type="image/png" href="assets/logo_solba.png">
+    <link rel="icon" type="image/png" href="./assets/logo_solba.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -114,6 +114,7 @@
 
         .toast {
             min-width: 250px;
+            max-width: 400px;
             padding: 1rem;
             border-radius: 0.5rem;
             color: white;
@@ -124,6 +125,8 @@
             align-items: center;
             gap: 0.75rem;
             animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            word-wrap: break-word;
+            word-break: break-word;
         }
 
         .toast.toast-success {
@@ -729,7 +732,7 @@
         class="w-72 bg-white dark:bg-surface-900 border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-300 z-20 shrink-0">
         <div class="h-16 flex items-center px-6 border-b border-slate-200 dark:border-slate-800">
             <div class="flex items-center gap-3 text-slate-900 dark:text-white">
-                <img src="assets/logo_solba.png" alt="SolbaBackups Logo" class="h-8 object-contain drop-shadow-md">
+                <img src="./assets/logo_solba.png" alt="SolbaBackups Logo" class="h-8 object-contain drop-shadow-md">
                 <span class="font-bold text-lg tracking-tight" data-i18n="app_title">SolbaBackups</span>
             </div>
         </div>
@@ -1429,8 +1432,8 @@
         </div>
     </div>
 
-    <script src="assets/js/api.js"></script>
-    <script src="assets/js/app.js"></script>
+    <script src="./assets/js/api.js"></script>
+    <script src="./assets/js/app.js"></script>
     <script>
         // Lógica de UI para abrir/cerrar el panel derecho en pantallas pequeñas
         const rightPanel = document.getElementById('rightPanel');
