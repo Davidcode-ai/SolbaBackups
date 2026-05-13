@@ -1119,7 +1119,6 @@
         <div class="h-64 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-surface-950 flex flex-col shrink-0">
             <div class="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-100 dark:bg-surface-900/50">
                 <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider" data-i18n="title_execution_details">Detalles de Ejecución</span>
-                <button id="btnExpandLogs" class="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors" title="Ver logs completos"><i class="fa-solid fa-expand text-xs"></i></button>
             </div>
             <div id="bottomLogsTerminal" class="flex-1 overflow-y-auto p-3 font-mono text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed bg-white dark:bg-surface-950 whitespace-pre-wrap">
                 <span class="text-slate-500 italic" data-i18n="msg_select_execution">Selecciona una ejecución en el historial para ver sus logs.</span>
@@ -1193,12 +1192,6 @@
                         </div>
 
                         <div class="s-field">
-                            <label for="s-notification-email" class="s-label" data-i18n="label_notification_email">Correo para recibir alertas</label>
-                            <input id="s-notification-email" type="email" class="s-input" placeholder="tu-correo@gmail.com" data-i18n-placeholder="ph_notification_email">
-                            <p class="s-hint" data-i18n="hint_notification_email">Se usará para enviar alertas y resúmenes diarios.</p>
-                        </div>
-
-                        <div class="s-field">
                             <label for="s-timezone" class="s-label" data-i18n="label_timezone">Zona horaria del sistema</label>
                             <select id="s-timezone" class="s-input bg-slate-100 dark:bg-slate-800 opacity-80 cursor-not-allowed" readonly>
                                 <option value="" data-i18n="opt_detecting">Detectando...</option>
@@ -1229,6 +1222,17 @@
                             <label class="s-switch">
                                 <input type="checkbox" id="s-notify-errors-only">
                                 <span class="s-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="s-toggle-row opacity-60">
+                            <div class="s-toggle-info">
+                                <p class="s-toggle-label" data-i18n="label_notify_whatsapp">Notificaciones por WhatsApp (Próximamente)</p>
+                                <p class="s-toggle-desc" data-i18n="hint_notify_whatsapp">Recibe alertas directamente en tu móvil.</p>
+                            </div>
+                            <label class="s-switch cursor-not-allowed">
+                                <input type="checkbox" disabled>
+                                <span class="s-slider bg-slate-300 dark:bg-slate-700"></span>
                             </label>
                         </div>
 
