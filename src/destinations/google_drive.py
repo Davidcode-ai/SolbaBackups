@@ -234,7 +234,7 @@ class GoogleDriveDestination:
             log.info("✅ Archivo subido exitosamente. file_id=%s", file_id)
 
             # Aplicar retención tras cada subida exitosa.
-            deleted = self.apply_retention()
+            deleted = self.apply_retention(current_file_id=file_id)
             if deleted:
                 log.info("🗑️  Retención aplicada: %d archivo(s) eliminado(s).", len(deleted))
 
@@ -412,44 +412,52 @@ class GoogleDriveDestination:
         if deleted:
             log.info(f"Retención en Drive completada. {len(deleted)} archivos eliminados.")
 
-    def apply_retention(self) -> list[str]:
+    def apply_retention(self, current_file_id: str | None = None) -> list[str]:
         """
-        Elimina de Drive los backups del job más antiguos que ``retention_days``.
-
-        Solo actúa si ``retention_days`` no es ``None``. Busca archivos
-        en la carpeta del job que tengan ``createdTime`` anterior al umbral.
+        Elimina de Drive los backups del job, manteniendo sólo los más recientes.
+        Usa self._retention_days como el límite máximo de archivos.
 
         Returns:
             list[str]: IDs de Drive de los archivos eliminados.
         """
-        if self._retention_days is None:
+        if self._retention_days is None or self._retention_days <= 0:
             return []
 
         try:
             service = self._get_service()
             job_folder_id = self._get_or_create_job_folder(service)
 
-            threshold = datetime.now(timezone.utc) - timedelta(days=self._retention_days)
-            threshold_str = threshold.strftime("%Y-%m-%dT%H:%M:%SZ")
-
             query = (
                 f"'{job_folder_id}' in parents "
                 f"and mimeType != '{_FOLDER_MIME}' "
-                f"and createdTime < '{threshold_str}' "
                 f"and trashed = false"
             )
 
             results = (
                 service.files()
-                .list(q=query, fields="files(id,name,createdTime)", pageSize=100, supportsAllDrives=True, includeItemsFromAllDrives=True)
+                .list(
+                    q=query, 
+                    fields="files(id,name,createdTime)", 
+                    orderBy="createdTime desc",
+                    pageSize=1000, 
+                    supportsAllDrives=True, 
+                    includeItemsFromAllDrives=True
+                )
                 .execute()
             )
             files = results.get("files", [])
+            
+            files_to_delete = files[self._retention_days:]
             deleted_ids: list[str] = []
 
-            for file in files:
+            for file in files_to_delete:
                 fid = file["id"]
                 fname = file["name"]
+                
+                if current_file_id and fid == current_file_id:
+                    log.info("Protegiendo el backup recién creado de la limpieza de retención: %s", fname)
+                    continue
+
                 try:
                     service.files().delete(fileId=fid, supportsAllDrives=True).execute()
                     deleted_ids.append(fid)
