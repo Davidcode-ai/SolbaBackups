@@ -2191,7 +2191,10 @@ async function scanFreeSpace(path) {
     const icon = document.getElementById('iconScanSpace');
     if (!statEl || !icon) return;
 
-    if (!path) {
+    const destTypeEl = document.getElementById('destType');
+    const isGDrive = destTypeEl && destTypeEl.value === 'google_drive';
+
+    if (!isGDrive && !path) {
         statEl.textContent = t('status_waiting_path');
         return;
     }
@@ -2200,7 +2203,15 @@ async function scanFreeSpace(path) {
     statEl.textContent = t('status_scanning');
 
     try {
-        const data = await api.getFreeSpace(path);
+        let data;
+        if (isGDrive) {
+            const res = await fetch('/api/v1/utils/gdrive-space');
+            if (!res.ok) throw new Error('Error al obtener cuota de Drive');
+            data = await res.json();
+        } else {
+            data = await api.getFreeSpace(path);
+        }
+        
         let space = data.free_space_mb;
         let unit = 'MB';
         if (space > 1024) {
@@ -2209,7 +2220,7 @@ async function scanFreeSpace(path) {
         }
         statEl.textContent = `${space} ${unit} ${t('label_free')}`;
     } catch (error) {
-        statEl.textContent = t('error_read_path');
+        statEl.textContent = isGDrive ? t('gdrive_not_linked') : t('error_read_path');
         console.warn(`No se pudo escanear la ruta: ${error.message}`);
     } finally {
         icon.classList.remove('fa-spin');
@@ -2226,6 +2237,21 @@ if (destLocalInput) {
     });
     if (destLocalInput.value.trim()) {
         scanFreeSpace(destLocalInput.value.trim());
+    }
+}
+
+const destTypeInput = document.getElementById('destType');
+if (destTypeInput) {
+    destTypeInput.addEventListener('change', () => {
+        if (destTypeInput.value === 'google_drive') {
+            scanFreeSpace();
+        } else if (destLocalInput) {
+            scanFreeSpace(destLocalInput.value.trim());
+        }
+    });
+    // Trigger on load for current value
+    if (destTypeInput.value === 'google_drive') {
+        scanFreeSpace();
     }
 }
 

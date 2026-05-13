@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import socket
@@ -181,5 +182,53 @@ def get_free_space(path: str):
             "free_space_mb": free_mb,
             "total_space_mb": total_mb
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/gdrive-space")
+def get_gdrive_space():
+    """Devuelve el espacio libre en MB de Google Drive."""
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request as GRequest
+        from googleapiclient.discovery import build
+        
+        _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+        _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
+        
+        if not _DEFAULT_TOKEN_PATH.exists():
+            raise HTTPException(status_code=401, detail="Google Drive no está vinculado.")
+            
+        with open(_DEFAULT_TOKEN_PATH, 'r') as f:
+            creds_data = json.load(f)
+            
+        creds = Credentials.from_authorized_user_info(creds_data, ["https://www.googleapis.com/auth/drive.file"])
+        
+        if creds.expired and creds.refresh_token:
+            creds.refresh(GRequest())
+            creds_dict = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': creds.scopes
+            }
+            with open(_DEFAULT_TOKEN_PATH, 'w') as f:
+                json.dump(creds_dict, f)
+                
+        service = build('drive', 'v3', credentials=creds)
+        about = service.about().get(fields='storageQuota').execute()
+        quota = about.get('storageQuota', {})
+        
+        limit = int(quota.get('limit', 0))
+        usage = int(quota.get('usage', 0))
+        
+        if limit == 0:
+            free_mb = 0
+        else:
+            free_mb = round((limit - usage) / (1024 * 1024), 2)
+            
+        return {"free_space_mb": free_mb}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

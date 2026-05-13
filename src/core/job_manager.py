@@ -517,14 +517,84 @@ class JobManager:
                             "Error crítico: El Frontend ha enviado una ruta de origen vacía."
                         )
                     src_folder = Path(job.db_name)
-                    if not src_folder.exists() or not src_folder.is_dir():
-                        raise FileNotFoundError(
-                            f"La carpeta origen {src_folder} no existe."
-                        )
+                    
+                    try:
+                        if not src_folder.exists() or not src_folder.is_dir():
+                            raise FileNotFoundError(
+                                f"La carpeta origen {src_folder} no existe o no es un directorio."
+                            )
+                        # Verificar permisos listando el directorio
+                        _ = list(src_folder.iterdir())
+                    except PermissionError as e:
+                        raise PermissionError(f"Error de permisos al acceder a la ruta de origen: {e}")
+                    except OSError as e:
+                        if isinstance(e, FileNotFoundError):
+                            raise
+                        raise OSError(f"Error al verificar la ruta de origen: {e}")
 
-                    # Creamos un archivo .zip con el contenido de la carpeta
+                    # Directorio temporal de empaquetado para sincronización incremental
+                    staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
+                    staging_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    history_manager.add_log(
+                        db, run.id, "INFO", 
+                        f"Sincronizando carpeta (incremental): {src_folder} -> {staging_dir}", 
+                        stage="dump"
+                    )
+
+                    copied = 0
+                    updated = 0
+                    skipped = 0
+                    total = 0
+
+                    try:
+                        for src_path in src_folder.rglob("*"):
+                            if src_path.is_dir():
+                                continue
+                            total += 1
+                            rel = src_path.relative_to(src_folder)
+                            dst_path = staging_dir / rel
+
+                            if not dst_path.exists():
+                                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(src_path, dst_path)
+                                copied += 1
+                                continue
+
+                            try:
+                                src_stat = src_path.stat()
+                                dst_stat = dst_path.stat()
+                            except OSError:
+                                shutil.copy2(src_path, dst_path)
+                                updated += 1
+                                continue
+
+                            if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
+                                skipped += 1
+                                continue
+
+                            if filecmp.cmp(src_path, dst_path, shallow=False):
+                                skipped += 1
+                                continue
+
+                            shutil.copy2(src_path, dst_path)
+                            updated += 1
+                    except PermissionError as e:
+                        raise PermissionError(f"Error de permisos durante la sincronización: {e}")
+                    except Exception as e:
+                        raise RuntimeError(f"Error inesperado durante la sincronización de archivos: {e}")
+
+                    history_manager.add_log(
+                        db,
+                        run.id,
+                        "INFO",
+                        f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
+                        stage="dump",
+                    )
+
+                    # Creamos un archivo .zip con el contenido de la carpeta temporal (staging)
                     base_name = str(dump_path.with_suffix(""))
-                    archive_path_str = shutil.make_archive(base_name, "zip", src_folder)
+                    archive_path_str = shutil.make_archive(base_name, "zip", staging_dir)
 
                     if dump_path.exists():
                         dump_path.unlink()
