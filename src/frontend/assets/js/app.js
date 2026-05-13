@@ -589,6 +589,7 @@ function initJobFormValidation() {
             dest_type: destType ? destType.value : 'local',
             dest_local_path: destLocalPath && destLocalPath.value.trim() ? destLocalPath.value.trim() : null,
             dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
+            dest_gdrive_folder_name: destGDriveFolderName && destGDriveFolderName.value.trim() ? destGDriveFolderName.value.trim() : null,
             dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value || 0) : 0,
         };
         
@@ -635,6 +636,7 @@ async function handleEditJob(event) {
     const id = btn.dataset.id;
     const name = btn.dataset.name;
     const sch = btn.dataset.schedule;
+    const folderName = btn.dataset.destGdriveFolderName || '';
     const extra = {
         db_type: btn.dataset.dbType || '',
         db_host: btn.dataset.dbHost || '',
@@ -648,7 +650,7 @@ async function handleEditJob(event) {
         dest_type: btn.dataset.destType || 'local',
         dest_local_path: btn.dataset.destLocalPath || '',
         dest_gdrive_folder_id: btn.dataset.destGdriveFolderId || '',
-        dest_gdrive_folder_name: btn.dataset.destGdriveFolderName || '',
+        dest_gdrive_folder_name: folderName,
         dest_retention_days: btn.dataset.destRetentionDays || '0',
     };
 
@@ -675,6 +677,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     const dbPort = document.getElementById('dbPort');
     const dbName = document.getElementById('dbName');
     const dbUser = document.getElementById('dbUser');
+    const dbPassword = document.getElementById('dbPassword');
     const btnSave = document.getElementById('btnSaveJob');
     const heading = form ? form.querySelector('h3') : null;
 
@@ -689,6 +692,10 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbHost) dbHost.value = extra.db_host || '';
     if (dbPort) dbPort.value = extra.db_port || '';
     if (dbUser) dbUser.value = extra.db_user || '';
+    if (dbPassword) {
+        dbPassword.value = '';
+        dbPassword.placeholder = '•••••••• (Contraseña guardada)';
+    }
 
     const dbFilePathEl = document.getElementById('dbFilePath');
     if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb') {
@@ -782,11 +789,15 @@ function setFormEditMode(id, name, extra = {}, schedule) {
 function resetFormToCreateMode() {
     const form = document.getElementById('createJobForm');
     const btnSave = document.getElementById('btnSaveJob');
+    const dbPassword = document.getElementById('dbPassword');
     const heading = form ? form.querySelector('h3') : null;
 
     if (!form) return;
 
     form.reset();
+    if (dbPassword) {
+        dbPassword.placeholder = '••••••••';
+    }
     delete form.dataset.editingId;
     delete form.dataset.editingSchedule;
 

@@ -113,6 +113,7 @@ class Job(Base):
         comment="Días que se conservan los backups (null = sin límite)"
     )
     dest_gdrive_folder_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dest_gdrive_folder_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     dest_gdrive_credentials_json: Mapped[str | None] = mapped_column(
         Text, nullable=True,
         comment="JSON de credenciales OAuth2 de Google Drive"
