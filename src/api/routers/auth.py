@@ -19,6 +19,8 @@ _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
 # Permitir HTTP para desarrollo local en tiendas
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+_OAUTH_STORE = {}
+
 def _get_flow(redirect_uri: str):
     if not _DEFAULT_CREDENTIALS_PATH.exists():
         raise HTTPException(status_code=404, detail="Archivo credentials.json no encontrado.")
@@ -66,13 +68,17 @@ def login(request: Request):
     
     auth_url, state = flow.authorization_url(
         access_type='offline',
-        prompt='consent select_account',
+        prompt='consent',
         include_granted_scopes='true'
     )
+    
+    if hasattr(flow, 'code_verifier'):
+        _OAUTH_STORE[state] = flow.code_verifier
+        
     return RedirectResponse(auth_url)
 
 @router.get("/google/callback")
-def callback(request: Request, code: str = None, error: str = None):
+def callback(request: Request, state: str = None, code: str = None, error: str = None):
     """Recibe la autorización de Google y guarda el token maestro en la tienda."""
     if error:
         return HTMLResponse(f"<h2>Error de Autorización: {error}</h2><script>window.close()</script>")
@@ -81,6 +87,11 @@ def callback(request: Request, code: str = None, error: str = None):
         
     redirect_uri = str(request.base_url).rstrip("/") + "/api/v1/auth/google/callback"
     flow = _get_flow(redirect_uri)
+    
+    code_verifier = _OAUTH_STORE.get(state)
+    if code_verifier:
+        flow.code_verifier = code_verifier
+        del _OAUTH_STORE[state]
     
     authorization_response = str(request.url)
     

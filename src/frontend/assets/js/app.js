@@ -2359,3 +2359,53 @@ document.getElementById('btnRestoreConfirm')?.addEventListener('click', async ()
         await restoreBackup(runId);
     }
 });
+
+// Lógica para crear carpeta en Google Drive desde la UI
+document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async () => {
+    const folderName = prompt('Nombre de la nueva carpeta:');
+    if (!folderName || !folderName.trim()) return;
+
+    const btn = document.getElementById('btnCreateDriveFolder');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Creando...`;
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/v1/utils/gdrive-create-folder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder_name: folderName.trim() })
+        });
+        
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Error al crear carpeta');
+        }
+        
+        const data = await res.json();
+        
+        const idInput = document.getElementById('destGDriveFolderId');
+        const nameInput = document.getElementById('destGDriveFolderName');
+        
+        if (idInput) idInput.value = data.id;
+        if (nameInput) nameInput.value = data.name;
+        
+        if (typeof showToast === 'function') {
+            showToast(`Carpeta "${data.name}" creada y seleccionada`, "success");
+        }
+        
+        // Disparar evento change si es necesario para marcar formulario como sucio
+        if (idInput) idInput.dispatchEvent(new Event('change', { bubbles: true }));
+        
+    } catch (e) {
+        console.error(e);
+        if (typeof showToast === 'function') {
+            showToast(`Error: ${e.message}`, "error");
+        } else {
+            alert(`Error: ${e.message}`);
+        }
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+});
