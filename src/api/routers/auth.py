@@ -45,7 +45,35 @@ def get_status():
         with open(_DEFAULT_TOKEN_PATH, 'r') as f:
             creds_data = json.load(f)
         creds = Credentials.from_authorized_user_info(creds_data, SCOPES)
-        return {"authorized": creds.valid or (creds.expired and creds.refresh_token is not None)}
+        
+        is_authorized = creds.valid or (creds.expired and creds.refresh_token is not None)
+        if not is_authorized:
+            return {"authorized": False}
+            
+        email = "Cuenta Vinculada"
+        try:
+            if creds.expired and creds.refresh_token:
+                from google.auth.transport.requests import Request as GRequest
+                creds.refresh(GRequest())
+                creds_dict = {
+                    'token': creds.token,
+                    'refresh_token': creds.refresh_token,
+                    'token_uri': creds.token_uri,
+                    'client_id': creds.client_id,
+                    'client_secret': creds.client_secret,
+                    'scopes': creds.scopes
+                }
+                with open(_DEFAULT_TOKEN_PATH, 'w') as f:
+                    json.dump(creds_dict, f)
+            
+            from googleapiclient.discovery import build
+            service = build("drive", "v3", credentials=creds, cache_discovery=False)
+            about = service.about().get(fields="user").execute()
+            email = about.get("user", {}).get("emailAddress", "Cuenta Vinculada")
+        except Exception as e:
+            log.warning(f"No se pudo obtener el email de Google Drive: {e}")
+            
+        return {"authorized": True, "email": email}
     except Exception:
         return {"authorized": False}
 

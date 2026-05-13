@@ -215,22 +215,18 @@ class GoogleDriveDestination:
         )
 
         try:
-            request = service.files().create(
+            uploaded_file = service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields="id,webViewLink",
                 supportsAllDrives=True
-            )
+            ).execute()
 
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    progress = int(status.progress() * 100)
-                    log.debug("  Progreso subida: %d%%", progress)
+            if not uploaded_file:
+                raise UploadError("No se pudo obtener respuesta de Drive (uploaded_file is None).")
 
-            file_id = response.get("id")
-            web_view_link = response.get(
+            file_id = uploaded_file.get("id")
+            web_view_link = uploaded_file.get(
                 "webViewLink",
                 f"https://drive.google.com/file/d/{file_id}/view",
             )
@@ -313,19 +309,18 @@ class GoogleDriveDestination:
                 resumable=True,
             )
 
-            request = service.files().create(
+            uploaded_file = service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields="id,webViewLink",
                 supportsAllDrives=True
-            )
+            ).execute()
 
-            response = None
-            while response is None:
-                _, response = request.next_chunk()
+            if not uploaded_file:
+                raise UploadError("No se pudo obtener respuesta de Drive (uploaded_file is None).")
 
-            file_id: str = response["id"]
-            web_view_link: str = response.get(
+            file_id: str = uploaded_file.get("id", "")
+            web_view_link: str = uploaded_file.get(
                 "webViewLink",
                 f"https://drive.google.com/file/d/{file_id}/view",
             )

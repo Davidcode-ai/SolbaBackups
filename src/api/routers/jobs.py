@@ -176,6 +176,8 @@ def update_job(
             )
 
     job_data = job_in.model_dump(exclude_unset=True)
+    if not job_in.db_password:
+        job_data.pop("db_password", None)
     updated_job = crud.job_update(db, job_id, job_data)
 
     # Reprogramar en tiempo real (remove + add con la nueva config)
