@@ -384,9 +384,9 @@ function initJobFormValidation() {
 
     const btnNewJobSidebar = document.getElementById('btnNewJobSidebar');
     if (btnNewJobSidebar) {
-        btnNewJobSidebar.addEventListener('click', () => {
+        btnNewJobSidebar.addEventListener('click', async () => {
             if (isFormDirty) {
-                const confirmDiscard = confirm(t('confirm_discard_new'));
+                const confirmDiscard = await showGenericConfirm(t('title_confirm') || 'Atención', t('confirm_discard_new'), t('btn_accept'));
                 if (!confirmDiscard) return;
             }
             resetFormToCreateMode();
@@ -625,9 +625,9 @@ function initJobFormValidation() {
     });
 }
 
-function handleEditJob(event) {
+async function handleEditJob(event) {
     if (isFormDirty) {
-        const confirmDiscard = confirm(t('confirm_discard_edit'));
+        const confirmDiscard = await showGenericConfirm(t('title_confirm') || 'Atención', t('confirm_discard_edit'), t('btn_accept'));
         if (!confirmDiscard) return;
     }
 
@@ -1404,7 +1404,7 @@ window.addEventListener("message", (event) => {
 });
 
 document.getElementById('btnDisconnectDrive')?.addEventListener('click', async () => {
-    if (!confirm(t('confirm_gdrive_disconnect'))) return;
+    if (!(await showGenericConfirm('Google Drive', t('confirm_gdrive_disconnect'), t('btn_accept'), 'bg-red-600 hover:bg-red-700'))) return;
 
     try {
         const res = await fetch('/api/v1/auth/google/disconnect', { method: 'DELETE' });
@@ -1616,6 +1616,10 @@ const i18n = {
         hint_timezone: "La zona horaria es detectada automáticamente por el sistema local.",
         section_notifications: "Notificaciones",
         label_notify_email: "Notificaciones por email",
+        label_notification_email: "Correo de notificaciones",
+        ph_notification_email: "tu@email.com",
+        hint_notification_email: "Email donde se enviarán los reportes y alertas.",
+        title_confirm: "Confirmar",
         hint_notify_email: "Recibe un resumen diario de las ejecuciones.",
         label_notify_whatsapp: "Notificaciones por WhatsApp (Próximamente)",
         hint_notify_whatsapp: "Recibe alertas directamente en tu móvil.",
@@ -1907,6 +1911,10 @@ const i18n = {
         hint_timezone: "Timezone is automatically detected from your local system.",
         section_notifications: "Notifications",
         label_notify_email: "Email Notifications",
+        label_notification_email: "Notification Email",
+        ph_notification_email: "you@email.com",
+        hint_notification_email: "Email where reports and alerts will be sent.",
+        title_confirm: "Confirm",
         hint_notify_email: "Receive a daily execution summary.",
         label_notify_whatsapp: "WhatsApp Notifications (Coming soon)",
         hint_notify_whatsapp: "Receive alerts directly on your mobile.",
@@ -2359,3 +2367,65 @@ document.getElementById('btnRestoreConfirm')?.addEventListener('click', async ()
         await restoreBackup(runId);
     }
 });
+function showGenericConfirm(title, message, confirmText, confirmClass = 'bg-brand-600 hover:bg-brand-700', iconClass = 'fa-solid fa-triangle-exclamation text-brand-400') {
+    return new Promise((resolve) => {
+        const container = document.getElementById('toast-container');
+        if (!container) return resolve(false);
+
+        const existing = document.getElementById('toast-generic-confirm');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'toast-generic-confirm';
+        toast.className = 'toast';
+        toast.style.cssText = [
+            'background:#1e293b',
+            'border:1px solid #334155',
+            'min-width:320px',
+            'flex-direction:column',
+            'gap:0.75rem',
+            'align-items:flex-start',
+            'z-index: 9999999'
+        ].join(';');
+        toast.style.pointerEvents = 'auto';
+
+        toast.innerHTML = `
+            <div class="flex items-start gap-3">
+                <i class="${iconClass} text-lg mt-0.5"></i>
+                <div>
+                    <p class="text-white text-sm font-semibold">${title}</p>
+                    <p class="text-slate-400 text-xs mt-0.5 leading-relaxed">
+                        ${message}
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-2 w-full mt-2">
+                <button id="toast-confirm-ok"
+                        class="flex-1 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors ${confirmClass}">
+                    ${confirmText}
+                </button>
+                <button id="toast-confirm-cancel"
+                        class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
+                    ${t('btn_cancel')}
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(toast);
+        
+        const btnOk = toast.querySelector('#toast-confirm-ok');
+        const btnCancel = toast.querySelector('#toast-confirm-cancel');
+        
+        btnOk.addEventListener('click', () => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+            resolve(true);
+        });
+        
+        btnCancel.addEventListener('click', () => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+            resolve(false);
+        });
+    });
+}
