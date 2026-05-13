@@ -648,6 +648,7 @@ async function handleEditJob(event) {
         dest_type: btn.dataset.destType || 'local',
         dest_local_path: btn.dataset.destLocalPath || '',
         dest_gdrive_folder_id: btn.dataset.destGdriveFolderId || '',
+        dest_gdrive_folder_name: btn.dataset.destGdriveFolderName || '',
         dest_retention_days: btn.dataset.destRetentionDays || '0',
     };
 
@@ -740,9 +741,11 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     const destType = document.getElementById('destType');
     const destLocalPath = document.getElementById('destLocalPath');
     const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+    const destGDriveFolderName = document.getElementById('destGDriveFolderName');
     if (destType) destType.value = extra.dest_type || 'local';
     if (destLocalPath) destLocalPath.value = extra.dest_local_path || '';
     if (destGDriveFolderId) destGDriveFolderId.value = extra.dest_gdrive_folder_id || '';
+    if (destGDriveFolderName) destGDriveFolderName.value = extra.dest_gdrive_folder_name || '';
 
     const jobRetention = document.getElementById('jobRetention');
     if (jobRetention) jobRetention.value = extra.dest_retention_days !== undefined ? extra.dest_retention_days : '0';
@@ -1371,6 +1374,7 @@ let pickerApiLoaded = false;
 async function checkGoogleDriveStatus() {
     const authBox = document.getElementById('gdriveAuthBox');
     const pickerBox = document.getElementById('gdrivePickerBox');
+    const emailSpan = document.getElementById('gdrive-connected-email');
     if (!authBox || !pickerBox) return;
 
     try {
@@ -1380,9 +1384,15 @@ async function checkGoogleDriveStatus() {
         if (data.authorized) {
             authBox.classList.add('hidden');
             pickerBox.classList.remove('hidden');
+            if (emailSpan && data.email) {
+                emailSpan.textContent = `(${data.email})`;
+            }
         } else {
             authBox.classList.remove('hidden');
             pickerBox.classList.add('hidden');
+            if (emailSpan) {
+                emailSpan.textContent = '';
+            }
         }
     } catch (e) {
         console.error("Error chequeando estado de Google Drive", e);
@@ -2369,7 +2379,7 @@ document.getElementById('btnRestoreConfirm')?.addEventListener('click', async ()
 });
 // Lógica para crear carpeta en Google Drive desde la UI
 document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async () => {
-    const folderName = prompt('Nombre de la nueva carpeta:');
+    const folderName = await showInputPrompt('Nombre de la nueva carpeta:', 'Mi nueva carpeta');
     if (!folderName || !folderName.trim()) return;
 
     const btn = document.getElementById('btnCreateDriveFolder');
@@ -2406,11 +2416,7 @@ document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async
         
     } catch (e) {
         console.error(e);
-        if (typeof showToast === 'function') {
-            showToast(`Error: ${e.message}`, "error");
-        } else {
-            alert(`Error: ${e.message}`);
-        }
+        showToast(`Error: ${e.message}`, "error");
     } finally {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
@@ -2476,6 +2482,77 @@ function showGenericConfirm(title, message, confirmText, confirmClass = 'bg-bran
             toast.classList.add('hiding');
             setTimeout(() => toast.remove(), 300);
             resolve(false);
+        });
+    });
+}
+
+function showInputPrompt(title, placeholder, confirmText = t('btn_accept') || 'Aceptar', confirmClass = 'bg-brand-600 hover:bg-brand-700', iconClass = 'fa-solid fa-pen text-brand-400') {
+    return new Promise((resolve) => {
+        const container = document.getElementById('toast-container');
+        if (!container) return resolve(null);
+
+        const existing = document.getElementById('toast-input-prompt');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'toast-input-prompt';
+        toast.className = 'toast';
+        toast.style.cssText = [
+            'background:#1e293b',
+            'border:1px solid #334155',
+            'min-width:320px',
+            'flex-direction:column',
+            'gap:0.75rem',
+            'align-items:flex-start',
+            'z-index: 9999999'
+        ].join(';');
+        toast.style.pointerEvents = 'auto';
+
+        toast.innerHTML = `
+            <div class="flex items-start gap-3 w-full">
+                <i class="${iconClass} text-lg mt-0.5"></i>
+                <div class="w-full pr-2">
+                    <p class="text-white text-sm font-semibold">${title}</p>
+                    <input type="text" id="toast-prompt-input" class="w-full bg-slate-900 border border-slate-600 text-white text-sm rounded p-2 mt-2 outline-none focus:border-brand-500" placeholder="${placeholder || ''}">
+                </div>
+            </div>
+            <div class="flex gap-2 w-full mt-2">
+                <button id="toast-confirm-ok"
+                        class="flex-1 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors ${confirmClass}">
+                    ${confirmText}
+                </button>
+                <button id="toast-confirm-cancel"
+                        class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
+                    ${t('btn_cancel') || 'Cancelar'}
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(toast);
+        
+        const inputField = toast.querySelector('#toast-prompt-input');
+        const btnOk = toast.querySelector('#toast-confirm-ok');
+        const btnCancel = toast.querySelector('#toast-confirm-cancel');
+        
+        setTimeout(() => inputField.focus(), 50);
+
+        const handleResolve = (val) => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+            resolve(val);
+        };
+
+        btnOk.addEventListener('click', () => {
+            handleResolve(inputField.value);
+        });
+        
+        btnCancel.addEventListener('click', () => {
+            handleResolve(null);
+        });
+
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleResolve(inputField.value);
+            if (e.key === 'Escape') handleResolve(null);
         });
     });
 }
