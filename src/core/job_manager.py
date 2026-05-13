@@ -862,6 +862,21 @@ class JobManager:
                                 "✅ Subida a Google Drive completada exitosamente.",
                                 stage="cloud_upload",
                             )
+                            
+                            delete_local = str(global_settings.get("gdrive_delete_local", "false")).lower() == "true"
+                            if delete_local:
+                                try:
+                                    if Path(final_dest).exists():
+                                        Path(final_dest).unlink()
+                                        history_manager.add_log(
+                                            db,
+                                            run.id,
+                                            "INFO",
+                                            f"🗑️ Archivo local eliminado tras subida a GDrive exitosa.",
+                                            stage="cleanup",
+                                        )
+                                except Exception as e:
+                                    log.error(f"Error borrando archivo local tras subida a GDrive: {e}")
                     except Exception as cloud_err:
                         # Si la nube falla, NO lanzamos la excepción hacia arriba. Es solo un aviso.
                         aviso = f"Aviso: Drive falló, pero el local está a salvo. Detalle: {str(cloud_err)}"
