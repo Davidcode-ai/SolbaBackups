@@ -104,7 +104,7 @@ def send_email_notification(to_email: str, subject: str, body: str) -> None:
     )
 
     msg = EmailMessage()
-    msg.set_content(body)
+    msg.set_content(body, charset="utf-8")
     msg["Subject"] = subject
     msg["From"]    = cfg["user"]
     msg["To"]      = to_email

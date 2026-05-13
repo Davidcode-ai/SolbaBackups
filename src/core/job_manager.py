@@ -938,6 +938,7 @@ class JobManager:
                     backup_file_path=str(final_dest),
                 )
                 log.info(f"Job '{job.name}' (ID: {job.id}) finalizado con éxito.")
+                is_success = True
 
             except Exception as e:
                 # 8. Captura global de errores (Si cualquier paso falla)
@@ -953,47 +954,50 @@ class JobManager:
                 history_manager.finish_run(
                     db, run.id, status="failed", error_message=error_msg
                 )
+                is_success = False
 
-                # =====================================================================
-                # 9. Notificación SMTP (Opcional vía Settings)
-                # =====================================================================
+            # =====================================================================
+            # 9. Notificaciones Centralizadas (Email + WhatsApp)
+            # =====================================================================
+            try:
+                global_settings = crud.setting_get_all(db)
+                notification_email = global_settings.get("notification_email", "")
+
+                # ── Notificación por Email (SMTP) ──
+                if notification_email:
+                    from src.core.notifications import send_email_notification
+                    if is_success:
+                        send_email_notification(
+                            to_email=notification_email,
+                            subject=f"✅ Backup Exitoso: {job.name}",
+                            body=(
+                                f"El trabajo de backup '{job.name}' (ID: {job.id}) finalizó "
+                                f"correctamente en su ejecución de tipo '{trigger}'."
+                            ),
+                        )
+                    else:
+                        send_email_notification(
+                            to_email=notification_email,
+                            subject=f"❌ Error en Backup: {job.name}",
+                            body=(
+                                f"El trabajo de backup '{job.name}' (ID: {job.id}) ha fallado "
+                                f"en su ejecución de tipo '{trigger}'.\n\n"
+                                f"Detalle del error:\n{error_msg}\n\n"
+                                f"Revise los logs en el panel."
+                            ),
+                        )
+
+                # ── Notificación por WhatsApp (ApiWhatsApp Outbox) ──
                 try:
-                    global_settings = crud.setting_get_all(db)
-                    smtp_enabled = (
-                        str(global_settings.get("smtp_enabled", "false")).lower()
-                        == "true"
+                    from src.notifications.whatsapp import whatsapp_notifier
+                    whatsapp_notifier.send_backup_status(
+                        job_name=job.name,
+                        trigger=trigger,
+                        success=is_success,
                     )
+                except Exception as wa_exc:
+                    log.error(f"❌ Error inesperado al encolar notificación WhatsApp: {wa_exc}")
 
-                    if smtp_enabled:
-                        notification_email = global_settings.get("notification_email", "")
-
-                        if notification_email:
-                            from src.notifications.mailer import EmailNotifier
-
-                            notifier = EmailNotifier(
-                                to_email=notification_email,
-                            )
-                            # Extraer logs de la BD para adjuntarlos (opcional pero útil)
-                            logs_entries = crud.log_get_by_run(db, run.id)
-                            logs_text = "\n".join(
-                                [
-                                    f"[{l.stage}] {l.level}: {l.message}"
-                                    for l in logs_entries
-                                ]
-                            )
-
-                            # Disparar correo asíncronamente
-                            await notifier.send_failure_alert(
-                                job_name=job.name,
-                                error_message=error_msg,
-                                logs=logs_text,
-                            )
-                        else:
-                            log.warning(
-                                "SMTP habilitado pero falta el email de notificación (notification_email)."
-                            )
-                except Exception as smtp_err:
-                    log.error(
-                        f"Error al intentar enviar el email de alerta SMTP: {smtp_err}"
-                    )
-                # =====================================================================
+            except Exception as notif_err:
+                log.error(f"Error general en el bloque de notificaciones: {notif_err}")
+            # =====================================================================
