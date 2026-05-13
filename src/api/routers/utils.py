@@ -232,3 +232,49 @@ def get_gdrive_space():
         return {"free_space_mb": free_mb}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class CreateFolderRequest(BaseModel):
+    folder_name: str
+
+@router.post("/gdrive-create-folder")
+def create_gdrive_folder(payload: CreateFolderRequest):
+    """Crea una carpeta en Google Drive y devuelve su ID y nombre."""
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request as GRequest
+        from googleapiclient.discovery import build
+        
+        _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+        _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
+        
+        if not _DEFAULT_TOKEN_PATH.exists():
+            raise HTTPException(status_code=401, detail="Google Drive no está vinculado.")
+            
+        with open(_DEFAULT_TOKEN_PATH, 'r') as f:
+            creds_data = json.load(f)
+            
+        creds = Credentials.from_authorized_user_info(creds_data, ["https://www.googleapis.com/auth/drive.file"])
+        
+        if creds.expired and creds.refresh_token:
+            creds.refresh(GRequest())
+            creds_dict = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': creds.scopes
+            }
+            with open(_DEFAULT_TOKEN_PATH, 'w') as f:
+                json.dump(creds_dict, f)
+                
+        service = build('drive', 'v3', credentials=creds)
+        file_metadata = {
+            'name': payload.folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        
+        folder = service.files().create(body=file_metadata, fields='id, name').execute()
+        return {"id": folder.get("id"), "name": folder.get("name")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

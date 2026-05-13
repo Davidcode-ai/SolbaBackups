@@ -21,7 +21,7 @@ from typing import List, Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Alcances necesarios para subir/eliminar archivos
-_SCOPES = ["https://www.googleapis.com/auth/drive"]
+_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 class GoogleDriveUploader:
