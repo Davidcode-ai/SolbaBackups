@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,7 +13,13 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-_BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+
+# Ruta base compatible con modo frozen (PyInstaller) y modo script
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = Path(sys.executable).parent
+else:
+    _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+
 _DEFAULT_CREDENTIALS_PATH = _BASE_DIR / "credentials.json"
 _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
 

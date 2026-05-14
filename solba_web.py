@@ -36,21 +36,13 @@ env_path = os.path.join(base_path, '.env')
 print(f"DEBUG: Buscando archivo .env en: {env_path}")
 load_dotenv(env_path)
 
-# Configurar logging con UTF-8 a nivel de módulo (necesario cuando se importa como servicio,
-# no solo cuando se ejecuta como __main__)
 import logging
 
-_log_handler = logging.StreamHandler(stream=sys.stdout)
-_log_handler.setLevel(logging.INFO)
-_log_handler.stream = open(
-    os.path.join(base_path, 'solba_service.log'), 'a', encoding='utf-8', buffering=1
-) if getattr(sys, 'frozen', False) else sys.stdout
-
+# Configurar logging global (stdout ya apunta a devnull UTF-8 en modo noconsole)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-    handlers=[_log_handler],
-    force=True,   # Reemplaza cualquier config previa
+    force=True,
 )
 
 

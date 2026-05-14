@@ -3,7 +3,14 @@ import os
 import shutil
 import socket
 import string
+import sys
 from pathlib import Path
+
+# Ruta base compatible con modo frozen (PyInstaller) y modo script
+if getattr(sys, 'frozen', False):
+    _GDRIVE_BASE_DIR = Path(sys.executable).parent
+else:
+    _GDRIVE_BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -193,8 +200,7 @@ def get_gdrive_space():
         from google.auth.transport.requests import Request as GRequest
         from googleapiclient.discovery import build
         
-        _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-        _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
+        _DEFAULT_TOKEN_PATH = _GDRIVE_BASE_DIR / "token.json"
         
         if not _DEFAULT_TOKEN_PATH.exists():
             raise HTTPException(status_code=401, detail="Google Drive no está vinculado.")
@@ -244,8 +250,7 @@ def create_gdrive_folder(payload: CreateFolderRequest):
         from google.auth.transport.requests import Request as GRequest
         from googleapiclient.discovery import build
         
-        _BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-        _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
+        _DEFAULT_TOKEN_PATH = _GDRIVE_BASE_DIR / "token.json"
         
         if not _DEFAULT_TOKEN_PATH.exists():
             raise HTTPException(status_code=401, detail="Google Drive no está vinculado.")

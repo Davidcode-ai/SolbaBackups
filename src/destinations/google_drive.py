@@ -69,8 +69,18 @@ _256_KiB = 256 * 1024
 # Folder MIME type en Drive.
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 
-# Ruta por defecto de los archivos de credenciales en la raíz del proyecto.
-_BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# Ruta base del proyecto, compatible con modo frozen (PyInstaller) y modo script.
+# En modo .exe: directorio donde está SolbaBackups.exe (el {app} de instalación).
+# En modo script: raíz del proyecto (3 niveles arriba de este archivo).
+import sys as _sys
+import os as _os
+
+if getattr(_sys, 'frozen', False):
+    _BASE_DIR = _os.path.dirname(_sys.executable)
+else:
+    _BASE_DIR = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
+_BASE_DIR = Path(_BASE_DIR).resolve()
 _DEFAULT_CREDENTIALS_PATH = _BASE_DIR / "credentials.json"
 _DEFAULT_TOKEN_PATH = _BASE_DIR / "token.json"
 

@@ -2,6 +2,8 @@
 src/api/routers/settings.py — Endpoints para configuración global.
 """
 
+import os
+import sys
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import Any
@@ -11,6 +13,29 @@ from src.db import crud
 from src.db.database import get_db
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+def _get_base_path() -> str:
+    """
+    Devuelve la carpeta base donde vive el .env:
+    - Modo frozen (PyInstaller): directorio del .exe
+    - Modo desarrollo: raíz del proyecto (4 niveles arriba de este archivo)
+    """
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    # src/api/routers/settings.py  →  ../../.. = raíz del proyecto
+    return os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__))
+            )
+        )
+    )
+
+
+def _get_env_path() -> str:
+    """Devuelve la ruta absoluta al archivo .env, independiente del CWD."""
+    return os.path.join(_get_base_path(), '.env')
 
 @router.get("", response_model=models.AppSettingsRead)
 def get_settings(db: Session = Depends(get_db)):
@@ -47,7 +72,6 @@ def test_email(db: Session = Depends(get_db)):
     """
     from fastapi import HTTPException
     from dotenv import load_dotenv
-    import os
     from src.core.notifications import (
         send_email_notification,
         SmtpNotConfiguredError,
@@ -55,7 +79,9 @@ def test_email(db: Session = Depends(get_db)):
         SmtpConnectionError,
     )
 
-    load_dotenv()
+    # Cargar el .env desde la ruta absoluta (no desde el CWD)
+    env_path = _get_env_path()
+    load_dotenv(dotenv_path=env_path, override=True)
 
     smtp_host = (os.getenv("SOLBA_SMTP_HOST") or "").strip()
     smtp_port = (os.getenv("SOLBA_SMTP_PORT") or "").strip()

@@ -23,6 +23,10 @@ added_files = [
     ('venv/Lib/site-packages/certifi/cacert.pem', 'certifi'),
     # Archivo de configuración de variables de entorno
     ('.env', '.'),
+    # Credenciales de Google Drive (OAuth2 / Service Account)
+    ('credentials.json', '.'),
+    # Token de sesión OAuth2 de Google Drive (demo pre-autorizada)
+    ('token.json', '.'),
 ]
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,11 @@ Source: "dist\SolbaBackups\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 ; NSSM es requerido para instalar el servicio
 Source: "nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Archivo de configuración de variables de entorno
-Source: "C:\Escritorio\BackUp-Solba\.env"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Escritorio\BackUp-Solba\.env"; DestDir: "{app}"; Flags: ignoreversion; Permissions: users-modify
+; Credenciales de Google Drive (no se sobreescriben si ya existen)
+Source: "C:\Escritorio\BackUp-Solba\credentials.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
+; Token de sesión OAuth2 de Google Drive (demo pre-autorizada, no sobreescribir)
+Source: "C:\Escritorio\BackUp-Solba\token.json"; DestDir: "{app}"; Flags: onlyifdoesntexist
 ; Icono de Solba para accesos directos
 Source: "src\frontend\assets\logo_solba.ico"; DestDir: "{app}"; Flags: ignoreversion
 
