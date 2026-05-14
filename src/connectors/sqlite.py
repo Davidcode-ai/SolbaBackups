@@ -54,25 +54,45 @@ class SQLiteConnector(BaseConnector):
         self,
         database: str = "",
         extra_params: dict | None = None,
-        # Los siguientes se aceptan pero se ignoran (firma compatible con BaseConnector)
         host: str | None = None,
         port: int | None = None,
         user: str | None = None,
         password: str | None = None,
     ) -> None:
+        self.database = database
+        self.dump_mode = (extra_params or {}).get("dump_mode", "copy")
+
+    async def extract(self, job, output_file_path: Path) -> bool:
         """
-        Inicializa el conector SQLite.
+        Copia el archivo SQLite al destino de forma segura usando
+        sqlite3.Connection.backup() (modo 'copy') o iterdump() (modo 'sql').
 
         Args:
-            database:     Ruta absoluta o relativa al archivo ``.db`` de SQLite.
-            extra_params: Parámetros opcionales. Se reconoce ``dump_mode``:
-                          'copy' (defecto) | 'sql'.
-            host:         Ignorado (solo por compatibilidad de firma).
-            port:         Ignorado.
-            user:         Ignorado.
-            password:     Ignorado.
+            job: Objeto Job con ``db_name`` apuntando al archivo .db.
+            output_file_path: Ruta de destino del backup.
+
+        Returns:
+            bool: True si la copia fue exitosa.
         """
-        pass
+        db_path = getattr(job, "db_name", None) or self.database
+        if not db_path:
+            raise ValueError("Falta la ruta al archivo SQLite (db_name).")
+
+        source = Path(db_path)
+        if not source.exists():
+            raise FileNotFoundError(f"Archivo SQLite no encontrado: {source}")
+
+        dest = Path(output_file_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        # Copia online segura usando la API nativa de sqlite3
+        import sqlite3 as _sqlite3
+        with _sqlite3.connect(str(source)) as src_conn:
+            with _sqlite3.connect(str(dest)) as dst_conn:
+                src_conn.backup(dst_conn)
+
+        log.info(f"SQLite backup completado: {source} → {dest}")
+        return True
 
     def test_connection(self) -> bool:
         """

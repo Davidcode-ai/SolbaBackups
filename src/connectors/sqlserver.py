@@ -57,18 +57,59 @@ class SQLServerConnector(BaseConnector):
         password: str | None = None,
         extra_params: dict | None = None,
     ) -> None:
+        self.host = host
+        self.port = port
+        self.database = database
+        self.user = user
+        self.password = password
+        self.extra_params = extra_params or {}
+
+    async def extract(self, job, output_file_path: Path) -> bool:
         """
-        Inicializa el conector de SQL Server.
+        Genera el dump de SQL Server usando sqlcmd.
 
         Args:
-            host:         Host o IP del servidor SQL Server.
-            port:         Puerto (defecto 1433).
-            database:     Nombre de la BD.
-            user:         Usuario SQL Server (None si usa autenticación Windows).
-            password:     Contraseña (None si usa autenticación Windows).
-            extra_params: Parámetros adicionales (ver módulo docstring).
+            job: Objeto Job con la configuración de conexión.
+            output_file_path: Ruta de destino del dump.
+
+        Returns:
+            bool: True si el dump fue exitoso.
         """
-        pass
+        import asyncio
+        import subprocess
+
+        host = getattr(job, "db_host", None) or self.host
+        db_name = getattr(job, "db_name", None) or self.database
+        user = getattr(job, "db_user", None) or self.user
+        password = getattr(job, "db_password", None) or self.password
+
+        cmd = [
+            SQLCMD_BINARY,
+            "-S", host,
+            "-d", db_name,
+            "-Q", f"BACKUP DATABASE [{db_name}] TO DISK=N'{output_file_path}' WITH FORMAT",
+        ]
+        if user:
+            cmd.extend(["-U", user])
+        if password:
+            cmd.extend(["-P", password])
+
+        def _run_dump():
+            try:
+                subprocess.run(cmd, capture_output=True, text=True, check=True)
+            except subprocess.CalledProcessError as e:
+                error_msg = e.stderr.strip() if e.stderr else str(e)
+                raise Exception(f"sqlcmd falló con código {e.returncode}:\n{error_msg}")
+
+        try:
+            await asyncio.to_thread(_run_dump)
+        except FileNotFoundError:
+            raise Exception(
+                f"El comando '{SQLCMD_BINARY}' no se encontró. "
+                "Instala SQL Server Command Line Tools."
+            )
+
+        return True
 
     def test_connection(self) -> bool:
         """

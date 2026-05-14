@@ -962,40 +962,47 @@ class JobManager:
             try:
                 global_settings = crud.setting_get_all(db)
                 notification_email = global_settings.get("notification_email", "")
+                
+                notify_errors_only = global_settings.get("notify_errors_only", False)
+                if isinstance(notify_errors_only, str):
+                    notify_errors_only = notify_errors_only.lower() == "true"
 
                 # ── Notificación por Email (SMTP) ──
                 if notification_email:
-                    from src.core.notifications import send_email_notification
-                    from src.db.models import LogEntry
-
-                    # Recuperar logs de la base de datos para incluirlos en el correo
-                    log_entries = db.query(LogEntry).filter(LogEntry.run_id == run.id).order_by(LogEntry.timestamp.asc()).all()
-                    log_lines = [f"[{entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] [{entry.level}] {entry.message}" for entry in log_entries]
-                    
-                    if len(log_lines) > 100:
-                        log_lines = log_lines[-100:]
-                        
-                    log_text = "\n".join(log_lines)
-                    log_section = f"\n\n--- LOGS DE EJECUCIÓN ---\n\n{log_text}" if log_text else "\n\n--- LOGS DE EJECUCIÓN ---\n\n(No hay logs disponibles)"
-
-                    if is_success:
-                        send_email_notification(
-                            to_email=notification_email,
-                            subject=f"✅ Backup Exitoso: {job.name}",
-                            body=(
-                                f"El trabajo de backup '{job.name}' (ID: {job.id}) finalizó "
-                                f"correctamente en su ejecución de tipo '{trigger}'."
-                                f"{log_section}"
-                            ),
-                        )
+                    if is_success and notify_errors_only:
+                        log.info("Omitiendo notificación por email (notify_errors_only está activo y el backup fue exitoso).")
                     else:
-                        send_email_notification(
-                            to_email=notification_email,
-                            subject=f"❌ Error en Backup: {job.name}",
-                            body=(
-                                f"El trabajo de backup '{job.name}' (ID: {job.id}) ha fallado "
-                                f"en su ejecución de tipo '{trigger}'.\n\n"
-                                f"Detalle del error:\n{error_msg}\n\n"
+                        from src.core.notifications import send_email_notification
+                        from src.db.models import LogEntry
+    
+                        # Recuperar logs de la base de datos para incluirlos en el correo
+                        log_entries = db.query(LogEntry).filter(LogEntry.run_id == run.id).order_by(LogEntry.timestamp.asc()).all()
+                        log_lines = [f"[{entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] [{entry.level}] {entry.message}" for entry in log_entries]
+                        
+                        if len(log_lines) > 100:
+                            log_lines = log_lines[-100:]
+                            
+                        log_text = "\n".join(log_lines)
+                        log_section = f"\n\n--- LOGS DE EJECUCIÓN ---\n\n{log_text}" if log_text else "\n\n--- LOGS DE EJECUCIÓN ---\n\n(No hay logs disponibles)"
+    
+                        if is_success:
+                            send_email_notification(
+                                to_email=notification_email,
+                                subject=f"✅ Backup Exitoso: {job.name}",
+                                body=(
+                                    f"El trabajo de backup '{job.name}' (ID: {job.id}) finalizó "
+                                    f"correctamente en su ejecución de tipo '{trigger}'."
+                                    f"{log_section}"
+                                ),
+                            )
+                        else:
+                            send_email_notification(
+                                to_email=notification_email,
+                                subject=f"❌ Error en Backup: {job.name}",
+                                body=(
+                                    f"El trabajo de backup '{job.name}' (ID: {job.id}) ha fallado "
+                                    f"en su ejecución de tipo '{trigger}'.\n\n"
+                                    f"Detalle del error:\n{error_msg}\n\n"
                                 f"Revise los logs en el panel."
                                 f"{log_section}"
                             ),
