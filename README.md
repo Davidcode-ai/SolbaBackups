@@ -93,7 +93,7 @@
 
 ```bash
 git clone https://github.com/Davidcode-ai/SolbaBackups.git
-cd SolbaBackups/SolbaV2
+cd SolbaBackups
 ```
 
 ### 2. Crear y Activar Entorno Virtual
@@ -151,7 +151,7 @@ python -m pytest tests/ -v --cov=src --cov-report=term-missing
 ## 📁 Estructura del Proyecto
 
 ```
-SolbaV2/
+SolbaBackup/
 ├── src/
 │   ├── api/
 │   │   └── routers/          # Endpoints FastAPI (jobs, history, settings, utils, auth)
