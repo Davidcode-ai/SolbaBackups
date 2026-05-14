@@ -124,11 +124,11 @@ async function loadJobs(isSilent = false) {
             else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
 
             let actionIcon = "fa-play";
-            let actionTitle = "Ejecutar Backup Inicial";
+            let actionTitle = t('btn_run_initial');
             
             if (job.last_run_status === 'success') {
                 actionIcon = "fa-sync";
-                actionTitle = "Sincronizar cambios";
+                actionTitle = t('btn_sync_changes');
             }
 
             jobBtn.innerHTML = `
@@ -161,7 +161,7 @@ async function loadJobs(isSilent = false) {
                     <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="${actionTitle}">
                         <i class="fa-solid ${actionIcon} text-[10px]"></i>
                     </button>
-                    <button class="btn-delete-job w-6 h-6 flex items-center justify-center rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors" data-id="${jobId}" title="Borrar">
+                    <button class="btn-delete-job w-6 h-6 flex items-center justify-center rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors" data-id="${jobId}" title="${t('btn_delete')}">
                         <i class="fa-solid fa-trash-can text-[10px]"></i>
                     </button>
                 </div>
@@ -235,10 +235,10 @@ async function handleRunJob(event) {
         }
 
         if (lastStatus === 'success') {
-            button.title = "Sincronizar cambios";
+            button.title = t('btn_sync_changes');
             button.innerHTML = '<i class="fa-solid fa-sync text-[10px]"></i>';
         } else {
-            button.title = "Ejecutar Backup Inicial";
+            button.title = t('btn_run_initial');
             button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
         }
     }
@@ -420,9 +420,9 @@ function initJobFormValidation() {
     if (btnNewJobSidebar) {
         btnNewJobSidebar.addEventListener('click', async () => {
             if (isFormDirty) {
-                const confirmDiscard = await showGenericConfirm('¿Descartar cambios?', 'Tienes cambios sin guardar. ¿Quieres descartarlos para crear una nueva tarea?', 'Sí, descartar');
+                const confirmDiscard = await showGenericConfirm(t('confirm_discard_title'), t('confirm_discard_new'), t('btn_yes_discard'));
                 if (!confirmDiscard) return;
-                isFormDirty = false; // Resetear el estado
+                isFormDirty = false;
             }
             resetFormToCreateMode();
         });
@@ -530,9 +530,9 @@ function initJobFormValidation() {
                 const errorData = await response.json();
 
                 if (response.ok) {
-                    showToast(`✅ Conexión establecida`, 'success');
+                    showToast(t('toast_connection_ok'), 'success');
                 } else {
-                    let errorMsg = errorData.detail || 'Error de conexión';
+                    let errorMsg = errorData.detail || t('toast_connection_error');
                     if (Array.isArray(errorMsg)) {
                         errorMsg = errorMsg.map(e => e.msg).join(', ');
                     } else if (typeof errorMsg === 'object') {
@@ -541,7 +541,7 @@ function initJobFormValidation() {
                     showToast(`❌ ${errorMsg}`, 'error');
                 }
             } catch (error) {
-                showToast(`❌ Error de red o servidor: ${error.message}`, 'error');
+                showToast(`❌ ${t('error_network')}: ${error.message}`, 'error');
             } finally {
                 btnTestConnection.disabled = false;
                 btnTestConnection.innerHTML = originalHtml;
@@ -676,9 +676,9 @@ function initJobFormValidation() {
 async function handleEditJob(event) {
     const btn = event.currentTarget;
     if (isFormDirty) {
-        const confirmDiscard = await showGenericConfirm('¿Descartar cambios?', 'Tienes cambios sin guardar. ¿Quieres descartarlos para editar esta tarea?', 'Sí, descartar');
+        const confirmDiscard = await showGenericConfirm(t('confirm_discard_title'), t('confirm_discard_edit'), t('btn_yes_discard'));
         if (!confirmDiscard) return;
-        isFormDirty = false; // Resetear el estado para que deje editar
+        isFormDirty = false;
     }
 
     const id = btn.dataset.id;
@@ -742,7 +742,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbUser) dbUser.value = extra.db_user || '';
     if (dbPassword) {
         dbPassword.value = '';
-        dbPassword.placeholder = '•••••••• (Contraseña guardada)';
+        dbPassword.placeholder = t('ph_password_saved');
     }
 
     const dbFilePathEl = document.getElementById('dbFilePath');
@@ -1907,7 +1907,24 @@ const i18n = {
         toast_picker_open_error: "Error al abrir el explorador de Drive. ¿Estás conectado?",
         toast_folder_selected: "Carpeta seleccionada",
         restore_in_progress: "Iniciando restauración...",
-        picker_select_folder_title: "Selecciona la carpeta para los backups"
+        picker_select_folder_title: "Selecciona la carpeta para los backups",
+        // Nuevas claves
+        btn_run_initial: "Ejecutar Backup Inicial",
+        btn_sync_changes: "Sincronizar cambios",
+        btn_delete: "Borrar",
+        btn_yes_discard: "Sí, descartar",
+        confirm_discard_title: "¿Descartar cambios?",
+        toast_connection_ok: "✅ Conexión establecida correctamente",
+        error_network: "Error de red o servidor",
+        error_gdrive_quota: "Error al obtener cuota de Google Drive",
+        error_create_folder: "Error al crear la carpeta en Drive",
+        toast_drive_folder_created: "Carpeta creada y seleccionada:",
+        ph_password_saved: "•••••••• (Contraseña guardada)",
+        prompt_new_drive_folder: "Nombre de la nueva carpeta en Drive:",
+        ph_new_drive_folder: "Mi carpeta de backups",
+        status_creating: "Creando...",
+        btn_create_folder: "Crear Carpeta",
+        hint_gdrive_credentials: "Descárgalo desde Google Cloud Console."
     },
     en: {
         app_title: "SolbaBackups",
@@ -2202,7 +2219,24 @@ const i18n = {
         toast_picker_open_error: "Error opening Drive explorer. Are you connected?",
         toast_folder_selected: "Folder selected",
         restore_in_progress: "Initiating restore...",
-        picker_select_folder_title: "Select the folder for backups"
+        picker_select_folder_title: "Select the folder for backups",
+        // New keys
+        btn_run_initial: "Run Initial Backup",
+        btn_sync_changes: "Sync changes",
+        btn_delete: "Delete",
+        btn_yes_discard: "Yes, discard",
+        confirm_discard_title: "Discard changes?",
+        toast_connection_ok: "✅ Connection established successfully",
+        error_network: "Network or server error",
+        error_gdrive_quota: "Error fetching Google Drive quota",
+        error_create_folder: "Error creating folder in Drive",
+        toast_drive_folder_created: "Folder created and selected:",
+        ph_password_saved: "•••••••• (Password saved)",
+        prompt_new_drive_folder: "Name for the new Drive folder:",
+        ph_new_drive_folder: "My backup folder",
+        status_creating: "Creating...",
+        btn_create_folder: "Create Folder",
+        hint_gdrive_credentials: "Download it from Google Cloud Console."
     }
 
 };
@@ -2299,7 +2333,7 @@ async function scanFreeSpace(path) {
         let data;
         if (isGDrive) {
             const res = await fetch('/api/v1/utils/gdrive-space');
-            if (!res.ok) throw new Error('Error al obtener cuota de Drive');
+            if (!res.ok) throw new Error(t('error_gdrive_quota'));
             data = await res.json();
         } else {
             data = await api.getFreeSpace(path);
@@ -2448,12 +2482,12 @@ document.getElementById('btnRestoreConfirm')?.addEventListener('click', async ()
 });
 // Lógica para crear carpeta en Google Drive desde la UI
 document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async () => {
-    const folderName = await showInputPrompt('Nombre de la nueva carpeta:', 'Mi nueva carpeta');
+    const folderName = await showInputPrompt(t('prompt_new_drive_folder'), t('ph_new_drive_folder'));
     if (!folderName || !folderName.trim()) return;
 
     const btn = document.getElementById('btnCreateDriveFolder');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Creando...`;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> ${t('status_creating')}`;
     btn.disabled = true;
 
     try {
@@ -2465,7 +2499,7 @@ document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async
         
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.detail || 'Error al crear carpeta');
+            throw new Error(errData.detail || t('error_create_folder'));
         }
         
         const data = await res.json();
@@ -2477,15 +2511,14 @@ document.getElementById('btnCreateDriveFolder')?.addEventListener('click', async
         if (nameInput) nameInput.value = data.name;
         
         if (typeof showToast === 'function') {
-            showToast(`Carpeta "${data.name}" creada y seleccionada`, "success");
+            showToast(`${t('toast_drive_folder_created')} "${data.name}"`, "success");
         }
         
-        // Disparar evento change si es necesario para marcar formulario como sucio
         if (idInput) idInput.dispatchEvent(new Event('change', { bubbles: true }));
         
     } catch (e) {
         console.error(e);
-        showToast(`Error: ${e.message}`, "error");
+        showToast(`${t('label_error')}: ${e.message}`, "error");
     } finally {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
