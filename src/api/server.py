@@ -114,7 +114,7 @@ def _mount_frontend(app: FastAPI, frontend_path: Path) -> None:
             "/", StaticFiles(directory=str(frontend_path), html=True), name="frontend"
         )
     else:
-        print(f"⚠️ CUIDADO: No se encontró la carpeta del frontend en: {frontend_path}")
+        print(f"[AVISO] No se encontro la carpeta del frontend en: {frontend_path}")
 
 
 # Creamos la instancia por defecto para Uvicorn

@@ -18,9 +18,11 @@ block_cipher = None
 # ---------------------------------------------------------------------------
 added_files = [
     # Frontend completo
-    ('src/frontend', 'frontend'),
+    ('src/frontend', 'src/frontend'),
     # Certificados SSL (necesarios para requests HTTPS de google-auth)
     ('venv/Lib/site-packages/certifi/cacert.pem', 'certifi'),
+    # Archivo de configuración de variables de entorno
+    ('.env', '.'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -88,7 +90,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon='src/frontend/favicon.ico',  # Descomentar cuando haya icono
+    icon='src/frontend/assets/logo_solba.ico',  # Icono añadido
 )
 
 coll = COLLECT(

@@ -9,6 +9,7 @@ La configuración se carga en orden de precedencia:
 
 from __future__ import annotations
 
+import sys
 import os
 import logging
 from pathlib import Path
@@ -17,14 +18,19 @@ from typing import Any, Dict, List, Optional
 import yaml
 from dotenv import load_dotenv
 
-load_dotenv()
+if getattr(sys, 'frozen', False):
+    _base_dir_path = os.path.dirname(sys.executable)
+else:
+    _base_dir_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+load_dotenv(os.path.join(_base_dir_path, '.env'))
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Rutas base
 # ---------------------------------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(_base_dir_path).resolve()
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.yaml"
 DEFAULT_BACKUP_DIR = BASE_DIR / "backups"
 
