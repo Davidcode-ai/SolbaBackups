@@ -120,8 +120,16 @@ async function loadJobs(isSilent = false) {
             jobBtn.dataset.jobId = jobId;
 
             let iconClass = "fa-solid fa-server";
-            if (job.db_type === 'folder') iconClass = "fa-solid fa-folder-tree";
+            if (job.db_type === 'folder' || job.db_type === 'sync') iconClass = "fa-solid fa-folder-tree";
             else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
+
+            let actionIcon = "fa-play";
+            let actionTitle = "Ejecutar Backup Inicial";
+            
+            if (job.last_run_status === 'success') {
+                actionIcon = "fa-sync";
+                actionTitle = "Sincronizar cambios";
+            }
 
             jobBtn.innerHTML = `
                 <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer btn-edit-job" 
@@ -140,7 +148,8 @@ async function loadJobs(isSilent = false) {
                     data-dest-local-path="${job.dest_local_path || ''}"
                     data-dest-gdrive-folder-id="${job.dest_gdrive_folder_id || ''}"
                     data-dest-gdrive-folder-name="${job.dest_gdrive_folder_name || ''}"
-                    data-dest-retention-days="${job.dest_retention_days !== undefined ? job.dest_retention_days : 0}">
+                    data-dest-retention-days="${job.dest_retention_days !== undefined ? job.dest_retention_days : 0}"
+                    data-last-run-status="${job.last_run_status || ''}">
                     <i class="${iconClass} w-4 text-center group-hover:text-brand-400 transition-colors"></i>
                     <div class="flex-1 truncate">
                         <p class="text-sm font-medium group-hover:text-brand-400 transition-colors">${job.name || 'Job sin nombre'}</p>
@@ -149,8 +158,8 @@ async function loadJobs(isSilent = false) {
                 </div>
                 
                 <div class="flex items-center gap-1 shrink-0">
-                    <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="Ejecutar">
-                        <i class="fa-solid fa-play text-[10px]"></i>
+                    <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="${actionTitle}">
+                        <i class="fa-solid ${actionIcon} text-[10px]"></i>
                     </button>
                     <button class="btn-delete-job w-6 h-6 flex items-center justify-center rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors" data-id="${jobId}" title="Borrar">
                         <i class="fa-solid fa-trash-can text-[10px]"></i>
@@ -199,6 +208,15 @@ async function handleRunJob(event) {
     try {
         await api.runJob(jobId);
         showToast(`${t('toast_job_run_success')} (${jobId})`, 'success');
+        
+        const row = button.closest('.group');
+        if (row) {
+             const btnEdit = row.querySelector('.btn-edit-job');
+             if (btnEdit) {
+                 btnEdit.dataset.lastRunStatus = 'success';
+             }
+        }
+        
         loadHistory();
     } catch (error) {
         console.error(`Error running job ${jobId}:`, error);
@@ -206,7 +224,23 @@ async function handleRunJob(event) {
     } finally {
         button.disabled = false;
         button.className = originalClass;
-        button.innerHTML = originalHtml;
+
+        const row = button.closest('.group');
+        let lastStatus = '';
+        if (row) {
+             const btnEdit = row.querySelector('.btn-edit-job');
+             if (btnEdit) {
+                 lastStatus = btnEdit.dataset.lastRunStatus;
+             }
+        }
+
+        if (lastStatus === 'success') {
+            button.title = "Sincronizar cambios";
+            button.innerHTML = '<i class="fa-solid fa-sync text-[10px]"></i>';
+        } else {
+            button.title = "Ejecutar Backup Inicial";
+            button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
+        }
     }
 }
 
@@ -386,8 +420,9 @@ function initJobFormValidation() {
     if (btnNewJobSidebar) {
         btnNewJobSidebar.addEventListener('click', async () => {
             if (isFormDirty) {
-                const confirmDiscard = await showGenericConfirm(t('title_confirm') || 'Atención', t('confirm_discard_new'), t('btn_accept'));
+                const confirmDiscard = await showGenericConfirm('¿Descartar cambios?', 'Tienes cambios sin guardar. ¿Quieres descartarlos para crear una nueva tarea?', 'Sí, descartar');
                 if (!confirmDiscard) return;
+                isFormDirty = false; // Resetear el estado
             }
             resetFormToCreateMode();
         });
@@ -536,6 +571,18 @@ function initJobFormValidation() {
             return;
         }
 
+        const destType = document.getElementById('destType');
+        const destLocalPath = document.getElementById('destLocalPath');
+        if (destType && destType.value === 'local') {
+            const destVal = destLocalPath ? destLocalPath.value.trim() : '';
+            if (!destVal) {
+                showToast(t('error_path_required') || 'Debes especificar la ruta de destino', 'error');
+                btnSave.classList.add('animate-shake');
+                setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+                return;
+            }
+        }
+
         const editingId = form.dataset.editingId || null;
 
         let finalDbName = dbName ? dbName.value.trim() || null : null;
@@ -627,12 +674,13 @@ function initJobFormValidation() {
 }
 
 async function handleEditJob(event) {
+    const btn = event.currentTarget;
     if (isFormDirty) {
-        const confirmDiscard = await showGenericConfirm(t('title_confirm') || 'Atención', t('confirm_discard_edit'), t('btn_accept'));
+        const confirmDiscard = await showGenericConfirm('¿Descartar cambios?', 'Tienes cambios sin guardar. ¿Quieres descartarlos para editar esta tarea?', 'Sí, descartar');
         if (!confirmDiscard) return;
+        isFormDirty = false; // Resetear el estado para que deje editar
     }
 
-    const btn = event.currentTarget;
     const id = btn.dataset.id;
     const name = btn.dataset.name;
     const sch = btn.dataset.schedule;
@@ -1183,11 +1231,18 @@ function populateSettingsForm(s) {
     const set = (id, val) => {
         const el = document.getElementById(id);
         if (!el || val === undefined || val === null) return;
-        if (el.type === 'checkbox') el.checked = Boolean(val);
+        if (el.type === 'checkbox') {
+            if (val === 'true' || val === true || val === '1') el.checked = true;
+            else if (val === 'false' || val === false || val === '0') el.checked = false;
+            else el.checked = Boolean(val);
+        }
         else el.value = val;
     };
 
     set('s-language', s.language || 'es');
+    set('s-notify-email', s.notify_email);
+    set('s-notify-errors-only', s.notify_errors_only);
+    set('s-notify-whatsapp', s.notify_whatsapp);
     set('s-notification-email', s.notification_email);
     set('s-log-retention', s.log_retention_days);
     set('s-gdrive-credentials', s.gdrive_credentials_path);
@@ -1214,6 +1269,9 @@ async function handleSaveSettings(silent = false) {
 
     const payload = {
         language: get('s-language') || 'es',
+        notify_email: document.getElementById('s-notify-email') ? document.getElementById('s-notify-email').checked : undefined,
+        notify_errors_only: document.getElementById('s-notify-errors-only') ? document.getElementById('s-notify-errors-only').checked : undefined,
+        notify_whatsapp: document.getElementById('s-notify-whatsapp') ? document.getElementById('s-notify-whatsapp').checked : undefined,
         notification_email: get('s-notification-email') || undefined,
         timezone: get('s-timezone') || undefined,
         log_retention_days: Number(get('s-log-retention')) || undefined,

@@ -166,6 +166,8 @@ class JobRead(JobBase):
     schedule_cron: str | None = None
     schedule_interval_minutes: int | None = None
     schedule_next_run: datetime | None = None
+    
+    last_run_status: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -238,6 +240,9 @@ class AppSettingsUpdate(BaseModel):
     credentials_path: str | None = None
     
     notification_email: str | None = None
+    notify_whatsapp: bool | None = None
+    notify_email: bool | None = None
+    notify_errors_only: bool | None = None
 
     # Credenciales SMTP centralizadas de Solba eliminadas (ahora por .env)
     

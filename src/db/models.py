@@ -145,6 +145,14 @@ class Job(Base):
         lazy="select",
     )
 
+    @property
+    def last_run_status(self) -> str | None:
+        if not self.runs:
+            return None
+        # Sort runs by started_at descending and get the first one's status
+        sorted_runs = sorted(self.runs, key=lambda r: r.started_at, reverse=True)
+        return sorted_runs[0].status
+
 
 class RunHistory(Base):
     """
