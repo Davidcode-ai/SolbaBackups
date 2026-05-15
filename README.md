@@ -148,16 +148,6 @@ solba_web.exe start   # Inicia el servicio
 solba_web.exe status  # Verifica el estado del servicio
 solba_web.exe stop    # Detiene el servicio
 ```
-
----
-
-<a id="contribucion"></a>
-## 🤝 Contribución
-
-¡Las contribuciones son bienvenidas! Revisa el archivo [CONTRIBUTING.md](CONTRIBUTING.md) para saber cómo colaborar con el proyecto.
-
----
-
 <a id="capturas-de-pantalla"></a>
 ## 📸 Capturas de Pantalla
 
