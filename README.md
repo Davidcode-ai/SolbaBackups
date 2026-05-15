@@ -235,6 +235,7 @@ SolbaBackup/
 ## 📸 Capturas de Pantalla
 
 > El panel de control cuenta con modo oscuro nativo, explorador de archivos integrado, historial en tiempo real y un terminal de logs embebido.
+<img width="1920" height="926" alt="{9EADFCE3-0D50-43C2-98CD-6766CB597FEF}" src="https://github.com/user-attachments/assets/b9c13bef-89dc-4084-bfb6-f678693c9f34" />
 
 ---
 
