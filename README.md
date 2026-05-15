@@ -155,5 +155,4 @@ Distribuido bajo licencia **MIT**. Consulta el archivo `LICENSE` para más detal
 
 <div align="center">
   *SolbaBackups — Protegiendo sus datos, automatizando su tranquilidad.*<br><br>
-  <sub>Hecho con ❤️ y mucho café ☕ por el equipo de prácticas de SolbaBackups</sub>
 </div>
