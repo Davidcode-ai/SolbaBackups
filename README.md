@@ -131,15 +131,40 @@ SOLBA_PORT=8000                     # Puerto del servidor web
 SOLBA_SECRET_KEY=cambia_esto        # Clave secreta para sesiones
 ```
 
-### 5. Arrancar el Servidor
+### 5. Arrancar el Servidor Principal
 
 ```bash
 python solba_web.py
 ```
 
-Abre en tu navegador: 👉 **[http://localhost:8000](http://localhost:8000)**
+Abre en tu navegador: 👉 **[http://localhost:8765](http://localhost:8765)**
 
-### 6. Ejecutar los Tests *(para desarrolladores)*
+### 6. Notificaciones por WhatsApp (Microservicio ApiWhatsApp)
+
+SolbaBackups delega el envío de notificaciones de WhatsApp a un microservicio externo e independiente incluido en la carpeta `ApiWhatsApp/`. Este microservicio utiliza la API oficial de Meta y un sistema de colas en la nube (Supabase) para garantizar la entrega.
+
+**Para arrancar el microservicio:**
+Abre una nueva terminal, ve a la carpeta `ApiWhatsApp` y ejecuta:
+```bash
+cd ApiWhatsApp
+python -m venv venv
+.\venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+**Configuración en SolbaBackups:**
+En el archivo `.env` de SolbaBackups, asegúrate de tener:
+```env
+WHATSAPP_ENABLED=true
+WHATSAPP_API_URL=http://localhost:8000
+WHATSAPP_PHONE=34600000000      # Tu número con código de país
+WHATSAPP_TEMPLATE=solba_backup_status
+WHATSAPP_LANGUAGE=es_ES
+```
+*Asegúrate de que la plantilla `solba_backup_status` esté aprobada en tu cuenta de Meta Developers.*
+
+### 7. Ejecutar los Tests *(para desarrolladores)*
 
 ```bash
 pip install pytest pytest-asyncio pytest-mock pytest-cov httpx
