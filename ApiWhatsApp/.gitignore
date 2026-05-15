@@ -1,0 +1,13 @@
+# Secretos — nunca subir
+.env
+
+# Entornos virtuales
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDEs
+.vscode/
+.idea/

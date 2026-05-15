@@ -177,15 +177,12 @@ class WhatsAppClient:
             )
             return False
 
-        # Si usamos hello_world, Meta no permite enviar variables
-        safe_vars = [] if self.template == "hello_world" else template_vars
-
         endpoint = f"{self.api_url}/api/v1/notifications"
         payload  = {
             "to":            target_phone,
             "template_name": self.template,
             "language_code": self.language,
-            "template_vars": safe_vars,
+            "template_vars": template_vars,
         }
 
         try:
@@ -206,7 +203,10 @@ class WhatsAppClient:
         """
         try:
             import requests as req_lib
+        except ImportError:
+            return self._http_post_urllib(endpoint, payload, target_phone)
 
+        try:
             resp = req_lib.post(
                 endpoint,
                 json=payload,
@@ -227,9 +227,6 @@ class WhatsAppClient:
                 resp.status_code, target_phone, resp.text[:200],
             )
             return False
-
-        except ImportError:
-            return self._http_post_urllib(endpoint, payload, target_phone)
 
         except req_lib.exceptions.Timeout:
             log.error(
