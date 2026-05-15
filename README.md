@@ -19,10 +19,12 @@
 - [Equipo de Desarrollo](#equipo-de-desarrollo)
 - [Licencia](#licencia)
 
+<a id="descripcion"></a>
 ## 📖 Descripción
 
 **SolbaBackups** es una solución integral y profesional de copias de seguridad diseñada para entornos corporativos. Cuenta con una interfaz web moderna e intuitiva y está diseñada para ejecutarse de forma totalmente invisible en segundo plano como un **Servicio de Windows**. Garantiza la protección continua de los datos críticos de su empresa sin interrumpir el flujo de trabajo del usuario final.
 
+<a id="caracteristicas-principales"></a>
 ## ✨ Características Principales
 
 * **💾 Motor de Backups Multi-Destino:** Soporte completo para copias de bases de datos PostgreSQL y archivos locales, con capacidad de almacenamiento tanto en discos locales como en la nube (Google Drive).
@@ -74,6 +76,7 @@ SolbaV2/
 └── .env.example
 ```
 
+<a id="stack-tecnologico"></a>
 ## 🛠️ Stack Tecnológico
 
 El proyecto está construido sobre tecnologías modernas y robustas para garantizar el máximo rendimiento y fiabilidad:
@@ -93,12 +96,14 @@ El proyecto está construido sobre tecnologías modernas y robustas para garanti
 | Empaquetado | PyInstaller | 6.x |
 | Tests | pytest + pytest-cov | 8.x |
 
+<a id="arquitectura-de-microservicios"></a>
 ## 🏗️ Arquitectura de Microservicios
 
 Para asegurar una alta disponibilidad y escalabilidad, el ecosistema de SolbaBackups adopta un enfoque de microservicios:
 
 * **API de Notificaciones (WhatsApp):** El motor de envíos de WhatsApp se ha desacoplado de la aplicación principal. Opera de forma independiente como una API alojada en **Render**, respaldada por una base de datos en **Supabase** para la gestión ágil y centralizada de las comunicaciones.
 
+<a id="guia-de-instalacion"></a>
 ## 🚀 Guía de Instalación
 
 La implementación de SolbaBackups ha sido diseñada para ser un proceso *plug-and-play* para el cliente final:
@@ -110,6 +115,7 @@ La implementación de SolbaBackups ha sido diseñada para ser un proceso *plug-a
     http://localhost:8765
     ```
 
+<a id="guia-de-configuracion"></a>
 ## ⚙️ Guía de Configuración
 
 Toda la gestión del sistema se realiza de forma centralizada y amigable desde el panel de control web:
@@ -118,12 +124,24 @@ Toda la gestión del sistema se realiza de forma centralizada y amigable desde e
 * **Google Drive:** Inicie sesión directamente desde el panel utilizando el flujo de OAuth para autorizar la aplicación y enlazar su cuenta en la nube de forma segura.
 * **Notificaciones:** Configure los parámetros SMTP (correo emisor, contraseñas de aplicación) y los números de destino de WhatsApp desde el mismo menú para activar las alertas instantáneas.
 
+<a id="seguridad"></a>
 ## 🔐 Seguridad
 
 - Las contraseñas de BD **nunca se sobreescriben** si se envía un campo vacío en la actualización de un Job.
 - Las credenciales se almacenan encriptadas en la BD SQLite local (no en texto plano en ficheros de configuración).
 - La API dispone de autenticación básica configurable a través de los ajustes globales.
+## 🚀 Uso rápido
 
+```bash
+solba_web.exe start   # Inicia el servicio
+solba_web.exe status  # Verifica el estado del servicio
+```
+
+## 🤝 Contribución
+
+¡Las contribuciones son bienvenidas! Revisa el archivo [CONTRIBUTING.md](CONTRIBUTING.md) para saber cómo colaborar con el proyecto.
+
+<a id="capturas-de-pantalla"></a>
 ## 📸 Capturas de Pantalla
 
 > El panel de control cuenta con modo oscuro nativo, explorador de archivos integrado, historial en tiempo real y un terminal de logs embebido.
