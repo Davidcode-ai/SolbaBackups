@@ -6,6 +6,19 @@
 ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
+## 📑 Índice
+
+- [Descripción](#descripción)
+- [Características Principales](#características-principales)
+- [Stack Tecnológico](#stack-tecnológico)
+- [Arquitectura de Microservicios](#arquitectura-de-microservicios)
+- [Guía de Instalación](#guía-de-instalación)
+- [Guía de Configuración](#guía-de-configuración)
+- [Seguridad](#seguridad)
+- [Capturas de Pantalla](#capturas-de-pantalla)
+- [Equipo de Desarrollo](#equipo-de-desarrollo)
+- [Licencia](#licencia)
+
 ## 📖 Descripción
 
 **SolbaBackups** es una solución integral y profesional de copias de seguridad diseñada para entornos corporativos. Cuenta con una interfaz web moderna e intuitiva y está diseñada para ejecutarse de forma totalmente invisible en segundo plano como un **Servicio de Windows**. Garantiza la protección continua de los datos críticos de su empresa sin interrumpir el flujo de trabajo del usuario final.
@@ -15,6 +28,51 @@
 * **💾 Motor de Backups Multi-Destino:** Soporte completo para copias de bases de datos PostgreSQL y archivos locales, con capacidad de almacenamiento tanto en discos locales como en la nube (Google Drive).
 * **🧠 Retención Inteligente:** Sistema automatizado para la gestión del espacio, eliminando copias antiguas según las políticas de retención configuradas para evitar la saturación del almacenamiento.
 * **🔔 Notificaciones Proactivas:** Alertas automáticas en tiempo real sobre el estado de las copias de seguridad enviadas directamente a través de **Correo Electrónico** y **WhatsApp**, manteniendo a los administradores siempre informados.
+
+```bash
+pip install pytest pytest-asyncio pytest-mock pytest-cov httpx
+python -m pytest tests/ -v --cov=src --cov-report=term-missing
+```
+
+---
+
+## 📁 Estructura del Proyecto
+
+```text
+SolbaV2/
+├── src/
+│   ├── api/
+│   │   └── routers/          # Endpoints FastAPI (jobs, history, settings, utils, auth)
+│   ├── connectors/           # Conectores de BD (PostgreSQL, MySQL, SQLServer, SQLite)
+│   ├── core/
+│   │   ├── job_manager.py    # Orquestador del pipeline de backup
+│   │   ├── job_scheduler.py  # Gestión de programación con APScheduler
+│   │   ├── cleaner.py        # Garbage Collector (retención de backups)
+│   │   └── models.py         # Modelos Pydantic de la API
+│   ├── db/
+│   │   ├── models.py         # Modelos SQLAlchemy (Job, RunHistory, LogEntry)
+│   │   ├── crud.py           # Operaciones CRUD sobre la BD
+│   │   └── database.py       # Configuración de sesión SQLAlchemy
+│   ├── destinations/         # Destinos (local, Google Drive)
+│   ├── notifications/        # Notificadores (email SMTP, WhatsApp)
+│   ├── processors/           # Compresor ZIP, Encriptador AES
+│   └── frontend/
+│       ├── index.html        # Dashboard web principal
+│       └── assets/
+│           ├── js/app.js     # Lógica JS completa (i18n, API, UI)
+│           └── css/          # Estilos CSS
+├── tests/
+│   ├── conftest.py           # Fixtures compartidos (BD de test aislada)
+│   ├── test_api_routers.py   # Tests de endpoints HTTP
+│   ├── test_crud.py          # Tests de operaciones de BD
+│   ├── test_connectors.py    # Tests de conectores (mocks)
+│   ├── test_scheduler_and_cleaner.py
+│   └── test_integrations.py  # Tests de Google Drive y WhatsApp
+├── requirements.txt
+├── requirements_web.txt
+├── solba_web.py              # Punto de entrada principal
+└── .env.example
+```
 
 ## 🛠️ Stack Tecnológico
 
