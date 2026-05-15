@@ -26,23 +26,33 @@ Source: "C:\Escritorio\BackUp-Solba\token.json"; DestDir: "{app}"; Flags: onlyif
 ; Icono de Solba para accesos directos
 Source: "src\frontend\assets\logo_solba.ico"; DestDir: "{app}"; Flags: ignoreversion
 
+[Dirs]
+; Otorgar permisos de escritura a todos los usuarios sobre la carpeta de instalación.
+; Esto evita el error 'Acceso denegado' al escribir la BD SQLite y el .env desde Program Files
+; sin necesidad de ejecutar la app como Administrador.
+Name: "{app}"; Permissions: users-modify
+
 [Icons]
-Name: "{group}\SolbaBackups"; Filename: "{app}\SolbaBackups.exe"; IconFilename: "{app}\logo_solba.ico"
-Name: "{autodesktop}\SolbaBackups"; Filename: "{app}\SolbaBackups.exe"; Tasks: desktopicon; IconFilename: "{app}\logo_solba.ico"
+Name: "{group}\SolbaBackups"; Filename: "{win}\explorer.exe"; Parameters: "http://localhost:8765"; IconFilename: "{app}\logo_solba.ico"
+Name: "{userdesktop}\SolbaBackups"; Filename: "{win}\explorer.exe"; Parameters: "http://localhost:8765"; IconFilename: "{app}\logo_solba.ico"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
-; Instalar y configurar NSSM si se eligió la opción de servicio (Opción B)
-Filename: "{app}\nssm.exe"; Parameters: "install SolbaBackupsService ""{app}\SolbaBackups.exe"""; Flags: runhidden; Check: IsServiceSelected
-Filename: "{app}\nssm.exe"; Parameters: "set SolbaBackupsService AppDirectory ""{app}"""; Flags: runhidden; Check: IsServiceSelected
-Filename: "{app}\nssm.exe"; Parameters: "start SolbaBackupsService"; Flags: runhidden; Check: IsServiceSelected
+; Instalar el servicio (siempre, sin condición)
+Filename: "{app}\nssm.exe"; Parameters: "install SolbaBackupsService ""{app}\SolbaBackups.exe"""; Flags: runhidden
+; Configurar el directorio de trabajo (CRÍTICO: sin esto el servicio no encuentra .env ni la BD)
+Filename: "{app}\nssm.exe"; Parameters: "set SolbaBackupsService AppDirectory ""{app}"""; Flags: runhidden
+; Arrancar el servicio
+Filename: "{app}\nssm.exe"; Parameters: "start SolbaBackupsService"; Flags: runhidden
+; Esperar 3 segundos y abrir el navegador (checkbox marcado por defecto)
+Filename: "{cmd}"; Parameters: "/c timeout /t 3 & start http://localhost:8765"; Description: "Abrir Panel de Control de SolbaBackups"; Flags: postinstall nowait runhidden
 
 [UninstallRun]
-; Detener y remover el servicio silenciosamente durante la desinstalación (ignorando errores si no existe)
-Filename: "{app}\nssm.exe"; Parameters: "stop SolbaBackupsService"; Flags: runhidden skipifdoesntexist
-Filename: "{app}\nssm.exe"; Parameters: "remove SolbaBackupsService confirm"; Flags: runhidden skipifdoesntexist
+; Detener y eliminar el servicio al desinstalar
+Filename: "{app}\nssm.exe"; Parameters: "stop SolbaBackupsService"; Flags: runhidden
+Filename: "{app}\nssm.exe"; Parameters: "remove SolbaBackupsService confirm"; Flags: runhidden
 
 [UninstallDelete]
 ; Eliminar el acceso directo de inicio automático en caso de que exista (Opción A)
