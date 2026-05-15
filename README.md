@@ -257,11 +257,10 @@ Este proyecto ha sido desarrollado como proyecto de prácticas empresariales:
 
 | Rol | Nombre |
 |---|---|
-| 🏗️ Arquitectura & Backend | Alejandro (ale) |
-| 🎨 Frontend & UX | Alejandro (ale) |
-| 🔌 Conectores & Integraciones | Alejandro (ale) |
-| 🧪 QA & Testing | Alejandro (ale) |
-| 👔 Supervisión del Proyecto | Bartolomé |
+| 🏗️ Arquitectura & Backend | David |
+| 🎨 Frontend & UX | Alejandro |
+| 🔌 Conectores & Integraciones | Manuel |
+| 🧪 QA & Testing | Todos |
 
 > Proyecto desarrollado con metodología ágil e integración continua. Suite de tests automatizados garantizan la estabilidad de cada entrega.
 
