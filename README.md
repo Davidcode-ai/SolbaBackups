@@ -1,219 +1,24 @@
-<div align="center">
+# 🛡️ SolbaBackups
 
-<img src="src/frontend/assets/logo_solba.png" alt="SolbaBackups Logo" width="90"/>
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
-# SolbaBackups
+## 📖 Descripción
 
-**Sistema de Backups Automáticos Multi-motor con Panel Web**
-
-[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
-[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
-[![APScheduler](https://img.shields.io/badge/APScheduler-3.x-FF6F00?style=for-the-badge&logo=clockify&logoColor=white)](https://apscheduler.readthedocs.io/)
-[![Google Drive](https://img.shields.io/badge/Google%20Drive-API-4285F4?style=for-the-badge&logo=google-drive&logoColor=white)](https://developers.google.com/drive)
-[![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-83%20passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
-
-</div>
-
----
-
-## ¿Qué es SolbaBackups?
-
-**SolbaBackups** es una aplicación de escritorio y servidor todo-en-uno para la gestión automatizada de copias de seguridad empresariales. Diseñada para funcionar sin conocimientos técnicos avanzados, permite a cualquier administrador configurar, programar y monitorizar backups de múltiples bases de datos y carpetas desde un panel web moderno.
-
-> Concebido para PYMES y departamentos IT que necesitan una solución robusta, auditable y sin costes de licencia.
-
----
+**SolbaBackups** es una solución integral y profesional de copias de seguridad diseñada para entornos corporativos. Cuenta con una interfaz web moderna e intuitiva y está diseñada para ejecutarse de forma totalmente invisible en segundo plano como un **Servicio de Windows**. Garantiza la protección continua de los datos críticos de su empresa sin interrumpir el flujo de trabajo del usuario final.
 
 ## ✨ Características Principales
 
-| Característica | Descripción |
-|---|---|
-| 🗄️ **Multi-motor** | PostgreSQL, MySQL/MariaDB, Microsoft SQL Server, SQLite, Access (.mdb) y carpetas |
-| ☁️ **Google Drive** | Subida asíncrona con soporte resumible, gestión de carpetas y cuotas |
-| 📱 **WhatsApp** | Alertas instantáneas vía WhatsApp Business API ante fallos críticos |
-| 📧 **Email SMTP** | Reportes automáticos con logs adjuntos (Gmail, Outlook, cualquier SMTP) |
-| 🔍 **Autodiscovery** | Detecta automáticamente las instancias de BD instaladas en el sistema |
-| 🕰️ **Programación avanzada** | Cron, diario, semanal, mensual o por intervalo (APScheduler) |
-| 🗑️ **Garbage Collector** | Purga automática de backups antiguos, configurable por Job o globalmente |
-| 🔒 **Compresión y Cifrado** | ZIP nativo con soporte modular para encriptación AES |
-| 📊 **Panel Web** | Dashboard dark/light mode, historial en tiempo real, explorador de archivos |
-| 🌍 **Bilingüe** | Interfaz completa en Español e Inglés (i18n dinámico) |
-| ♻️ **Restauración** | Restaura cualquier backup exitoso con un solo clic desde el historial |
-| 🧪 **Test Suite** | 83 tests automatizados con pytest (cobertura del 46%) |
+* **💾 Motor de Backups Multi-Destino:** Soporte completo para copias de bases de datos PostgreSQL y archivos locales, con capacidad de almacenamiento tanto en discos locales como en la nube (Google Drive).
+* **🧠 Retención Inteligente:** Sistema automatizado para la gestión del espacio, eliminando copias antiguas según las políticas de retención configuradas para evitar la saturación del almacenamiento.
+* **🔔 Notificaciones Proactivas:** Alertas automáticas en tiempo real sobre el estado de las copias de seguridad enviadas directamente a través de **Correo Electrónico** y **WhatsApp**, manteniendo a los administradores siempre informados.
 
----
+## 🛠️ Stack Tecnológico
 
-## 🏗️ Arquitectura del Sistema
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Dashboard Web                           │
-│              (Vanilla JS + HTML5 + Tailwind CSS)                │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ HTTP / REST API
-┌────────────────────────▼────────────────────────────────────────┐
-│                      FastAPI Server                             │
-│  /api/v1/jobs   /api/v1/history   /api/v1/settings             │
-│  /api/v1/utils  /api/v1/auth      /api/v1/discovery            │
-└──────┬──────────────────┬──────────────────────────────────────-┘
-       │                  │
-┌──────▼──────┐   ┌───────▼───────────────────────────────────────┐
-│  APScheduler│   │              Job Pipeline (Core)              │
-│  (Cron/     │──▶│  Extractor → Compresor → Destino → Notifier   │
-│  Interval)  │   └──┬────────────────────────────┬──────────────-┘
-└─────────────┘      │                            │
-                ┌────▼────────┐           ┌───────▼──────────┐
-                │  Conectores  │           │    Destinos       │
-                │  PostgreSQL  │           │  Local / GDrive   │
-                │  MySQL       │           └──────────────────┘
-                │  SQL Server  │
-                │  SQLite/MDB  │
-                └─────────────┘
-                      │
-              ┌───────▼──────────┐
-              │  SQLite (local)   │
-              │  (SQLAlchemy ORM) │
-              └──────────────────┘
-```
-
----
-
-## 🚀 Guía de Instalación Rápida
-
-### Requisitos Previos
-
-- **Python 3.12+** ([descargar](https://www.python.org/downloads/))
-- **pip** actualizado: `python -m pip install --upgrade pip`
-- *(Opcional)* `pg_dump` / `mysqldump` / `sqlcmd` para los respectivos motores de BD
-
-### 1. Clonar el Repositorio
-
-```bash
-git clone https://github.com/Davidcode-ai/SolbaBackups.git
-cd SolbaBackups
-```
-
-### 2. Crear y Activar Entorno Virtual
-
-**Windows:**
-```powershell
-python -m venv venv
-.\venv\Scripts\activate
-```
-
-**Linux / macOS:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Instalar Dependencias
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configurar Variables de Entorno *(opcional)*
-
-Copia el archivo de ejemplo y edítalo:
-```bash
-cp .env.example .env
-```
-
-Variables disponibles en `.env.example`:
-
-```env
-SOLBA_DB_PATH=solba_data.sqlite3   # Ruta de la BD interna
-SOLBA_PORT=8000                     # Puerto del servidor web
-SOLBA_SECRET_KEY=cambia_esto        # Clave secreta para sesiones
-```
-
-### 5. Arrancar el Servidor Principal
-
-```bash
-python solba_web.py
-```
-
-Abre en tu navegador: 👉 **[http://localhost:8765](http://localhost:8765)**
-
-### 6. Notificaciones por WhatsApp (Microservicio ApiWhatsApp)
-
-SolbaBackups delega el envío de notificaciones de WhatsApp a un microservicio externo e independiente incluido en la carpeta `ApiWhatsApp/`. Este microservicio utiliza la API oficial de Meta y un sistema de colas en la nube (Supabase) para garantizar la entrega.
-
-**Para arrancar el microservicio:**
-Abre una nueva terminal, ve a la carpeta `ApiWhatsApp` y ejecuta:
-```bash
-cd ApiWhatsApp
-python -m venv venv
-.\venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-**Configuración en SolbaBackups:**
-En el archivo `.env` de SolbaBackups, asegúrate de tener:
-```env
-WHATSAPP_ENABLED=true
-WHATSAPP_API_URL=http://localhost:8000
-WHATSAPP_PHONE=34600000000      # Tu número con código de país
-WHATSAPP_TEMPLATE=solba_backup_status
-WHATSAPP_LANGUAGE=es_ES
-```
-*Asegúrate de que la plantilla `solba_backup_status` esté aprobada en tu cuenta de Meta Developers.*
-
-### 7. Ejecutar los Tests *(para desarrolladores)*
-
-```bash
-pip install pytest pytest-asyncio pytest-mock pytest-cov httpx
-python -m pytest tests/ -v --cov=src --cov-report=term-missing
-```
-
----
-
-## 📁 Estructura del Proyecto
-
-```
-SolbaBackup/
-├── src/
-│   ├── api/
-│   │   └── routers/          # Endpoints FastAPI (jobs, history, settings, utils, auth)
-│   ├── connectors/           # Conectores de BD (PostgreSQL, MySQL, SQLServer, SQLite)
-│   ├── core/
-│   │   ├── job_manager.py    # Orquestador del pipeline de backup
-│   │   ├── job_scheduler.py  # Gestión de programación con APScheduler
-│   │   ├── cleaner.py        # Garbage Collector (retención de backups)
-│   │   └── models.py         # Modelos Pydantic de la API
-│   ├── db/
-│   │   ├── models.py         # Modelos SQLAlchemy (Job, RunHistory, LogEntry)
-│   │   ├── crud.py           # Operaciones CRUD sobre la BD
-│   │   └── database.py       # Configuración de sesión SQLAlchemy
-│   ├── destinations/         # Destinos (local, Google Drive)
-│   ├── notifications/        # Notificadores (email SMTP, WhatsApp)
-│   ├── processors/           # Compresor ZIP, Encriptador AES
-│   └── frontend/
-│       ├── index.html        # Dashboard web principal
-│       └── assets/
-│           ├── js/app.js     # Lógica JS completa (i18n, API, UI)
-│           └── css/          # Estilos CSS
-├── tests/
-│   ├── conftest.py           # Fixtures compartidos (BD de test aislada)
-│   ├── test_api_routers.py   # Tests de endpoints HTTP
-│   ├── test_crud.py          # Tests de operaciones de BD
-│   ├── test_connectors.py    # Tests de conectores (mocks)
-│   ├── test_scheduler_and_cleaner.py
-│   └── test_integrations.py  # Tests de Google Drive y WhatsApp
-├── requirements.txt
-├── requirements_web.txt
-├── solba_web.py              # Punto de entrada principal
-└── .env.example
-```
-
----
-
-## 🔧 Tecnologías Utilizadas
+El proyecto está construido sobre tecnologías modernas y robustas para garantizar el máximo rendimiento y fiabilidad:
 
 | Capa | Tecnología | Versión |
 |---|---|---|
@@ -230,18 +35,30 @@ SolbaBackup/
 | Empaquetado | PyInstaller | 6.x |
 | Tests | pytest + pytest-cov | 8.x |
 
----
+## 🏗️ Arquitectura de Microservicios
 
-## 📸 Capturas de Pantalla
+Para asegurar una alta disponibilidad y escalabilidad, el ecosistema de SolbaBackups adopta un enfoque de microservicios:
 
-> El panel de control cuenta con modo oscuro nativo, explorador de archivos integrado, historial en tiempo real y un terminal de logs embebido.
- ### Modo oscuro
-<img width="1920" height="926" alt="{9EADFCE3-0D50-43C2-98CD-6766CB597FEF}" src="https://github.com/user-attachments/assets/b9c13bef-89dc-4084-bfb6-f678693c9f34" />
- 
- ### Modo claro
-<img width="1920" height="917" alt="{A91BC6A5-094C-4B71-9747-4C7FB533E984}" src="https://github.com/user-attachments/assets/4aa47246-13c2-4a5f-a21f-11131fef9e6d" />
+* **API de Notificaciones (WhatsApp):** El motor de envíos de WhatsApp se ha desacoplado de la aplicación principal. Opera de forma independiente como una API alojada en **Render**, respaldada por una base de datos en **Supabase** para la gestión ágil y centralizada de las comunicaciones.
 
----
+## 🚀 Guía de Instalación
+
+La implementación de SolbaBackups ha sido diseñada para ser un proceso *plug-and-play* para el cliente final:
+
+1.  **Descargar:** Obtenga el instalador `.exe` de la última versión estable.
+2.  **Instalar:** Ejecute el instalador con privilegios de Administrador y siga el asistente interactivo. El sistema instalará los binarios y configurará automáticamente el Servicio de Windows para que se inicie con el sistema.
+3.  **Acceder:** Una vez finalizada la instalación, el servicio comenzará a ejecutarse en segundo plano. Puede acceder al panel de control abriendo su navegador web en la siguiente dirección:
+    ```bash
+    http://localhost:8765
+    ```
+
+## ⚙️ Guía de Configuración
+
+Toda la gestión del sistema se realiza de forma centralizada y amigable desde el panel de control web:
+
+* **Credenciales y Nube:** Diríjase a la sección de **Configuración** en la interfaz web.
+* **Google Drive:** Inicie sesión directamente desde el panel utilizando el flujo de OAuth para autorizar la aplicación y enlazar su cuenta en la nube de forma segura.
+* **Notificaciones:** Configure los parámetros SMTP (correo emisor, contraseñas de aplicación) y los números de destino de WhatsApp desde el mismo menú para activar las alertas instantáneas.
 
 ## 🔐 Seguridad
 
@@ -249,7 +66,15 @@ SolbaBackup/
 - Las credenciales se almacenan encriptadas en la BD SQLite local (no en texto plano en ficheros de configuración).
 - La API dispone de autenticación básica configurable a través de los ajustes globales.
 
----
+## 📸 Capturas de Pantalla
+
+> El panel de control cuenta con modo oscuro nativo, explorador de archivos integrado, historial en tiempo real y un terminal de logs embebido.
+
+### Modo oscuro
+<img width="1920" height="926" alt="Modo oscuro" src="https://github.com/user-attachments/assets/b9c13bef-89dc-4084-bfb6-f678693c9f34" />
+
+### Modo claro
+<img width="1920" height="917" alt="Modo claro" src="https://github.com/user-attachments/assets/4aa47246-13c2-4a5f-a21f-11131fef9e6d" />
 
 ## 🤝 Equipo de Desarrollo
 
@@ -264,8 +89,6 @@ Este proyecto ha sido desarrollado como proyecto de prácticas empresariales:
 
 > Proyecto desarrollado con metodología ágil e integración continua. Suite de tests automatizados garantizan la estabilidad de cada entrega.
 
----
-
 ## 📄 Licencia
 
 Distribuido bajo licencia **MIT**. Consulta el archivo `LICENSE` para más detalles.
@@ -273,5 +96,6 @@ Distribuido bajo licencia **MIT**. Consulta el archivo `LICENSE` para más detal
 ---
 
 <div align="center">
+  *SolbaBackups — Protegiendo sus datos, automatizando su tranquilidad.*<br><br>
   <sub>Hecho con ❤️ y mucho café ☕ por el equipo de prácticas de SolbaBackups</sub>
 </div>
