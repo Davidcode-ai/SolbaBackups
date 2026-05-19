@@ -74,24 +74,16 @@ async def lifespan(app: FastAPI):
     from src.db.database import init_db
     init_db()
 
-    # 2. Instanciar e Iniciar Lógica Core y Scheduler
+    # 2. Instanciar Lógica Core (JobManager)
     from src.core.job_manager import JobManager
-    from src.core.job_scheduler import JobScheduler
     
     app.state.job_manager = JobManager()
-    app.state.scheduler = JobScheduler(app.state.job_manager)
-    
-    # Iniciar el proceso en background y cargar los jobs de la BD
-    app.state.scheduler.start()
-    app.state.scheduler.load_jobs_from_db()
 
     yield  # La aplicación FastAPI está funcionando
     
     # --- SHUTDOWN ---
-    # Apagar el scheduler limpiamente al cerrar el servidor
-    # para evitar hilos huérfanos o ejecuciones corruptas
-    if hasattr(app.state, "scheduler"):
-        app.state.scheduler.stop()
+    # Lógica de limpieza al apagar el servidor
+    pass
 
 
 def create_app(frontend_path: Path | None = None) -> FastAPI:

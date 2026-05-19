@@ -26,16 +26,22 @@ class ApiClient {
                 const msg = item.msg || 'Valor inválido';
                 return loc ? `${loc}: ${msg}` : msg;
             });
-            return new Error(parts.join(' | ') || fallback);
+            const err = new Error(parts.join(' | ') || fallback);
+            err.apiDetail = detail;
+            return err;
         }
 
         if (detail && typeof detail === 'object') {
             const msg = detail.message ?? JSON.stringify(detail);
-            return new Error(msg || fallback);
+            const err = new Error(msg || fallback);
+            err.apiDetail = detail;
+            return err;
         }
 
         if (typeof detail === 'string' && detail.trim()) {
-            return new Error(detail);
+            const err = new Error(detail);
+            err.apiDetail = detail;
+            return err;
         }
 
         return new Error(fallback);

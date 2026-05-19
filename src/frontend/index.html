@@ -808,73 +808,125 @@
 
             <form id="createJobForm"
                 class="bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-4xl mx-auto space-y-6 mb-8 shadow-sm">
-                <div class="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
-                    <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
-                        <i class="fa-solid fa-plus"></i>
+                                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <h3 id="formTitle" class="text-base font-semibold text-slate-800 dark:text-white" data-i18n="title_new_backup_job">✨ Crear Nueva Tarea</h3>
                     </div>
-                    <h3 class="text-base font-semibold text-slate-800 dark:text-white" data-i18n="title_new_backup_job">Nuevo Job de Backup</h3>
+                    <button type="button" id="btnCancelEditTop" class="hidden bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <i class="fa-solid fa-xmark"></i> Cancelar Edición
+                    </button>
                 </div>
 
-                <div class="relative form-group">
-                    <label for="jobName" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_job_name">Nombre del Job</label>
+                <div id="wizardStep1" class="space-y-8">
+                    <div class="relative form-group bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <label for="jobName" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_job_name">Nombre de la Tarea</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Usa un nombre descriptivo para identificarla después, ej: "Contabilidad Semanal".</p>
                     <input type="text" id="jobName"
-                        class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
                         placeholder="Ej: Backup Base de Datos Producción" data-i18n-placeholder="ph_job_title">
                 </div>
 
-                <div class="space-y-3">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest" data-i18n="label_detected_engines">Motores Detectados</p>
-                    <div id="discoveryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="sqlite" data-name="Fichero Local">
+                <!-- NUEVAS TARJETAS PRINCIPALES DE TIPO DE TAREA -->
+                <div class="space-y-4 bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="label_job_type">¿Qué vamos a respaldar?</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Selecciona el tipo de contenido que quieres poner a salvo.</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="job-type-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-job-type="db">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
-                                    <i class="fa-solid fa-file-lines"></i>
+                                <div class="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 dark:text-blue-400 pointer-events-none">
+                                    <i class="fa-solid fa-database text-lg"></i>
                                 </div>
                                 <div class="pointer-events-none">
-                                    <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="engine_local_file">Fichero Local</p>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="label_sqlite_access">SQLite / Access</p>
+                                    <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="job_type_db">Copia de Base de Datos</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">PostgreSQL, MySQL, SQL Server, Fichero</p>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="folder" data-name="Carpeta Local">
+                        <div class="job-type-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-job-type="folder">
                             <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
-                                    <i class="fa-solid fa-folder-open"></i>
+                                <div class="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 pointer-events-none">
+                                    <i class="fa-solid fa-folder-open text-lg"></i>
                                 </div>
                                 <div class="pointer-events-none">
-                                    <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="engine_local_folder">Carpeta Local</p>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="engine_file_directory">Directorio de archivos</p>
+                                    <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="job_type_folder">Copia de Carpeta</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">Copia, empaquetado y cifrado</p>
                                 </div>
                             </div>
                         </div>
+                        <div class="job-type-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-job-type="sync">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 pointer-events-none">
+                                    <i class="fa-solid fa-rotate text-lg"></i>
+                                </div>
+                                <div class="pointer-events-none">
+                                    <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="job_type_sync">Sincronización (Espejo)</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400">Copia directa 1:1 sin comprimir</p>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+                    <div class="relative form-group mt-4 bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <label for="jobDescription" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1"><span data-i18n="label_job_description">Descripción adicional</span> <span
+                            class="text-slate-500 font-normal text-xs" data-i18n="label_optional">(opcional)</span></label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Notas extra que te ayuden a recordar detalles de este respaldo.</p>
+                    <input type="text" id="jobDescription"
+                        class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 shadow-sm"
+                        placeholder="Ej: Backup nocturno de la BD de producción" data-i18n-placeholder="ph_job_name">
+                </div>
                 </div>
 
-                <details class="group border border-slate-300 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-surface-950">
-                    <summary class="cursor-pointer p-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors list-none flex items-center justify-between">
-                        <span class="flex items-center gap-2" data-i18n="title_advanced_network"><i class="fa-solid fa-network-wired"></i> Configuración Avanzada de Red</span>
-                        <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
-                    </summary>
-                    <div class="p-4 border-t border-slate-300 dark:border-slate-800 space-y-4">
-                        <div class="relative form-group">
-                            <label for="dbType" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_db_engine">Motor de Base de Datos</label>
-                            <div class="relative">
-                                <select id="dbType"
-                                    class="w-full bg-white dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
-                                    <option value="" data-i18n="opt_db_select_type">Selecciona un tipo...</option>
-                                    <option value="postgresql">PostgreSQL</option>
-                                    <option value="mysql">MySQL / MariaDB</option>
-                                    <option value="sqlserver">Microsoft SQL Server</option>
-                                    <option value="sqlite" data-i18n="label_file_db">Fichero (SQLite/Access)</option>
-                                    <option value="folder" data-i18n="engine_local_folder">Carpeta Local</option>
-                                    <option value="sync" data-i18n="engine_folder_sync">Sincronización de Carpetas (Espejo)</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
-                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                <!-- PASO 2: ORIGEN -->
+                <div id="wizardStep2" class="hidden space-y-8">
+                <!-- CONTENEDOR ESPECÍFICO PARA BASES DE DATOS -->
+                <div id="dbConfigContainer" class="hidden space-y-8">
+                    <div class="space-y-4 bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                        <div class="flex flex-col gap-1">
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="label_detected_engines">🔧 Configuración Inteligente</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Hemos detectado estos sistemas. Elige uno para que rellenemos los datos técnicos por ti.</p>
+                        </div>
+                        <div id="discoveryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="sqlite" data-name="Fichero Local">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
+                                        <i class="fa-solid fa-file-lines"></i>
+                                    </div>
+                                    <div class="pointer-events-none">
+                                        <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="engine_local_file">Fichero Local</p>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="label_sqlite_access">SQLite / Access</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <details class="group border border-slate-300 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-surface-950">
+                        <summary class="cursor-pointer p-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors list-none flex items-center justify-between">
+                            <span class="flex items-center gap-2" data-i18n="title_advanced_network"><i class="fa-solid fa-network-wired"></i> Configuración Avanzada de Red</span>
+                            <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
+                        </summary>
+                        <div class="p-4 border-t border-slate-300 dark:border-slate-800 space-y-4">
+                            <div class="relative form-group">
+                                <label for="dbType" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_db_engine">Motor de Base de Datos</label>
+                                <div class="relative">
+                                    <select id="dbType"
+                                        class="w-full bg-white dark:bg-surface-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                        <option value="" data-i18n="opt_db_select_type">Selecciona un tipo...</option>
+                                        <option value="postgresql">PostgreSQL</option>
+                                        <option value="mysql">MySQL / MariaDB</option>
+                                        <option value="sqlserver">Microsoft SQL Server</option>
+                                        <option value="sqlite" data-i18n="label_file_db">Fichero (SQLite/Access)</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
                         <div class="space-y-4">
                             <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest" data-i18n="section_db_connection">Conexión a la Base de
                                 Datos</p>
@@ -897,132 +949,83 @@
                         </div>
                     </div>
                 </details>
+                </div> <!-- Cierra dbConfigContainer -->
 
-                <div class="relative form-group mt-4">
-                    <label for="jobDescription" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2"><span data-i18n="label_job_description">Descripción</span> <span
-                            class="text-slate-600 font-normal" data-i18n="label_optional">(opcional)</span></label>
-                    <input type="text" id="jobDescription"
-                        class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                        placeholder="Ej: Backup nocturno de la BD de producción" data-i18n-placeholder="ph_job_name">
-                </div>
+                
 
-                <div class="relative form-group mt-4">
-                    <label for="jobSchedule" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2" data-i18n="title_schedule">Programación</label>
-                    <div class="relative">
-                        <select id="jobSchedule"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
-                            <option value="manual" data-i18n="opt_schedule_manual">Manual (solo bajo demanda)</option>
-                            <option value="daily" data-i18n="opt_schedule_daily">Diario (a una hora específica)</option>
-                            <option value="weekly" data-i18n="opt_schedule_weekly">Semanal (día específico)</option>
-                            <option value="monthly" data-i18n="opt_schedule_monthly">Mensual (día del mes)</option>
-                            <option value="interval" data-i18n="opt_schedule_interval">Por intervalo (minutos)</option>
-                            <option value="cron" data-i18n="opt_schedule_cron">Expresión Cron personalizada</option>
-                        </select>
-                        <div
-                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
-                            <i class="fa-solid fa-chevron-down text-xs"></i>
-                        </div>
+                
+
+                <div id="dbCredentialsContainer" class="space-y-6 bg-slate-50/50 dark:bg-surface-950/30 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <div class="flex flex-col gap-1 mb-2">
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="section_db_credentials">🔑 Llaves de Acceso</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Dinos a qué base de datos entrar y qué llave usar.</p>
                     </div>
-
-                    <div id="scheduleTimeContainer" class="hidden mt-3">
-                        <label for="jobScheduleTime" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" data-i18n="label_schedule_time">Hora de Ejecución</label>
-                        <input type="time" id="jobScheduleTime"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
-                    </div>
-
-                    <div id="scheduleDayOfWeekContainer" class="hidden mt-3">
-                        <label for="jobScheduleDayOfWeek" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" data-i18n="label_day_of_week">Día de la semana</label>
-                        <div class="relative">
-                            <select id="jobScheduleDayOfWeek" class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
-                                <option value="1" data-i18n="day_monday">Lunes</option>
-                                <option value="2" data-i18n="day_tuesday">Martes</option>
-                                <option value="3" data-i18n="day_wednesday">Miércoles</option>
-                                <option value="4" data-i18n="day_thursday">Jueves</option>
-                                <option value="5" data-i18n="day_friday">Viernes</option>
-                                <option value="6" data-i18n="day_saturday">Sábado</option>
-                                <option value="0" data-i18n="day_sunday">Domingo</option>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
-                                <i class="fa-solid fa-chevron-down text-xs"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="scheduleDayOfMonthContainer" class="hidden mt-3">
-                        <label for="jobScheduleDayOfMonth" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" data-i18n="label_day_of_month">Día del mes</label>
-                        <input type="number" id="jobScheduleDayOfMonth" min="1" max="31"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                            placeholder="Ej: 1" data-i18n-placeholder="ph_day_of_month">
-                    </div>
-
-                    <div id="scheduleIntervalContainer" class="hidden mt-3">
-                        <label for="jobScheduleInterval" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" data-i18n="label_interval_minutes">Intervalo en Minutos</label>
-                        <input type="number" id="jobScheduleInterval" min="1"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                            placeholder="Ej: 60" data-i18n-placeholder="ph_schedule_interval">
-                    </div>
-                    
-                    <div id="scheduleCronContainer" class="hidden mt-3">
-                        <label for="jobScheduleCron" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1" data-i18n="label_cron_expression">Expresión Cron</label>
-                        <input type="text" id="jobScheduleCron"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                            placeholder="Ej: 0 2 * * *" data-i18n-placeholder="ph_cron_expression">
-                    </div>
-                </div>
-
-                <div id="dbCredentialsContainer" class="space-y-4">
 
                     <div class="relative form-group">
-                        <label for="dbName" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_db_name">Nombre de la Base de
-                            Datos</label>
-                        <input type="text" id="dbName"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                            placeholder="Ej: mi_base_de_datos" data-i18n-placeholder="ph_db_name">
+                        <label for="dbName" class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="label_db_name">Nombre de la Base de Datos</label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Escribe el nombre de la base de datos o pulsa "Listar" para verlas todas.</p>
+                        <select multiple id="dbName"
+                            class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 h-32 shadow-sm"
+                            data-i18n-placeholder="ph_db_name"></select>
+                        <p class="text-[10px] text-brand-500 dark:text-brand-400 mt-2 font-medium" data-i18n="help_db_multiple">💡 Tip: Mantén pulsado Ctrl para seleccionar varias de la lista.</p>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-2 gap-4">
                         <div class="relative form-group">
-                            <label for="dbUser" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_user">Usuario</label>
+                            <label for="dbUser" class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="label_user">Nombre de Usuario</label>
                             <input type="text" id="dbUser"
-                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
                                 placeholder="Ej: postgres" data-i18n-placeholder="ph_db_user">
                         </div>
                         <div class="relative form-group">
                             <label for="dbPassword"
-                                class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_password">Contraseña</label>
+                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="label_password">Contraseña</label>
                             <input type="password" id="dbPassword"
-                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                                class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
                                 placeholder="••••••••" autocomplete="new-password">
-                            <div class="mt-3 flex justify-end">
+                            <div class="mt-3 flex justify-end gap-2">
+                                <button type="button" id="btn-list-dbs"
+                                    class="w-full bg-brand-50 hover:bg-brand-100 dark:bg-brand-500/10 dark:hover:bg-brand-500/20 text-brand-600 dark:text-brand-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm border border-brand-200 dark:border-brand-500/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fa-solid fa-list"></i> <span data-i18n="btn_list_dbs">1. Listar BDs</span>
+                                </button>
                                 <button type="button" id="btn-test-connection"
-                                    class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm border border-slate-300 dark:border-slate-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <i class="fa-solid fa-plug"></i> <span data-i18n="btn_test_connection">Probar Conexión</span>
+                                    class="w-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <i class="fa-solid fa-plug"></i> <span data-i18n="btn_test_connection">2. Probar</span>
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="dbFilePathContainer" class="relative form-group hidden mt-4">
-                    <label for="dbFilePath" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2" data-i18n="label_source_absolute_path">Ruta absoluta del origen (Archivo o Carpeta)</label>
+                <div id="dbFilePathContainer" class="relative form-group hidden mt-6 bg-slate-50/50 dark:bg-surface-950/30 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <label for="dbFilePath" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_source_absolute_path">📁 Carpeta o Archivo de Origen</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Elige la carpeta o el archivo que quieres respaldar. Nosotros nos encargamos de empaquetarlo.</p>
                     <div class="flex items-center gap-2">
                         <input type="text" id="dbFilePath"
-                            class="flex-1 bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                            class="flex-1 bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
                             placeholder="Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos" data-i18n-placeholder="ph_source_absolute_path">
-                        <button type="button" id="btnBrowseSource" class="bg-slate-100 dark:bg-surface-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-surface-700 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-                            <i class="fa-regular fa-folder-open mr-2"></i> <span data-i18n="btn_explore">Explorar...</span>
-                        </button>
+                    <button type="button" id="btnBrowseSource" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 whitespace-nowrap">
+                        <i class="fa-regular fa-folder-open"></i> <span data-i18n="btn_explore">Buscar...</span>
+                    </button>
+                    </div>
                     </div>
                 </div>
+                </div>
 
-                <div class="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
-                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest" data-i18n="section_backup_destination">Destino del Backup</p>
+                <!-- PASO 3: DESTINO Y PROGRAMACIÓN -->
+                <div id="wizardStep3" class="hidden space-y-8">
+                <div class="space-y-6 pt-4">
+                    <div class="flex flex-col gap-1 bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                        <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="section_backup_destination">🚀 Lugar de Destino</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">¿Dónde quieres que guardemos el archivo final? En este PC o en la nube.</p>
+                    </div>
                     
-                    <div class="relative form-group">
-                        <label for="destType" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2" data-i18n="label_storage">Almacenamiento</label>
+                    <div class="relative form-group bg-slate-50/50 dark:bg-surface-950/30 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                        <label for="destType" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_storage">¿Dónde lo guardamos?</label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Elige "Carpeta Local" para discos duros o pendrives, o "Google Drive" para internet.</p>
                         <div class="relative">
                             <select id="destType"
-                                class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none shadow-sm">
                                 <option value="local" data-i18n="opt_local_folder">Carpeta Local / Red</option>
                                 <option value="google_drive" data-i18n="opt_google_drive">Google Drive</option>
                             </select>
@@ -1030,22 +1033,23 @@
                                 <i class="fa-solid fa-chevron-down text-xs"></i>
                             </div>
                         </div>
-                    </div>
 
-                    <div id="destLocalPathContainer" class="relative form-group">
-                        <label for="destLocalPath" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2" data-i18n="label_dest_dir">Directorio de Destino</label>
-                        <div class="flex items-center gap-2">
-                            <input type="text" id="destLocalPath"
-                                class="flex-1 bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                                placeholder="Ej: C:\MisBackups o \\Servidor\Backups" data-i18n-placeholder="ph_dest_dir">
-                            <button type="button" id="btnBrowseDest" class="bg-slate-100 dark:bg-surface-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-surface-700 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
-                                <i class="fa-regular fa-folder-open mr-2"></i> <span data-i18n="btn_explore">Explorar...</span>
-                            </button>
+                        <div id="destLocalPathContainer" class="relative form-group mt-6">
+                            <label for="destLocalPath" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_dest_dir">Carpeta de Destino</label>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Pulsa "Buscar" para elegir la carpeta exacta donde caerá el respaldo.</p>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="destLocalPath"
+                                    class="flex-1 bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
+                                    placeholder="Ej: C:\MisBackups o \\Servidor\Backups" data-i18n-placeholder="ph_dest_dir">
+                                <button type="button" id="btnBrowseDest" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 whitespace-nowrap">
+                                    <i class="fa-regular fa-folder-open"></i> <span data-i18n="btn_explore">Buscar...</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div id="destGDriveContainer" class="relative form-group hidden border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-white dark:bg-surface-900 mt-2">
-                        <div id="gdriveAuthBox" class="text-center py-4">
+                    <div id="destGDriveContainer" class="relative form-group hidden border border-slate-200 dark:border-slate-800 rounded-xl p-6 bg-white dark:bg-surface-900 mt-4 shadow-sm">
+                        <div id="gdriveAuthBox" class="text-center py-6">
                             <i class="fa-brands fa-google-drive text-3xl text-slate-300 dark:text-slate-600 mb-3"></i>
                             <h4 class="text-sm font-medium text-slate-800 dark:text-white mb-1" data-i18n="gdrive_not_linked">Google Drive no vinculado</h4>
                             <p class="text-xs text-slate-500 dark:text-slate-400 mb-4" data-i18n="gdrive_connect_hint">Conecta tu cuenta para realizar backups automáticos en la nube.</p>
@@ -1064,13 +1068,13 @@
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <button type="button" id="btnDisconnectDrive" class="bg-white dark:bg-surface-800 border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-sm" title="Desvincular cuenta">
+                                    <button type="button" id="btnDisconnectDrive" class="bg-white dark:bg-surface-800 border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-sm" title="Desvincular cuenta">
                                         <i class="fa-solid fa-link-slash"></i>
                                     </button>
-                                    <button type="button" id="btnSelectDriveFolder" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-sm">
+                                    <button type="button" id="btnSelectDriveFolder" class="bg-brand-500 hover:bg-brand-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-sm">
                                         <i class="fa-solid fa-folder-open mr-1"></i> <span data-i18n="btn_explore">Explorar</span>
                                     </button>
-                                    <button type="button" id="btnCreateDriveFolder" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors shadow-sm">
+                                    <button type="button" id="btnCreateDriveFolder" class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-2 rounded-lg text-xs font-medium transition-colors shadow-sm">
                                         <i class="fa-solid fa-folder-plus mr-1"></i> <span data-i18n="btn_create_folder">Crear Carpeta</span>
                                     </button>
                                 </div>
@@ -1085,19 +1089,91 @@
                         </div>
                     </div>
 
-                    <div class="relative form-group mt-4">
-                        <label for="jobRetention" class="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2" data-i18n="label_retention_days">Días de retención</label>
-                        <input type="number" id="jobRetention" min="0" value="0"
-                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                            placeholder="Ej: 30" data-i18n-placeholder="ph_retention_days">
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-2" data-i18n="help_retention">Número de días a conservar. 0 para mantenerlos indefinidamente.</p>
+                    <div class="relative form-group mt-6 bg-slate-50/50 dark:bg-surface-950/30 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                    <label for="jobSchedule" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="title_schedule">⏰ Calendario de Trabajo</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">¿Quieres que se haga solo cuando tú digas, o prefieres que la app lo haga automáticamente?</p>
+                    <div class="relative">
+                        <select id="jobSchedule"
+                            class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 appearance-none shadow-sm">
+                            <option value="manual" data-i18n="opt_schedule_manual">Manual (Tú pulsas el botón)</option>
+                            <option value="daily" data-i18n="opt_schedule_daily">Diario (Cada día a una hora)</option>
+                            <option value="weekly" data-i18n="opt_schedule_weekly">Semanal (Un día a la semana)</option>
+                            <option value="monthly" data-i18n="opt_schedule_monthly">Mensual (Un día al mes)</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+
+                    <div id="scheduleTimeContainer" class="hidden mt-6">
+                        <label for="jobScheduleTime" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_schedule_time">¿A qué hora empezamos?</label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">Recomendamos una hora en la que no se use mucho el equipo (ej: las 02:00 AM).</p>
+                        <input type="time" id="jobScheduleTime"
+                            class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm">
+                    </div>
+
+                    <div id="scheduleDayOfWeekContainer" class="hidden mt-4">
+                        <label for="jobScheduleDayOfWeek" class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5" data-i18n="label_day_of_week">Día de la semana</label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Selecciona el día de la semana para la copia.</p>
+                        <div class="relative">
+                            <select id="jobScheduleDayOfWeek" class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-colors focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none">
+                                <option value="1" data-i18n="day_monday">Lunes</option>
+                                <option value="2" data-i18n="day_tuesday">Martes</option>
+                                <option value="3" data-i18n="day_wednesday">Miércoles</option>
+                                <option value="4" data-i18n="day_thursday">Jueves</option>
+                                <option value="5" data-i18n="day_friday">Viernes</option>
+                                <option value="6" data-i18n="day_saturday">Sábado</option>
+                                <option value="0" data-i18n="day_sunday">Domingo</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500 dark:text-slate-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="scheduleDayOfMonthContainer" class="hidden mt-4">
+                        <label for="jobScheduleDayOfMonth" class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5" data-i18n="label_day_of_month">Día del mes</label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Introduce el número del día (1 al 31).</p>
+                        <input type="number" id="jobScheduleDayOfMonth" min="1" max="31"
+                            class="w-full bg-slate-50 dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-2.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                            placeholder="Ej: 1" data-i18n-placeholder="ph_day_of_month">
+                    </div>
+
+
+                </div>
+                    <div id="jobOptionsContainer" class="space-y-6 mt-6 bg-slate-50/50 dark:bg-surface-950/30 p-5 rounded-xl border border-slate-100 dark:border-slate-800/50 shadow-sm">
+                        <div class="flex flex-col gap-1 mb-2">
+                            <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="section_extra_options">⚙️ Opciones de Limpieza</p>
+                        </div>
+                        <div class="relative form-group">
+                            <label for="jobRetention" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_retention_days">Días de Limpieza Automática</label>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">¿Cuántos días quieres guardar las copias viejas antes de que las borremos para ahorrar espacio?</p>
+                            <input type="number" id="jobRetention" min="0" value="0"
+                                class="w-full bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
+                                placeholder="Ej: 30" data-i18n-placeholder="ph_retention_days">
+                            <p class="text-[10px] text-brand-500 dark:text-brand-400 mt-2 font-medium italic" data-i18n="help_retention_zero">💡 Pon 0 si quieres que NO se borre nada nunca.</p>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 bg-white dark:bg-surface-950 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <input type="checkbox" id="compressBackup" class="w-5 h-5 text-brand-500 bg-slate-100 border-slate-300 rounded-md focus:ring-brand-500 transition-all cursor-pointer">
+                            <label for="compressBackup" class="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">📦 Comprimir en un solo archivo (.zip)</label>
+                        </div>
                     </div>
                 </div>
 
-                <div class="pt-4 border-t border-slate-800 flex justify-end gap-3">
-                    <button id="btnSaveJob" type="submit"
-                        class="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2">
-                        <i class="fa-solid fa-floppy-disk"></i> <span data-i18n="btn_save_job">Guardar Configuración</span>
+                                </div>
+
+                <!-- WIZARD NAVIGATION -->
+                <div class="sticky bottom-0 bg-white dark:bg-surface-900 pt-6 pb-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center mt-8 z-10 p-6">
+                    <button type="button" id="btnWizardPrev" class="hidden bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2 border border-slate-200 dark:border-slate-700">
+                        <i class="fa-solid fa-arrow-left"></i> <span data-i18n="btn_prev">Anterior</span>
+                    </button>
+                    <div class="flex-1"></div>
+                    <button type="button" id="btnWizardNext" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-brand-500/25 hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2">
+                        <span data-i18n="btn_next">Siguiente</span> <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                    <button id="btnSaveJob" type="submit" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-emerald-500/25 hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i> <span id="btnSaveJobText" data-i18n="btn_save_job">Finalizar y Guardar</span>
                     </button>
                 </div>
             </form>

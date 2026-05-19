@@ -532,74 +532,86 @@ class JobManager:
                             raise
                         raise OSError(f"Error al verificar la ruta de origen: {e}")
 
-                    # Directorio temporal de empaquetado para sincronización incremental
-                    staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
-                    staging_dir.mkdir(parents=True, exist_ok=True)
-                    
-                    history_manager.add_log(
-                        db, run.id, "INFO", 
-                        f"Sincronizando carpeta (incremental): {src_folder} -> {staging_dir}", 
-                        stage="dump"
-                    )
+                    if getattr(job, "compress", True) == False:
+                        if job.dest_type == "google_drive":
+                            raise ValueError("No se puede hacer backup de carpeta sin compresión hacia Google Drive.")
+                        
+                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        dest_path = Path(job.dest_local_path or Path.cwd() / "backups") / f"{job.name}_{timestamp}"
+                        history_manager.add_log(db, run.id, "INFO", f"Copiando carpeta cruda directamente (sin compresión): {src_folder} -> {dest_path}", stage="dump")
+                        
+                        shutil.copytree(src_folder, dest_path, dirs_exist_ok=True)
+                        dump_path = dest_path
+                        job.db_type = "sync" # Evita que el resto del pipeline lo comprima y mueva
+                    else:
+                        # Directorio temporal de empaquetado para sincronización incremental
+                        staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
+                        staging_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        history_manager.add_log(
+                            db, run.id, "INFO", 
+                            f"Sincronizando carpeta (incremental): {src_folder} -> {staging_dir}", 
+                            stage="dump"
+                        )
 
-                    copied = 0
-                    updated = 0
-                    skipped = 0
-                    total = 0
+                        copied = 0
+                        updated = 0
+                        skipped = 0
+                        total = 0
 
-                    try:
-                        for src_path in src_folder.rglob("*"):
-                            if src_path.is_dir():
-                                continue
-                            total += 1
-                            rel = src_path.relative_to(src_folder)
-                            dst_path = staging_dir / rel
+                        try:
+                            for src_path in src_folder.rglob("*"):
+                                if src_path.is_dir():
+                                    continue
+                                total += 1
+                                rel = src_path.relative_to(src_folder)
+                                dst_path = staging_dir / rel
 
-                            if not dst_path.exists():
-                                dst_path.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copy2(src_path, dst_path)
-                                copied += 1
-                                continue
+                                if not dst_path.exists():
+                                    dst_path.parent.mkdir(parents=True, exist_ok=True)
+                                    shutil.copy2(src_path, dst_path)
+                                    copied += 1
+                                    continue
 
-                            try:
-                                src_stat = src_path.stat()
-                                dst_stat = dst_path.stat()
-                            except OSError:
+                                try:
+                                    src_stat = src_path.stat()
+                                    dst_stat = dst_path.stat()
+                                except OSError:
+                                    shutil.copy2(src_path, dst_path)
+                                    updated += 1
+                                    continue
+
+                                if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
+                                    skipped += 1
+                                    continue
+
+                                if filecmp.cmp(src_path, dst_path, shallow=False):
+                                    skipped += 1
+                                    continue
+
                                 shutil.copy2(src_path, dst_path)
                                 updated += 1
-                                continue
+                        except PermissionError as e:
+                            raise PermissionError(f"Error de permisos durante la sincronización: {e}")
+                        except Exception as e:
+                            raise RuntimeError(f"Error inesperado durante la sincronización de archivos: {e}")
 
-                            if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
-                                skipped += 1
-                                continue
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
+                            stage="dump",
+                        )
 
-                            if filecmp.cmp(src_path, dst_path, shallow=False):
-                                skipped += 1
-                                continue
+                        # Creamos un archivo .zip con el contenido de la carpeta temporal (staging)
+                        base_name = str(dump_path.with_suffix(""))
+                        archive_path_str = shutil.make_archive(base_name, "zip", staging_dir)
 
-                            shutil.copy2(src_path, dst_path)
-                            updated += 1
-                    except PermissionError as e:
-                        raise PermissionError(f"Error de permisos durante la sincronización: {e}")
-                    except Exception as e:
-                        raise RuntimeError(f"Error inesperado durante la sincronización de archivos: {e}")
+                        if dump_path.exists():
+                            dump_path.unlink()
 
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
-                        stage="dump",
-                    )
-
-                    # Creamos un archivo .zip con el contenido de la carpeta temporal (staging)
-                    base_name = str(dump_path.with_suffix(""))
-                    archive_path_str = shutil.make_archive(base_name, "zip", staging_dir)
-
-                    if dump_path.exists():
-                        dump_path.unlink()
-
-                    dump_path = Path(archive_path_str)
+                        dump_path = Path(archive_path_str)
 
                 elif job.db_type == "sync":
                     if not job.db_name:
@@ -612,62 +624,10 @@ class JobManager:
                         dump_path.unlink()
                         
                     dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
-                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (incremental): {src_folder} -> {dest_sync_folder}", stage="dump")
-                    dest_sync_folder.mkdir(parents=True, exist_ok=True)
-
-                    copied = 0
-                    updated = 0
-                    skipped = 0
-                    total = 0
-
-                    for src_path in src_folder.rglob("*"):
-                        if src_path.is_dir():
-                            continue
-                        total += 1
-                        rel = src_path.relative_to(src_folder)
-                        dst_path = dest_sync_folder / rel
-
-                        if not dst_path.exists():
-                            dst_path.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(src_path, dst_path)
-                            copied += 1
-                            continue
-
-                        try:
-                            src_stat = src_path.stat()
-                            dst_stat = dst_path.stat()
-                        except OSError:
-                            shutil.copy2(src_path, dst_path)
-                            updated += 1
-                            continue
-
-                        if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
-                            skipped += 1
-                            continue
-
-                        if filecmp.cmp(src_path, dst_path, shallow=False):
-                            skipped += 1
-                            continue
-
-                        shutil.copy2(src_path, dst_path)
-                        updated += 1
-
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
-                        stage="dump",
-                    )
-                    log.info(
-                        "SYNC incremental %s -> %s | total=%d, copiados=%d, actualizados=%d, sin cambios=%d",
-                        src_folder,
-                        dest_sync_folder,
-                        total,
-                        copied,
-                        updated,
-                        skipped,
-                    )
+                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (espejo): {src_folder} -> {dest_sync_folder}", stage="dump")
+                    
+                    # Usa copytree directo para hacer un espejo exacto, no pasa por Temp ni comprime.
+                    shutil.copytree(src_folder, dest_sync_folder, dirs_exist_ok=True)
                     
                     dump_path = dest_sync_folder
 

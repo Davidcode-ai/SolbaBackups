@@ -109,8 +109,70 @@ def test_connection(payload: TestConnectionRequest) -> dict:
         with socket.create_connection((payload.host, payload.port), timeout=3):
             return {"success": True, "message": "Conexión TCP establecida correctamente."}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo conectar: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pudo conectar al puerto TCP {payload.port} en {payload.host}. Error: {e}",
+        )
 
+@router.post("/test-db")
+def list_databases(payload: TestConnectionRequest) -> dict:
+    engine = payload.engine.lower()
+    databases = []
+    
+    try:
+        if engine == "postgresql":
+            import psycopg2
+            conn = psycopg2.connect(
+                host=payload.host,
+                port=payload.port,
+                user=payload.user,
+                password=payload.password,
+                dbname=payload.database or "postgres",
+                connect_timeout=5
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false;")
+            databases = [row[0] for row in cur.fetchall()]
+            cur.close()
+            conn.close()
+            
+        elif engine == "mysql":
+            import pymysql
+            conn = pymysql.connect(
+                host=payload.host,
+                port=payload.port,
+                user=payload.user,
+                password=payload.password,
+                database=payload.database or None,
+                connect_timeout=5
+            )
+            cur = conn.cursor()
+            cur.execute("SHOW DATABASES;")
+            databases = [row[0] for row in cur.fetchall()]
+            cur.close()
+            conn.close()
+            
+        elif engine == "sqlserver":
+            import subprocess
+            host_str = f"{payload.host},{payload.port}" if payload.port else payload.host
+            cmd = ["sqlcmd", "-S", host_str, "-U", payload.user, "-P", payload.password, "-Q", "SET NOCOUNT ON; SELECT name FROM master.dbo.sysdatabases;", "-h", "-1"]
+            process = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if process.returncode != 0:
+                raise Exception(process.stderr or process.stdout)
+            
+            # sqlcmd devuelve las db separadas por saltos de linea
+            lines = process.stdout.split('\n')
+            databases = [line.strip() for line in lines if line.strip() and not line.startswith('-')]
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Listar bases de datos no soportado para el motor {engine}.")
+            
+    except ImportError as e:
+        raise HTTPException(status_code=400, detail=f"Librería requerida no encontrada para {engine}: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al listar bases de datos: {repr(e)}")
+        
+    return {"databases": databases}
 
 @router.get("/drives")
 def get_drives():
