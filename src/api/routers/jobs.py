@@ -11,9 +11,9 @@ from sqlalchemy.orm import Session
 
 from src.core import models
 from src.db import crud
-from src.api.dependencies import get_db, get_job_manager, get_scheduler
+from src.api.dependencies import get_db, get_job_manager
 from src.core.job_manager import JobManager
-from src.core.job_scheduler import JobScheduler
+from src.core.windows_tasks import create_or_update_windows_task, delete_windows_task
 
 from src.core.discovery import scan_local_databases
 
@@ -112,7 +112,6 @@ def list_jobs(db: Session = Depends(get_db)):
 def create_job(
     job_in: models.JobCreate,
     db: Session = Depends(get_db),
-    scheduler: JobScheduler = Depends(get_scheduler),
 ):
     """
     Crea un nuevo Job de backup y lo programa automáticamente si tiene schedule.
@@ -127,13 +126,13 @@ def create_job(
     job_data = job_in.model_dump(exclude_unset=True)
     new_job = crud.job_create(db, job_data)
 
-    # Registrar en el scheduler si tiene schedule automático
+    # Registrar en el scheduler de Windows si tiene schedule automático
     if new_job.schedule_type and new_job.schedule_type.lower() not in (
         "manual",
         "none",
         "",
     ):
-        scheduler.add_job(new_job)
+        create_or_update_windows_task(new_job)
 
     return new_job
 
@@ -156,7 +155,6 @@ def update_job(
     job_id: int,
     job_in: models.JobUpdate,
     db: Session = Depends(get_db),
-    scheduler: JobScheduler = Depends(get_scheduler),
 ):
     """
     Actualiza la configuración de un Job y reprograma su schedule si cambió.
@@ -180,15 +178,15 @@ def update_job(
         job_data.pop("db_password", None)
     updated_job = crud.job_update(db, job_id, job_data)
 
-    # Reprogramar en tiempo real (remove + add con la nueva config)
+    # Reprogramar en tiempo real en Windows
     if updated_job and updated_job.schedule_type and updated_job.schedule_type.lower() not in (  # type: ignore
         "manual",
         "none",
         "",
     ):
-        scheduler.add_job(updated_job)  # add_job ya hace remove internamente
+        create_or_update_windows_task(updated_job)
     else:
-        scheduler.remove_job(job_id)  # Si el usuario quitó el schedule, cancelar
+        delete_windows_task(job_id)  # Si el usuario quitó el schedule, cancelar
 
     return updated_job
 
@@ -197,12 +195,11 @@ def update_job(
 def delete_job(
     job_id: int,
     db: Session = Depends(get_db),
-    scheduler: JobScheduler = Depends(get_scheduler),
 ):
     """
-    Elimina un Job, su historial y lo desprograma del scheduler.
+    Elimina un Job, su historial y lo desprograma del scheduler de Windows.
     """
-    scheduler.remove_job(job_id)  # Cancelar si estaba programado
+    delete_windows_task(job_id)  # Cancelar si estaba programado en Windows
     success = crud.job_delete(db, job_id)
     if not success:
         raise HTTPException(

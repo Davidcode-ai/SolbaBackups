@@ -17,9 +17,14 @@ class LocalDestination(BaseDestination):
     """
 
     async def upload(self, file_path: Path, destination_path: str) -> bool:
-        dest_dir = Path(destination_path)
         # Asegurar que el directorio destino existe
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        import os
+        try:
+            os.makedirs(destination_path, exist_ok=True)
+        except Exception as e:
+            raise RuntimeError(f"Error crítico al crear o acceder al directorio destino ({destination_path}): {str(e)}")
+            
+        dest_dir = Path(destination_path)
 
         final_path = dest_dir / file_path.name
         log.info(f"Moviendo backup local de {file_path} a {final_path}...")
