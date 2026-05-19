@@ -123,7 +123,6 @@ async function loadJobs(isSilent = false) {
             if (job.db_type === 'folder' || job.db_type === 'sync') iconClass = "fa-solid fa-folder-tree";
             else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
 
-            let actionIcon = "fa-play";
             let actionTitle = t('Ejecutar') || 'Ejecutar';
 
             jobBtn.innerHTML = `
@@ -221,18 +220,9 @@ async function handleRunJob(event) {
         button.disabled = false;
         button.className = originalClass;
 
-        const row = button.closest('.group');
-        let lastStatus = '';
-        if (row) {
-             const btnEdit = row.querySelector('.btn-edit-job');
-             if (btnEdit) {
-                 lastStatus = btnEdit.dataset.lastRunStatus;
-             }
-        }
-
-    button.title = t('Ejecutar');
-    button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
-}
+        button.title = t('Ejecutar');
+        button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
+    }
 }
 
 /**
@@ -435,6 +425,8 @@ function initJobFormValidation() {
                 isFormDirty = false;
             }
             resetFormToCreateMode();
+            const formEl = document.getElementById('createJobForm');
+            if (formEl) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
     }
 
@@ -1016,11 +1008,13 @@ function setFormEditMode(id, name, extra = {}, schedule) {
         }
     });
 
+    const cancelBtn = document.getElementById('btnCancelEdit');
+    if (cancelBtn) cancelBtn.classList.remove('hidden');
+
     // Reset to step 1 when editing
     if (typeof showWizardStep === 'function') {
         showWizardStep(1);
     }
-
 }
 
 function resetFormToCreateMode() {
@@ -1051,10 +1045,16 @@ function resetFormToCreateMode() {
         btnSave.classList.replace('hover:bg-orange-600', 'hover:bg-emerald-600');
     }
 
+    const cancelBtn = document.getElementById('btnCancelEdit');
+    if (cancelBtn) cancelBtn.classList.add('hidden');
+    
     if (btnCancelEditTop) btnCancelEditTop.classList.add('hidden');
 
     form.classList.remove('ring-4', 'ring-orange-500/50', 'border-orange-500');
     form.classList.add('border-slate-200', 'dark:border-slate-800');
+    
+    const badge = form.querySelector('#edit-mode-badge');
+    if (badge) badge.remove();
 
     document.querySelectorAll('.discovery-card').forEach(c => {
         c.classList.remove('border-brand-500', 'bg-brand-500/10', 'dark:bg-brand-500/10', 'bg-brand-500/5');
@@ -1513,7 +1513,7 @@ async function loadDiscovery() {
             const translatedName = translateDiscoveryEngineName(svc, currentLang);
             const detectedAtText = t('discovery_detected_at', currentLang);
             const card = document.createElement('div');
-            card.className = 'discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 rounded-lg p-4 transition-all';
+            card.className = 'discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 rounded-lg p-4 transition-all shadow-sm min-h-[72px] flex items-center';
             card.dataset.engine = svc.engine;
             card.dataset.host = svc.host;
             card.dataset.port = svc.port;
@@ -1521,7 +1521,7 @@ async function loadDiscovery() {
 
             card.innerHTML = `
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none">
+                    <div class="w-9 h-9 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none">
                         <i class="fa-solid fa-server"></i>
                     </div>
                     <div class="pointer-events-none">
@@ -1900,18 +1900,21 @@ const i18n = {
         hint_log_retention: "Los registros más antiguos se eliminarán automáticamente.",
         btn_cancel: "Cancelar",
         btn_save_changes: "Guardar cambios",
-        ph_job_name: "Ej: Backup nocturno de la BD de producción",
-        ph_job_title: "Ej: Backup Base de Datos Producción",
-        ph_db_host: "Ej: 127.0.0.1 o mi-servidor.local",
-        ph_db_name: "Ej: mi_base_de_datos",
+        ph_job_name: "Ej: Copia nocturna de la base de datos",
+        ph_job_title: "Ponle un nombre fácil, ej: Copias del lunes",
+        ph_db_host: "Dirección del servidor (pregunta a tu informático)",
+        ph_db_name: "Nombre exacto de tu base de datos",
         ph_db_user: "Ej: postgres",
         ph_db_user_sqlserver: "Ej: sa",
         ph_db_user_mysql: "Ej: root",
-        ph_source_absolute_path: "Ej: C:\\Backups\\mi_base_datos.db o C:\\MisArchivos",
+        ph_source_absolute_path: "Ruta completa al archivo o carpeta",
         ph_day_of_month: "Ej: 1",
         ph_schedule_interval: "Ej: 60",
         ph_cron_expression: "Ej: 0 2 * * *",
-        ph_dest_dir: "Ej: C:\\MisBackups o \\\\Servidor\\Backups",
+        ph_dest_dir: "¿Dónde quieres guardar las copias? Ej: D:\\Copias",
+        help_job_name: "Un nombre corto para identificar esta copia de seguridad.",
+        help_retention: "¿Cuántos días quieres conservar las copias? Pon 0 para guardarlas siempre.",
+        help_db_engine: "Si no sabes cuál es, elige \"Fichero Local\" o pregunta a tu informático.",
         ph_gdrive_root: "Raíz de Mi Unidad",
         ph_admin_email: "admin@empresa.com",
         ph_log_retention_days: "30",
@@ -2004,7 +2007,7 @@ const i18n = {
         restore_error: "Error al restaurar el backup. Revisa los logs para más detalles.",
         label_retention_days: "Días de retención",
         ph_retention_days: "Ej: 30",
-        help_retention: "Número de días a conservar. 0 para mantenerlos indefinidamente.",
+        help_retention: "¿Cuántos días quieres conservar las copias? Pon 0 para guardarlas siempre.",
         engine_folder_sync: "Sincronización de Carpetas (Espejo)",
         title_smtp_server: "Servidor SMTP",
         label_smtp_host: "Host SMTP",
@@ -2212,18 +2215,20 @@ const i18n = {
         hint_log_retention: "Older records will be removed automatically.",
         btn_cancel: "Cancel",
         btn_save_changes: "Save changes",
-        ph_job_name: "Ex: Nightly production DB backup",
-        ph_job_title: "Ex: Production database backup",
-        ph_db_host: "Ex: 127.0.0.1 or my-server.local",
-        ph_db_name: "Ex: my_database",
+        ph_job_name: "Ex: Nightly database backup",
+        ph_job_title: "Give it a simple name, ex: Monday copies",
+        ph_db_host: "Server address (ask your IT admin)",
+        ph_db_name: "Exact name of your database",
         ph_db_user: "Ex: postgres",
         ph_db_user_sqlserver: "Ex: sa",
         ph_db_user_mysql: "Ex: root",
-        ph_source_absolute_path: "Ex: C:\\Backups\\my_database.db or C:\\MyFiles",
+        ph_source_absolute_path: "Full path to the file or folder",
         ph_day_of_month: "Ex: 1",
         ph_schedule_interval: "Ex: 60",
         ph_cron_expression: "Ex: 0 2 * * *",
-        ph_dest_dir: "Ex: C:\\MyBackups or \\\\Server\\Backups",
+        ph_dest_dir: "Where do you want to save backups? Ex: D:\\Backups",
+        help_job_name: "A short name to identify this backup task.",
+        help_db_engine: "If unsure, choose \"Local File\" or ask your IT admin.",
         ph_gdrive_root: "Root of My Drive",
         ph_admin_email: "admin@company.com",
         ph_log_retention_days: "30",
@@ -2234,7 +2239,7 @@ const i18n = {
         restore_error: "Error restoring backup. Check logs for details.",
         label_retention_days: "Retention Days",
         ph_retention_days: "Ex: 30",
-        help_retention: "Number of days to keep. 0 to keep them indefinitely.",
+        help_retention: "How many days do you want to keep backups? Set 0 to keep them forever.",
         engine_folder_sync: "Folder Sync (Mirror)",
         title_smtp_server: "SMTP Server",
         label_smtp_host: "SMTP Host",
