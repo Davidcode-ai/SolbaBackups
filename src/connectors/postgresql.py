@@ -48,9 +48,9 @@ class PostgreSQLConnector(BaseConnector):
             cmd.extend(["-U", job.db_user])
             
         # Parámetros adicionales: 
-        # -F c (custom format)
+        # -F p (plain text format)
         # -f (output file)
-        cmd.extend(["-F", "c", "-f", str(output_file_path), job.db_name])
+        cmd.extend(["-F", "p", "-f", str(output_file_path), job.db_name])
         
         # Configurar variables de entorno (seguridad: no pasar password como flag)
         env = os.environ.copy()
