@@ -34,11 +34,15 @@
 **SolbaBackups** es una solución integral y profesional de copias de seguridad diseñada para entornos corporativos. Cuenta con una interfaz web moderna e intuitiva y está diseñada para ejecutarse de forma totalmente invisible en segundo plano como un **Servicio de Windows**. Garantiza la protección continua de los datos críticos de su empresa sin interrumpir el flujo de trabajo del usuario final.
 
 <a id="caracteristicas-principales"></a>
-## ✨ Características Principales
+## ✨ Características Principales (Versión 2.0)
 
-* **💾 Motor de Backups Multi-Destino:** Soporte completo para copias de bases de datos PostgreSQL y archivos locales, con capacidad de almacenamiento tanto en discos locales como en la nube (Google Drive).
-* **🧠 Retención Inteligente:** Sistema automatizado para la gestión del espacio, eliminando copias antiguas según las políticas de retención configuradas para evitar la saturación del almacenamiento.
-* **🔔 Notificaciones Proactivas:** Alertas automáticas en tiempo real sobre el estado de las copias de seguridad enviadas directamente a través de **Correo Electrónico** y **WhatsApp**, manteniendo a los administradores siempre informados.
+* **🖥️ Interfaz "Para Tontos" (UX Mejorada):** Rediseño total de la creación de tareas con tarjetas gigantes para separar claramente "Backup de BD", "Backup de Carpeta" y "Sincronización (Espejo)".
+* **⚙️ Zero-Config PostgreSQL:** Sistema inteligente de autodescubrimiento de `pg_dump.exe` en entornos Windows. No requiere configuración de rutas por parte del usuario.
+* **⏰ Integración Nativa con Windows Task Scheduler:** Reemplazo completo de programadores en memoria por tareas de Windows (`schtasks`) ejecutadas nativamente para máxima confiabilidad y persistencia.
+* **🔁 Sincronización Directa 1:1:** Capacidad de mantener carpetas espejo sin compresión intermedia, ideal para réplicas de datos en tiempo real.
+* **💾 Motor de Backups Multi-Destino:** Soporte completo para copias de bases de datos PostgreSQL, MySQL, SQL Server, SQLite y archivos locales, hacia discos locales o la nube (Google Drive).
+* **🧠 Retención Inteligente:** Sistema automatizado para la gestión del espacio, eliminando copias antiguas según las políticas de retención configuradas.
+* **🔔 Notificaciones Proactivas:** Alertas automáticas en tiempo real sobre el estado de las copias de seguridad enviadas a través de **Correo Electrónico** y **WhatsApp**.
 
 ---
 

@@ -123,8 +123,7 @@ async function loadJobs(isSilent = false) {
             if (job.db_type === 'folder' || job.db_type === 'sync') iconClass = "fa-solid fa-folder-tree";
             else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
 
-            let actionIcon = "fa-play";
-            let actionTitle = t('btn_run_initial');
+            let actionTitle = t('Ejecutar') || 'Ejecutar';
 
             jobBtn.innerHTML = `
                 <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer btn-edit-job" 
@@ -144,6 +143,7 @@ async function loadJobs(isSilent = false) {
                     data-dest-gdrive-folder-id="${job.dest_gdrive_folder_id || ''}"
                     data-dest-gdrive-folder-name="${job.dest_gdrive_folder_name || ''}"
                     data-dest-retention-days="${job.dest_retention_days !== undefined ? job.dest_retention_days : 0}"
+                    data-compress="${job.compress === true}"
                     data-last-run-status="${job.last_run_status || ''}">
                     <i class="${iconClass} w-4 text-center group-hover:text-brand-400 transition-colors"></i>
                     <div class="flex-1 truncate">
@@ -154,7 +154,7 @@ async function loadJobs(isSilent = false) {
                 
                 <div class="flex items-center gap-1 shrink-0">
                     <button class="btn-ejecutar w-6 h-6 flex items-center justify-center rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500 hover:text-white transition-colors" data-id="${jobId}" title="${actionTitle}">
-                        <i class="fa-solid ${actionIcon} text-[10px]"></i>
+                        <i class="fa-solid fa-play text-[10px]"></i>
                     </button>
                     <button class="btn-delete-job w-6 h-6 flex items-center justify-center rounded bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-colors" data-id="${jobId}" title="${t('btn_delete')}">
                         <i class="fa-solid fa-trash-can text-[10px]"></i>
@@ -220,8 +220,26 @@ async function handleRunJob(event) {
         button.disabled = false;
         button.className = originalClass;
 
-        button.title = t('btn_run_initial');
+        button.title = t('Ejecutar');
         button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
+    }
+}
+
+/**
+ * 3.5 Obtener Estadísticas (Centro de Mando)
+ */
+async function loadStats(isSilent = false) {
+    const elTotal = document.getElementById('stat-total-jobs');
+    if (!elTotal) return;
+
+    try {
+        const stats = await api.getStats();
+        elTotal.textContent = stats.total_jobs !== undefined ? stats.total_jobs : '0';
+    } catch (error) {
+        if (!isSilent) {
+            console.error('Error cargando estadísticas:', error);
+            elTotal.textContent = 'N/A';
+        }
     }
 }
 
@@ -388,6 +406,7 @@ function initJobFormValidation() {
     const destType = document.getElementById('destType');
     const destLocalPath = document.getElementById('destLocalPath');
     const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+    const destGDriveFolderName = document.getElementById('destGDriveFolderName');
     const destLocalPathContainer = document.getElementById('destLocalPathContainer');
     const destGDriveContainer = document.getElementById('destGDriveContainer');
     const dbFilePathContainer = document.getElementById('dbFilePathContainer');
@@ -446,10 +465,45 @@ function initJobFormValidation() {
         });
     }
 
+    const jobTypeCards = document.querySelectorAll('.job-type-card');
+    const dbConfigContainer = document.getElementById('dbConfigContainer');
+    const jobOptionsContainer = document.getElementById('jobOptionsContainer');
+    let currentJobType = 'db'; // db, folder, sync
+
+    jobTypeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            jobTypeCards.forEach(c => c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500'));
+            card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
+            currentJobType = card.dataset.jobType;
+
+            if (currentJobType === 'db') {
+                dbConfigContainer.classList.remove('hidden');
+                dbFilePathContainer.classList.add('hidden');
+                jobOptionsContainer.classList.remove('hidden');
+                // Trigger change to update credentials visibility based on selected engine
+                if (dbType) dbType.dispatchEvent(new Event('change'));
+            } else if (currentJobType === 'folder') {
+                dbConfigContainer.classList.add('hidden');
+                dbFilePathContainer.classList.remove('hidden');
+                jobOptionsContainer.classList.remove('hidden');
+            } else if (currentJobType === 'sync') {
+                dbConfigContainer.classList.add('hidden');
+                dbFilePathContainer.classList.remove('hidden');
+                jobOptionsContainer.classList.add('hidden'); // Ocultar retención y compresión
+            }
+        });
+    });
+
+    // Inicializar seleccionando el primero por defecto
+    if (jobTypeCards.length > 0) {
+        jobTypeCards[0].click();
+    }
+
     if (dbType) {
         dbType.addEventListener('change', () => {
+            if (currentJobType !== 'db') return;
             const t = dbType.value;
-            if (t === 'sqlite' || t === 'folder' || t === 'mdb') {
+            if (t === 'sqlite' || t === 'mdb') {
                 if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
                 if (networkDetails) networkDetails.classList.add('hidden');
                 if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
@@ -457,6 +511,17 @@ function initJobFormValidation() {
                 if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
                 if (networkDetails) networkDetails.classList.remove('hidden');
                 if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+            }
+
+            if (t === 'postgresql') {
+                if (dbPort) dbPort.value = 5432;
+                if (dbUser) dbUser.value = 'postgres';
+            } else if (t === 'sqlserver') {
+                if (dbPort) dbPort.value = 1433;
+                if (dbUser) dbUser.value = 'sa';
+            } else if (t === 'mysql') {
+                if (dbPort) dbPort.value = 3306;
+                if (dbUser) dbUser.value = 'root';
             }
         });
     }
@@ -481,6 +546,52 @@ function initJobFormValidation() {
     });
 
     const btnTestConnection = document.getElementById('btn-test-connection') || document.getElementById('btnTestConnection');
+    const btnListDbs = document.getElementById('btn-list-dbs');
+
+    if (btnListDbs) {
+        btnListDbs.addEventListener('click', async () => {
+            const originalHtml = btnListDbs.innerHTML;
+            btnListDbs.disabled = true;
+            btnListDbs.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Cargando...`;
+            try {
+                const engine = document.getElementById('dbType') ? document.getElementById('dbType').value : 'postgresql';
+                const hostVal = document.getElementById('dbHost') ? document.getElementById('dbHost').value.trim() : '';
+                const portVal = document.getElementById('dbPort') ? document.getElementById('dbPort').value : '';
+                const userVal = document.getElementById('dbUser') ? document.getElementById('dbUser').value.trim() : '';
+                const passwordVal = document.getElementById('dbPassword') ? document.getElementById('dbPassword').value : '';
+
+                const response = await fetch('/api/v1/utils/test-db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        engine: engine || 'postgresql',
+                        host: hostVal || 'localhost',
+                        port: portVal ? parseInt(portVal) : 5432,
+                        user: userVal || 'postgres',
+                        password: passwordVal,
+                        database: ''
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && Array.isArray(data.databases)) {
+                    const dbNameSelect = document.getElementById('dbName');
+                    if (dbNameSelect) {
+                        dbNameSelect.innerHTML = data.databases.map(db => `<option value="${db}">${db}</option>`).join('');
+                        showToast(`Se encontraron ${data.databases.length} bases de datos.`, 'success');
+                    }
+                } else {
+                    showToast('Error al listar bases de datos: ' + (data.detail || 'Error desconocido'), 'error');
+                }
+            } catch (error) {
+                showToast(`❌ Error de red: ${error.message}`, 'error');
+            } finally {
+                btnListDbs.disabled = false;
+                btnListDbs.innerHTML = originalHtml;
+            }
+        });
+    }
+
     if (btnTestConnection) {
         btnTestConnection.addEventListener('click', async () => {
             const originalHtml = btnTestConnection.innerHTML;
@@ -536,14 +647,26 @@ function initJobFormValidation() {
         e.preventDefault();
         let isValid = true;
 
-        clearErrors(jobName);
-        clearErrors(dbType);
+        // Prevent native form submission
+        if (form && !form.dataset.submitPrevented) {
+            form.addEventListener('submit', (ev) => ev.preventDefault());
+            form.dataset.submitPrevented = 'true';
+        }
 
-        if (jobName.value.trim() === '') {
+        // --- BUG FIX 1: Leer el tipo de tarea desde la tarjeta activa (no desde el select) ---
+        const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
+        const finalJobType = activeJobTypeCard ? activeJobTypeCard.dataset.jobType : 'db';
+
+        if (jobName) clearErrors(jobName);
+        if (dbType) clearErrors(dbType);
+
+        if (!jobName || jobName.value.trim() === '') {
             showError(jobName, t('error_field_required'));
             isValid = false;
         }
-        if (dbType.value.trim() === '') {
+
+        // Solo validar el motor si es tipo 'db'
+        if (finalJobType === 'db' && dbType && dbType.value.trim() === '') {
             showError(dbType, t('error_select_engine'));
             isValid = false;
         }
@@ -568,12 +691,21 @@ function initJobFormValidation() {
 
         const editingId = form.dataset.editingId || null;
 
-        let finalDbName = dbName ? dbName.value.trim() || null : null;
-        if (dbType.value === 'sqlite' || dbType.value === 'folder' || dbType.value === 'mdb') {
+        let finalDbName = null;
+        if (dbName && dbName.tagName.toLowerCase() === 'select' && dbName.multiple) {
+            const selectedOptions = Array.from(dbName.selectedOptions).map(opt => opt.value);
+            finalDbName = selectedOptions.length > 0 ? selectedOptions.join(',') : null;
+        } else if (dbName) {
+            finalDbName = dbName.value.trim() || null;
+        }
+
+        // --- BUG FIX 2: Validar ruta de fichero usando finalJobType (tarjeta), no dbType.value ---
+        if (finalJobType === 'folder' || finalJobType === 'sync' ||
+            (finalJobType === 'db' && dbType && (dbType.value === 'sqlite' || dbType.value === 'mdb'))) {
             const dbFilePathEl = document.getElementById('dbFilePath');
             const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
             if (!pathValue) {
-                showToast(t('error_path_required'), 'error');
+                showToast(t('error_path_required') || 'Especifica la ruta de origen', 'error');
                 btnSave.classList.add('animate-shake');
                 setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
                 return;
@@ -604,10 +736,26 @@ function initJobFormValidation() {
             finalInterval = null;
         }
 
+        // finalJobType ya está declarado arriba; calculamos el db_type definitivo
+        let finalDbType = (dbType && dbType.value) ? dbType.value : 'postgresql';
+        if (finalJobType === 'folder') finalDbType = 'folder';
+        if (finalJobType === 'sync') finalDbType = 'sync';
+
+        // --- BUG FIX 3: Para sync, forzar valores seguros (sin retención ni compresión) ---
+        const isSync = finalJobType === 'sync';
+        const retentionEl = document.getElementById('jobRetention');
+        const compressEl = document.getElementById('compressBackup');
+
+        let retentionVal = 0;
+        if (retentionEl && retentionEl.value.trim() !== '') {
+            retentionVal = parseInt(retentionEl.value, 10);
+            if (isNaN(retentionVal)) retentionVal = 0;
+        }
+
         const jobData = {
             name: jobName.value.trim(),
             description: jobDesc ? jobDesc.value.trim() || null : null,
-            db_type: dbType.value || 'postgresql',
+            db_type: finalDbType,
             db_host: dbHost ? dbHost.value.trim() || null : null,
             db_port: dbPort ? parseInt(dbPort.value) || null : null,
             db_name: finalDbName,
@@ -620,15 +768,14 @@ function initJobFormValidation() {
             dest_local_path: destLocalPath && destLocalPath.value.trim() ? destLocalPath.value.trim() : null,
             dest_gdrive_folder_id: destGDriveFolderId && destGDriveFolderId.value.trim() ? destGDriveFolderId.value.trim() : null,
             dest_gdrive_folder_name: destGDriveFolderName && destGDriveFolderName.value.trim() ? destGDriveFolderName.value.trim() : null,
-            dest_retention_days: document.getElementById('jobRetention') ? parseInt(document.getElementById('jobRetention').value || 0) : 0,
+            dest_retention_days: isSync ? null : retentionVal,
+            compress: isSync ? false : (compressEl ? compressEl.checked : false),
         };
         
         Object.keys(jobData).forEach(k => jobData[k] === undefined && delete jobData[k]);
 
-        const activeCard = document.querySelector('.discovery-card.border-brand-500');
-        if (activeCard && activeCard.dataset.engine === 'folder') {
-            jobData.db_type = 'folder';
-        }
+        console.log('--- INTENTANDO GUARDAR ---');
+        console.log('Payload:', jobData);
 
         btnSave.disabled = true;
         btnSave.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_saving')}`;
@@ -641,16 +788,34 @@ function initJobFormValidation() {
             } else {
                 await api.createJob(jobData);
                 showToast(t('toast_job_created'), 'success');
+                // --- BUG FIX 4: Resetear el wizard al paso 1 tras crear ---
                 form.reset();
+                if (typeof showWizardStep === 'function') showWizardStep(1);
+                const jobTypeCards = document.querySelectorAll('.job-type-card');
+                if (jobTypeCards.length > 0) jobTypeCards[0].click();
             }
             loadJobs();
         } catch (error) {
-            showToast((error && error.message) ? error.message : t('toast_job_save_error'), 'error');
+            // --- BUG FIX 5: Mostrar detalle del error 422/500 del backend ---
+            let errMsg = t('toast_job_save_error');
+            if (error && error.message) errMsg = error.message;
+            console.error('[SolbaBackups] Error al guardar tarea:', error);
+            // Intentar extraer detalle del error de red
+            if (error && error.apiDetail) {
+                console.error('[SolbaBackups] Detalle API:', JSON.stringify(error.apiDetail, null, 2));
+                if (Array.isArray(error.apiDetail)) {
+                    errMsg = error.apiDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join(' | ');
+                } else if (typeof error.apiDetail === 'string') {
+                    errMsg = error.apiDetail;
+                }
+            }
+            showToast(`❌ ${errMsg}`, 'error');
         } finally {
             btnSave.disabled = false;
-            btnSave.innerHTML = editingId
-                ? `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`
-                : `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
+            const btnSaveText = document.getElementById('btnSaveJobText');
+            if (btnSaveText) {
+                btnSaveText.innerHTML = editingId ? t('btn_update_job') : t('btn_save_job');
+            }
             isFormDirty = false;
         }
     });
@@ -683,6 +848,7 @@ async function handleEditJob(event) {
         dest_gdrive_folder_id: btn.dataset.destGdriveFolderId || '',
         dest_gdrive_folder_name: folderName,
         dest_retention_days: btn.dataset.destRetentionDays || '0',
+        compress: btn.dataset.compress === 'true',
     };
 
     setFormEditMode(id, name, extra, sch);
@@ -729,11 +895,21 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     }
 
     const dbFilePathEl = document.getElementById('dbFilePath');
-    if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb') {
+    if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb' || extra.db_type === 'sync') {
         if (dbFilePathEl) dbFilePathEl.value = extra.db_name || '';
-        if (dbName) dbName.value = '';
+        if (dbName) {
+            if (dbName.tagName.toLowerCase() === 'select') dbName.innerHTML = '';
+            else dbName.value = '';
+        }
     } else {
-        if (dbName) dbName.value = extra.db_name || '';
+        if (dbName) {
+            if (dbName.tagName.toLowerCase() === 'select' && dbName.multiple) {
+                const parts = (extra.db_name || '').split(',');
+                dbName.innerHTML = parts.map(p => p.trim() ? `<option value="${p.trim()}" selected>${p.trim()}</option>` : '').join('');
+            } else {
+                dbName.value = extra.db_name || '';
+            }
+        }
         if (dbFilePathEl) dbFilePathEl.value = '';
     }
 
@@ -788,34 +964,65 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     const jobRetention = document.getElementById('jobRetention');
     if (jobRetention) jobRetention.value = extra.dest_retention_days !== undefined ? extra.dest_retention_days : '0';
 
+    const compressBackup = document.getElementById('compressBackup');
+    if (compressBackup) compressBackup.checked = extra.compress !== undefined ? extra.compress : false;
+
     if (dbType) dbType.dispatchEvent(new Event('change'));
     if (destType) destType.dispatchEvent(new Event('change'));
     if (jobSched) jobSched.dispatchEvent(new Event('change'));
 
     if (heading) {
-        heading.innerHTML = `
-            ${t('title_editing_job')}
-            <span id="edit-mode-badge"
-                  class="ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-amber-400/10 text-amber-400 border border-amber-400/30">
-                ${t('badge_edit_mode')}
-            </span>`;
+        heading.innerHTML = `✏️ Editando Tarea: ${name}`;
+    }
+
+    form.classList.remove('border-slate-200', 'dark:border-slate-800');
+    form.classList.add('ring-4', 'ring-orange-500/50', 'border-orange-500');
+
+    let btnCancelEditTop = document.getElementById('btnCancelEditTop');
+    if (btnCancelEditTop) {
+        btnCancelEditTop.classList.remove('hidden');
+    }
+
+    const btnSaveText = document.getElementById('btnSaveJobText');
+    if (btnSaveText) {
+        btnSaveText.innerHTML = `Actualizar Tarea`;
     }
 
     if (btnSave) {
-        btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_update_job')}`;
-        btnSave.classList.replace('bg-brand-500', 'bg-amber-500');
-        btnSave.classList.replace('hover:bg-brand-600', 'hover:bg-amber-600');
+        btnSave.classList.replace('bg-emerald-500', 'bg-orange-500');
+        btnSave.classList.replace('hover:bg-emerald-600', 'hover:bg-orange-600');
+        // also handle old brand classes just in case
+        btnSave.classList.replace('bg-brand-500', 'bg-orange-500');
+        btnSave.classList.replace('hover:bg-brand-600', 'hover:bg-orange-600');
     }
+    
+    // Also simulate clicking the right jobTypeCard
+    const jobTypeCards = document.querySelectorAll('.job-type-card');
+    let targetType = 'db';
+    if (extra.db_type === 'folder') targetType = 'folder';
+    if (extra.db_type === 'sync') targetType = 'sync';
+    
+    jobTypeCards.forEach(c => {
+        if (c.dataset.jobType === targetType) {
+            c.click();
+        }
+    });
 
     const cancelBtn = document.getElementById('btnCancelEdit');
     if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+    // Reset to step 1 when editing
+    if (typeof showWizardStep === 'function') {
+        showWizardStep(1);
+    }
 }
 
 function resetFormToCreateMode() {
     const form = document.getElementById('createJobForm');
-    const btnSave = document.getElementById('btnSaveJob');
+    const btnSaveText = document.getElementById('btnSaveJobText');
     const dbPassword = document.getElementById('dbPassword');
-    const heading = form ? form.querySelector('h3') : null;
+    const heading = document.getElementById('formTitle');
+    const btnCancelEditTop = document.getElementById('btnCancelEditTop');
 
     if (!form) return;
 
@@ -826,16 +1033,26 @@ function resetFormToCreateMode() {
     delete form.dataset.editingId;
     delete form.dataset.editingSchedule;
 
-    if (heading) heading.innerHTML = t('title_new_backup_job');
+    if (heading) heading.innerHTML = `✨ ${t('title_new_backup_job') || 'Crear Nueva Tarea'}`;
 
+    if (btnSaveText) {
+        btnSaveText.innerHTML = `${t('btn_save_job') || 'Crear Tarea'}`;
+    }
+    
+    const btnSave = document.getElementById('btnSaveJob');
     if (btnSave) {
-        btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_job')}`;
-        btnSave.classList.replace('bg-amber-500', 'bg-brand-500');
-        btnSave.classList.replace('hover:bg-amber-600', 'hover:bg-brand-600');
+        btnSave.classList.replace('bg-orange-500', 'bg-emerald-500');
+        btnSave.classList.replace('hover:bg-orange-600', 'hover:bg-emerald-600');
     }
 
     const cancelBtn = document.getElementById('btnCancelEdit');
     if (cancelBtn) cancelBtn.classList.add('hidden');
+    
+    if (btnCancelEditTop) btnCancelEditTop.classList.add('hidden');
+
+    form.classList.remove('ring-4', 'ring-orange-500/50', 'border-orange-500');
+    form.classList.add('border-slate-200', 'dark:border-slate-800');
+    
     const badge = form.querySelector('#edit-mode-badge');
     if (badge) badge.remove();
 
@@ -844,7 +1061,17 @@ function resetFormToCreateMode() {
         c.classList.add('border-slate-300', 'dark:border-slate-700', 'bg-white', 'dark:bg-surface-950');
     });
 
+    const jobTypeCards = document.querySelectorAll('.job-type-card');
+    if (jobTypeCards.length > 0) {
+        jobTypeCards[0].click();
+    }
+
     isFormDirty = false;
+    
+    // Reset to step 1
+    if (typeof showWizardStep === 'function') {
+        showWizardStep(1);
+    }
 }
 
 function showDeleteConfirm(jobId, name) {
@@ -942,20 +1169,6 @@ function setupPolling() {
     }, 8000);
 }
 
-async function loadStats(isSilent = false) {
-    const elTotal = document.getElementById('stat-total-jobs');
-    if (!elTotal) return;
-
-    try {
-        const stats = await api.getStats();
-        elTotal.textContent = stats.total_jobs !== undefined ? stats.total_jobs : 'N/A';
-    } catch (error) {
-        if (!isSilent) {
-            console.error('Error cargando estadísticas:', error);
-            elTotal.textContent = 'N/A';
-        }
-    }
-}
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -2640,3 +2853,89 @@ function showInputPrompt(title, placeholder, confirmText = t('btn_accept') || 'A
         });
     });
 }
+
+// --- WIZARD LOGIC ---
+let currentWizardStep = 1;
+
+function showWizardStep(step) {
+    const s1 = document.getElementById('wizardStep1');
+    const s2 = document.getElementById('wizardStep2');
+    const s3 = document.getElementById('wizardStep3');
+    
+    const btnPrev = document.getElementById('btnWizardPrev');
+    const btnNext = document.getElementById('btnWizardNext');
+    const btnSave = document.getElementById('btnSaveJob');
+
+    // Hide all
+    if (s1) s1.classList.add('hidden');
+    if (s2) s2.classList.add('hidden');
+    if (s3) s3.classList.add('hidden');
+
+    if (step === 1) {
+        if (s1) s1.classList.remove('hidden');
+        if (btnPrev) btnPrev.classList.add('hidden');
+        if (btnNext) btnNext.classList.remove('hidden');
+        if (btnSave) btnSave.classList.add('hidden');
+    } else if (step === 2) {
+        if (s2) s2.classList.remove('hidden');
+        if (btnPrev) btnPrev.classList.remove('hidden');
+        if (btnNext) btnNext.classList.remove('hidden');
+        if (btnSave) btnSave.classList.add('hidden');
+    } else if (step === 3) {
+        if (s3) s3.classList.remove('hidden');
+        if (btnPrev) btnPrev.classList.remove('hidden');
+        if (btnNext) btnNext.classList.add('hidden');
+        if (btnSave) btnSave.classList.remove('hidden');
+    }
+
+    currentWizardStep = step;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait slightly to ensure elements exist
+    setTimeout(() => {
+        const btnPrev = document.getElementById('btnWizardPrev');
+        const btnNext = document.getElementById('btnWizardNext');
+        const btnCancelEditTop = document.getElementById('btnCancelEditTop');
+
+        if (btnPrev) {
+            btnPrev.addEventListener('click', () => {
+                if (currentWizardStep > 1) showWizardStep(currentWizardStep - 1);
+            });
+        }
+
+        if (btnNext) {
+            btnNext.addEventListener('click', () => {
+                const jobName = document.getElementById('jobName');
+                if (currentWizardStep === 1) {
+                    if (!jobName.value.trim()) {
+                        showError(jobName, t('error_field_required') || 'Obligatorio');
+                        return;
+                    }
+                    clearErrors(jobName);
+                    showWizardStep(2);
+                } else if (currentWizardStep === 2) {
+                    const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
+                    const currentJobType = activeJobTypeCard ? activeJobTypeCard.dataset.jobType : 'db';
+                    const dbType = document.getElementById('dbType');
+                    if (currentJobType === 'db' && (!dbType || !dbType.value.trim())) {
+                        showError(dbType, t('error_select_engine') || 'Obligatorio');
+                        return;
+                    }
+                    if (dbType) clearErrors(dbType);
+                    showWizardStep(3);
+                }
+            });
+        }
+
+        if (btnCancelEditTop) {
+            btnCancelEditTop.addEventListener('click', () => {
+                isFormDirty = false;
+                resetFormToCreateMode();
+            });
+        }
+
+        showWizardStep(1);
+    }, 100);
+});
+// --- END WIZARD LOGIC ---

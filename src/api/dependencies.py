@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from src.db.database import SessionLocal
 
 from src.core.job_manager import JobManager
-from src.core.job_scheduler import JobScheduler
 
 log = logging.getLogger(__name__)
 
@@ -21,13 +20,6 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
-
-
-def get_scheduler(request: Request) -> JobScheduler:
-    """Devuelve la instancia global del JobScheduler desde el estado de la app."""
-    if not hasattr(request.app.state, "scheduler"):
-        raise RuntimeError("El Scheduler no ha sido inicializado en el arranque.")
-    return request.app.state.scheduler
 
 
 def get_job_manager(request: Request) -> JobManager:
