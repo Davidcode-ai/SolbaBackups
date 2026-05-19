@@ -441,6 +441,7 @@ class JobManager:
             try:
                 async def pipeline_execution():
                     """Función interna que ejecuta el pipeline completo."""
+                    total_size = 0
                     # REFACTORIZACIÓN DE EMERGENCIA: Fallback si el frontend falla
                     if job.db_name:
                         src_path = Path(job.db_name)
@@ -553,7 +554,6 @@ class JobManager:
                     if job.db_type in ["postgresql", "mysql", "sqlserver"] and len(db_names) > 1:
                         # Múltiples bases de datos - procesar cada una secuencialmente con pipeline completo
                         all_final_dests = []
-                        total_file_size = 0
                         
                         for idx, db_name_item in enumerate(db_names):
                             # Dump de esta base de datos
@@ -575,7 +575,7 @@ class JobManager:
                                 compressed_path = dump_path
                                 file_size = dump_path.stat().st_size
                             
-                            total_file_size += file_size
+                            total_size += file_size
                             
                             # Formatear nombre con nombre de la base de datos específica
                             timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
@@ -633,10 +633,8 @@ class JobManager:
                             if compressed_path.exists() and compressed_path != Path(final_dest):
                                 compressed_path.unlink()
                         
-                        # Usar el primer destino para el registro final
-                        final_dest = all_final_dests[0]
-                        file_size = total_file_size
-                        dump_path = None  # No hay dump_path único para múltiples BDs
+                        # Asegurarse de que final_dest devuelve la ruta de la carpeta contenedora si son varias BDs
+                        final_dest = str(Path(all_final_dests[0]).parent) if all_final_dests else ""
                         
                         history_manager.add_log(
                             db,
@@ -645,6 +643,7 @@ class JobManager:
                             f"Procesamiento de {len(db_names)} bases de datos completado.",
                             stage="done",
                         )
+                        return total_size, final_dest
                     elif job.db_type in ["postgresql", "mysql", "sqlserver"]:
                         # Base de datos única
                         dump_path = await process_single_database(db_names[0], 0, 1)
