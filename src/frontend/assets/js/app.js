@@ -2662,6 +2662,46 @@ document.getElementById('btnExplorerCancel')?.addEventListener('click', closeFil
 document.getElementById('btnCloseExplorer')?.addEventListener('click', closeFileExplorer);
 document.getElementById('btnExplorerRefresh')?.addEventListener('click', () => renderExplorerPath(currentExplorerPath));
 
+// Lógica para crear carpeta local desde el explorador
+document.getElementById('btnExplorerCreateFolder')?.addEventListener('click', async () => {
+    const folderName = await showInputPrompt(t('prompt_new_local_folder') || 'Nombre de la carpeta', t('ph_new_local_folder') || 'Mi Carpeta');
+    if (!folderName || !folderName.trim()) return;
+
+    const btn = document.getElementById('btnExplorerCreateFolder');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/v1/utils/create-dir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                parent_path: currentExplorerPath, 
+                folder_name: folderName.trim() 
+            })
+        });
+        
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || t('error_create_folder') || 'Error al crear carpeta');
+        }
+        
+        const data = await res.json();
+        
+        // Refrescar el explorador para mostrar la nueva carpeta
+        await renderExplorerPath(currentExplorerPath);
+        
+        // Mostrar notificación de éxito
+        showNotification(t('msg_folder_created') || `Carpeta "${folderName}" creada exitosamente`, 'success');
+    } catch (error) {
+        showNotification(`Error: ${error.message}`, 'error');
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+});
+
 document.getElementById('btnRestoreCancel')?.addEventListener('click', closeRestoreConfirmModal);
 document.getElementById('btnRestoreConfirm')?.addEventListener('click', async () => {
     const runId = currentRestoreRunId;

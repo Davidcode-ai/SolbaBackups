@@ -5,6 +5,7 @@ Contiene la lógica central del JobManager que une la base de datos,
 los conectores, compresores y destinos.
 """
 
+import asyncio
 import logging
 import filecmp
 import os
@@ -434,471 +435,683 @@ class JobManager:
                 stage="init",
             )
 
-            # TODO EL PROCESO ENVUELTO EN UN GRAN TRY-EXCEPT
+            # TODO EL PROCESO ENVUELTO EN UN GRAN TRY-EXCEPT CON TIMEOUT
+            # Protegemos el pipeline completo con un timeout de 2 horas (7200 segundos)
+            # para evitar que se quede en estado RUNNING infinitamente
             try:
-                # REFACTORIZACIÓN DE EMERGENCIA: Fallback si el frontend falla
-                if job.db_name:
-                    src_path = Path(job.db_name)
-                    if src_path.is_dir() and job.db_type != "folder":
-                        job.db_type = "folder"
-                        log.warning(
-                            f"Corrigiendo tipo de backup a 'folder' para la ruta: {src_path}"
-                        )
-
-                # 3. Extracción de BD (Dump)
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    f"Iniciando volcado de la BD '{job.db_name}' usando conector {job.db_type}...",
-                    stage="dump",
-                )
-
-                # Archivo temporal por defecto
-                suffix = ".bak" if job.db_type == "sqlserver" else ".sql"
-                if job.db_type == "folder":
-                    suffix = ".tmp"
-
-                fd, dump_path_str = tempfile.mkstemp(suffix=suffix)
-                os.close(fd)
-                dump_path = Path(dump_path_str)
-
-                # Seleccionar y ejecutar conector
-                if job.db_type == "postgresql":
-                    from src.connectors.postgresql import PostgreSQLConnector
-
-                    connector = PostgreSQLConnector()
-                    await connector.extract(job, dump_path)
-
-                elif job.db_type == "mysql":
-                    from src.connectors.mysql import MySQLConnector
-
-                    connector = MySQLConnector()
-                    await connector.extract(job, dump_path)
-
-                elif job.db_type == "sqlserver":
-                    host_str = (
-                        f"{job.db_host},{job.db_port}"
-                        if job.db_port
-                        else f"{job.db_host}"
-                    )
-                    cmd = [
-                        "sqlcmd",
-                        "-S",
-                        host_str,
-                        "-U",
-                        job.db_user or "",
-                        "-P",
-                        job.db_password or "",
-                        "-Q",
-                        f"BACKUP DATABASE [{job.db_name}] TO DISK='{dump_path_str}'",
-                    ]
-                    process = subprocess.run(cmd, capture_output=True, text=True)
-                    if process.returncode != 0:
-                        raise Exception(
-                            f"Error en sqlcmd: {process.stderr or process.stdout}"
-                        )
-
-                elif job.db_type in ["sqlite", "mdb"]:
-                    if not job.db_name:
-                        raise ValueError(
-                            "Error crítico: El Frontend ha enviado una ruta de origen vacía."
-                        )
-                    src_file = Path(job.db_name)
-                    if not src_file.exists():
-                        raise FileNotFoundError(
-                            f"El archivo origen {src_file} no existe."
-                        )
-                    shutil.copy2(src_file, dump_path)
-
-                elif job.db_type == "folder":
-                    if not job.db_name:
-                        raise ValueError(
-                            "Error crítico: El Frontend ha enviado una ruta de origen vacía."
-                        )
-                    src_folder = Path(job.db_name)
-                    
-                    try:
-                        if not src_folder.exists() or not src_folder.is_dir():
-                            raise FileNotFoundError(
-                                f"La carpeta origen {src_folder} no existe o no es un directorio."
+                async def pipeline_execution():
+                    """Función interna que ejecuta el pipeline completo."""
+                    # REFACTORIZACIÓN DE EMERGENCIA: Fallback si el frontend falla
+                    if job.db_name:
+                        src_path = Path(job.db_name)
+                        if src_path.is_dir() and job.db_type != "folder":
+                            job.db_type = "folder"
+                            log.warning(
+                                f"Corrigiendo tipo de backup a 'folder' para la ruta: {src_path}"
                             )
-                        # Verificar permisos listando el directorio
-                        _ = list(src_folder.iterdir())
-                    except PermissionError as e:
-                        raise PermissionError(f"Error de permisos al acceder a la ruta de origen: {e}")
-                    except OSError as e:
-                        if isinstance(e, FileNotFoundError):
-                            raise
-                        raise OSError(f"Error al verificar la ruta de origen: {e}")
 
-                    if getattr(job, "compress", True) == False:
-                        if job.dest_type == "google_drive":
-                            raise ValueError("No se puede hacer backup de carpeta sin compresión hacia Google Drive.")
+                    # Detectar múltiples bases de datos (separadas por comas)
+                    # Solo para motores de base de datos reales (postgresql, mysql, sqlserver)
+                    db_names = []
+                    if job.db_name and job.db_type in ["postgresql", "mysql", "sqlserver"]:
+                        if "," in job.db_name:
+                            # Múltiples bases de datos
+                            db_names = [name.strip() for name in job.db_name.split(",") if name.strip()]
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Detectadas múltiples bases de datos: {', '.join(db_names)}",
+                                stage="dump",
+                            )
+                        else:
+                            # Base de datos única
+                            db_names = [job.db_name]
+                    elif job.db_name:
+                        # Para otros tipos (sqlite, mdb, folder, sync), usar db_name tal cual
+                        db_names = [job.db_name]
+
+                    # Función interna para procesar una sola base de datos
+                    async def process_single_database(db_name_to_process: str, db_index: int = 0, total_dbs: int = 1):
+                        """Procesa el backup de una sola base de datos."""
+                        # 3. Extracción de BD (Dump)
+                        db_display_name = db_name_to_process
+                        if total_dbs > 1:
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Procesando BD {db_index + 1}/{total_dbs}: '{db_name_to_process}' usando conector {job.db_type}...",
+                                stage="dump",
+                            )
+                        else:
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Iniciando volcado de la BD '{db_name_to_process}' usando conector {job.db_type}...",
+                                stage="dump",
+                            )
+
+                        # Archivo temporal por defecto
+                        suffix = ".bak" if job.db_type == "sqlserver" else ".sql"
+                        if job.db_type == "folder":
+                            suffix = ".tmp"
+
+                        fd, dump_path_str = tempfile.mkstemp(suffix=suffix)
+                        os.close(fd)
+                        dump_path = Path(dump_path_str)
+
+                        # Modificar job.db_name temporalmente para esta base de datos específica
+                        original_db_name = job.db_name
+                        job.db_name = db_name_to_process
+
+                        # Seleccionar y ejecutar conector
+                        if job.db_type == "postgresql":
+                            from src.connectors.postgresql import PostgreSQLConnector
+
+                            connector = PostgreSQLConnector()
+                            await connector.extract(job, dump_path)
+
+                        elif job.db_type == "mysql":
+                            from src.connectors.mysql import MySQLConnector
+
+                            connector = MySQLConnector()
+                            await connector.extract(job, dump_path)
+
+                        elif job.db_type == "sqlserver":
+                            host_str = (
+                                f"{job.db_host},{job.db_port}"
+                                if job.db_port
+                                else f"{job.db_host}"
+                            )
+                            cmd = [
+                                "sqlcmd",
+                                "-S",
+                                host_str,
+                                "-U",
+                                job.db_user or "",
+                                "-P",
+                                job.db_password or "",
+                                "-Q",
+                                f"BACKUP DATABASE [{db_name_to_process}] TO DISK='{dump_path_str}'",
+                            ]
+                            process = subprocess.run(cmd, capture_output=True, text=True)
+                            if process.returncode != 0:
+                                raise Exception(
+                                    f"Error en sqlcmd: {process.stderr or process.stdout}"
+                                )
+
+                        # Restaurar db_name original
+                        job.db_name = original_db_name
+
+                        # Continuar con el resto del pipeline (compresión y subida)
+                        # para esta base de datos específica
+                        return dump_path
+
+                    # Procesar bases de datos múltiples o única
+                    if job.db_type in ["postgresql", "mysql", "sqlserver"] and len(db_names) > 1:
+                        # Múltiples bases de datos - procesar cada una secuencialmente con pipeline completo
+                        all_final_dests = []
+                        total_file_size = 0
                         
-                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                        dest_path = Path(job.dest_local_path or Path.cwd() / "backups") / f"{job.name}_{timestamp}"
-                        history_manager.add_log(db, run.id, "INFO", f"Copiando carpeta cruda directamente (sin compresión): {src_folder} -> {dest_path}", stage="dump")
+                        for idx, db_name_item in enumerate(db_names):
+                            # Dump de esta base de datos
+                            dump_path = await process_single_database(db_name_item, idx, len(db_names))
+                            
+                            # Compresión para esta base de datos
+                            should_compress = getattr(job, "compress", True)
+                            if should_compress:
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    f"Comprimiendo backup de BD {db_name_item} ({idx + 1}/{len(db_names)})...",
+                                    stage="compress",
+                                )
+                                compressed_path = await asyncio.to_thread(self.compressor.compress, dump_path)
+                                file_size = compressed_path.stat().st_size
+                            else:
+                                compressed_path = dump_path
+                                file_size = dump_path.stat().st_size
+                            
+                            total_file_size += file_size
+                            
+                            # Formatear nombre con nombre de la base de datos específica
+                            timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                            if should_compress:
+                                final_name = f"{job.name}_{db_name_item}_{timestamp}.sql.zip"
+                                final_temp_path = compressed_path.parent / final_name
+                                compressed_path = await asyncio.to_thread(compressed_path.rename, final_temp_path)
+                                final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
+                            else:
+                                # Para sin compresión, crear subcarpeta con nombre de BD
+                                backup_folder_name = f"{job.name}_{db_name_item}_{timestamp}"
+                                dest_base_path = Path(job.dest_local_path or str(Path.cwd() / "backups"))
+                                backup_folder = dest_base_path / backup_folder_name
+                                await asyncio.to_thread(backup_folder.mkdir, parents=True, exist_ok=True)
+                                final_backup_path = backup_folder / dump_path.name
+                                await asyncio.to_thread(shutil.move, str(dump_path), str(final_backup_path))
+                                final_dest = str(final_backup_path)
+                                compressed_path = final_backup_path
+                            
+                            all_final_dests.append(final_dest)
+                            
+                            # Subida a destino
+                            if job.dest_type == "local":
+                                from src.destinations.local import LocalDestination
+                                destination = LocalDestination()
+                                dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
+                                await destination.upload(compressed_path, dest_path_str)
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    f"Backup de BD {db_name_item} subido exitosamente a: {final_dest}",
+                                    stage="upload",
+                                )
+                            elif job.dest_type == "google_drive":
+                                from src.destinations.google_drive import GoogleDriveDestination
+                                destination = GoogleDriveDestination(
+                                    folder_id=job.dest_gdrive_folder_id,
+                                    retention_days=job.dest_retention_days,
+                                    job_name=job.name,
+                                )
+                                web_link = await asyncio.to_thread(destination.upload, compressed_path)
+                                all_final_dests[-1] = web_link
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    f"Backup de BD {db_name_item} subido a Google Drive: {web_link}",
+                                    stage="upload",
+                                )
+                            
+                            # Limpieza de temporales para esta BD
+                            if should_compress and dump_path.exists():
+                                dump_path.unlink()
+                            if compressed_path.exists() and compressed_path != Path(final_dest):
+                                compressed_path.unlink()
                         
-                        shutil.copytree(src_folder, dest_path, dirs_exist_ok=True)
-                        dump_path = dest_path
-                        job.db_type = "sync" # Evita que el resto del pipeline lo comprima y mueva
-                    else:
-                        # Directorio temporal de empaquetado para sincronización incremental
-                        staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
-                        staging_dir.mkdir(parents=True, exist_ok=True)
+                        # Usar el primer destino para el registro final
+                        final_dest = all_final_dests[0]
+                        file_size = total_file_size
+                        dump_path = None  # No hay dump_path único para múltiples BDs
                         
-                        history_manager.add_log(
-                            db, run.id, "INFO", 
-                            f"Sincronizando carpeta (incremental): {src_folder} -> {staging_dir}", 
-                            stage="dump"
-                        )
-
-                        copied = 0
-                        updated = 0
-                        skipped = 0
-                        total = 0
-
-                        try:
-                            for src_path in src_folder.rglob("*"):
-                                if src_path.is_dir():
-                                    continue
-                                total += 1
-                                rel = src_path.relative_to(src_folder)
-                                dst_path = staging_dir / rel
-
-                                if not dst_path.exists():
-                                    dst_path.parent.mkdir(parents=True, exist_ok=True)
-                                    shutil.copy2(src_path, dst_path)
-                                    copied += 1
-                                    continue
-
-                                try:
-                                    src_stat = src_path.stat()
-                                    dst_stat = dst_path.stat()
-                                except OSError:
-                                    shutil.copy2(src_path, dst_path)
-                                    updated += 1
-                                    continue
-
-                                if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
-                                    skipped += 1
-                                    continue
-
-                                if filecmp.cmp(src_path, dst_path, shallow=False):
-                                    skipped += 1
-                                    continue
-
-                                shutil.copy2(src_path, dst_path)
-                                updated += 1
-                        except PermissionError as e:
-                            raise PermissionError(f"Error de permisos durante la sincronización: {e}")
-                        except Exception as e:
-                            raise RuntimeError(f"Error inesperado durante la sincronización de archivos: {e}")
-
                         history_manager.add_log(
                             db,
                             run.id,
                             "INFO",
-                            f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
+                            f"Procesamiento de {len(db_names)} bases de datos completado.",
+                            stage="done",
+                        )
+                    elif job.db_type in ["postgresql", "mysql", "sqlserver"]:
+                        # Base de datos única
+                        dump_path = await process_single_database(db_names[0], 0, 1)
+                    elif job.db_type in ["sqlite", "mdb"]:
+                        if not job.db_name:
+                            raise ValueError(
+                                "Error crítico: El Frontend ha enviado una ruta de origen vacía."
+                            )
+                        src_file = Path(job.db_name)
+                        if not src_file.exists():
+                            raise FileNotFoundError(
+                                f"El archivo origen {src_file} no existe."
+                            )
+                        shutil.copy2(src_file, dump_path)
+
+                    elif job.db_type == "folder":
+                        if not job.db_name:
+                            raise ValueError(
+                                "Error crítico: El Frontend ha enviado una ruta de origen vacía."
+                            )
+                        src_folder = Path(job.db_name)
+                        
+                        try:
+                            if not src_folder.exists() or not src_folder.is_dir():
+                                raise FileNotFoundError(
+                                    f"La carpeta origen {src_folder} no existe o no es un directorio."
+                                )
+                            # Verificar permisos listando el directorio
+                            _ = list(src_folder.iterdir())
+                        except PermissionError as e:
+                            raise PermissionError(f"Error de permisos al acceder a la ruta de origen: {e}")
+                        except OSError as e:
+                            if isinstance(e, FileNotFoundError):
+                                raise
+                            raise OSError(f"Error al verificar la ruta de origen: {e}")
+
+                        if getattr(job, "compress", True) == False:
+                            if job.dest_type == "google_drive":
+                                raise ValueError("No se puede hacer backup de carpeta sin compresión hacia Google Drive.")
+                            
+                            timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                            dest_path = Path(job.dest_local_path or Path.cwd() / "backups") / f"{job.name}_{timestamp}"
+                            history_manager.add_log(db, run.id, "INFO", f"Copiando carpeta cruda directamente (sin compresión): {src_folder} -> {dest_path}", stage="dump")
+                            
+                            # Wrap synchronous copytree in thread to avoid blocking event loop
+                            await asyncio.to_thread(shutil.copytree, src_folder, dest_path, dirs_exist_ok=True)
+                            dump_path = dest_path
+                            job.db_type = "sync" # Evita que el resto del pipeline lo comprima y mueva
+                        else:
+                            # Directorio temporal de empaquetado para sincronización incremental
+                            staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
+                            staging_dir.mkdir(parents=True, exist_ok=True)
+                            
+                            history_manager.add_log(
+                                db, run.id, "INFO", 
+                                f"Sincronizando carpeta (incremental): {src_folder} -> {staging_dir}", 
+                                stage="dump"
+                            )
+
+                            copied = 0
+                            updated = 0
+                            skipped = 0
+                            total = 0
+
+                            try:
+                                for src_path in src_folder.rglob("*"):
+                                    if src_path.is_dir():
+                                        continue
+                                    total += 1
+                                    rel = src_path.relative_to(src_folder)
+                                    dst_path = staging_dir / rel
+
+                                    if not dst_path.exists():
+                                        dst_path.parent.mkdir(parents=True, exist_ok=True)
+                                        shutil.copy2(src_path, dst_path)
+                                        copied += 1
+                                        continue
+
+                                    try:
+                                        src_stat = src_path.stat()
+                                        dst_stat = dst_path.stat()
+                                    except OSError:
+                                        shutil.copy2(src_path, dst_path)
+                                        updated += 1
+                                        continue
+
+                                    if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
+                                        skipped += 1
+                                        continue
+
+                                    if filecmp.cmp(src_path, dst_path, shallow=False):
+                                        skipped += 1
+                                        continue
+
+                                    shutil.copy2(src_path, dst_path)
+                                    updated += 1
+                            except PermissionError as e:
+                                raise PermissionError(f"Error de permisos durante la sincronización: {e}")
+                            except Exception as e:
+                                raise RuntimeError(f"Error inesperado durante la sincronización de archivos: {e}")
+
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Sincronización incremental finalizada. Total={total}, copiados={copied}, actualizados={updated}, sin cambios={skipped}.",
+                                stage="dump",
+                            )
+
+                            # Creamos un archivo .zip con el contenido de la carpeta temporal (staging)
+                            # Wrap synchronous make_archive in thread to avoid blocking event loop
+                            base_name = str(dump_path.with_suffix(""))
+                            archive_path_str = await asyncio.to_thread(shutil.make_archive, base_name, "zip", staging_dir)
+
+                            if dump_path.exists():
+                                dump_path.unlink()
+
+                            dump_path = Path(archive_path_str)
+
+                    elif job.db_type == "sync":
+                        if not job.db_name:
+                            raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
+                        src_folder = Path(job.db_name)
+                        if not src_folder.exists() or not src_folder.is_dir():
+                            raise FileNotFoundError(f"La carpeta origen {src_folder} no existe.")
+                            
+                        if dump_path.exists():
+                            dump_path.unlink()
+                            
+                        dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
+                        history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (espejo): {src_folder} -> {dest_sync_folder}", stage="dump")
+                        
+                        # Usa copytree directo para hacer un espejo exacto, no pasa por Temp ni comprime.
+                        # Wrap synchronous copytree in thread to avoid blocking event loop
+                        await asyncio.to_thread(shutil.copytree, src_folder, dest_sync_folder, dirs_exist_ok=True)
+                        
+                        dump_path = dest_sync_folder
+
+                    else:
+                        raise NotImplementedError(
+                            f"El conector para el motor '{job.db_type}' no está implementado aún."
+                        )
+
+                    # Solo registrar el tamaño si dump_path no es None (para múltiples BDs ya se registró)
+                    if dump_path is not None:
+                        dump_size = dump_path.stat().st_size
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Volcado completado: {dump_path.name} ({dump_size} bytes)",
                             stage="dump",
                         )
 
-                        # Creamos un archivo .zip con el contenido de la carpeta temporal (staging)
-                        base_name = str(dump_path.with_suffix(""))
-                        archive_path_str = shutil.make_archive(base_name, "zip", staging_dir)
+                    # 4. Comprimir el Archivo (condicional basado en job.compress)
+                    should_compress = getattr(job, "compress", True)
+                    
+                    if job.db_type != "sync" and should_compress:
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            "Iniciando compresión en formato ZIP...",
+                            stage="compress",
+                        )
+                        # Wrap synchronous compress in thread to avoid blocking event loop
+                        compressed_path = await asyncio.to_thread(self.compressor.compress, dump_path)
+                        file_size = compressed_path.stat().st_size
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Compresión exitosa. Tamaño final: {file_size} bytes.",
+                            stage="compress",
+                        )
+                    elif job.db_type != "sync" and not should_compress:
+                        # No comprimir: mover archivo a subcarpeta con nombre del backup
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            "Omitiendo compresión (compress=False). Moviendo archivo a carpeta de backup...",
+                            stage="compress",
+                        )
+                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        backup_folder_name = f"{job.name}_{timestamp}"
+                        dest_base_path = Path(job.dest_local_path or str(Path.cwd() / "backups"))
+                        backup_folder = dest_base_path / backup_folder_name
+                        
+                        # Crear subcarpeta y mover archivo
+                        await asyncio.to_thread(backup_folder.mkdir, parents=True, exist_ok=True)
+                        final_backup_path = backup_folder / dump_path.name
+                        await asyncio.to_thread(shutil.move, str(dump_path), str(final_backup_path))
+                        
+                        compressed_path = final_backup_path
+                        file_size = final_backup_path.stat().st_size
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Archivo movido sin compresión. Tamaño: {file_size} bytes.",
+                            stage="compress",
+                        )
+                    else:
+                        compressed_path = dump_path
+                        # Calcular el tamaño sumando archivos
+                        file_size = sum(f.stat().st_size for f in compressed_path.rglob('*') if f.is_file())
 
+                    # 5. Mover a destino (Carpeta local o red) y 6. Política de retención
+                    history_manager.add_log(
+                        db,
+                        run.id,
+                        "INFO",
+                        f"Preparando transferencia a destino '{job.dest_type}'...",
+                        stage="upload",
+                    )
+
+                    # Formatear el nombre del archivo y renombrar el comprimido temporalmente
+                    if job.db_type != "sync":
+                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        should_compress = getattr(job, "compress", True)
+                        
+                        if should_compress:
+                            final_name = f"{job.name}_{timestamp}.sql.zip"
+                            final_temp_path = compressed_path.parent / final_name
+                            compressed_path = await asyncio.to_thread(compressed_path.rename, final_temp_path)
+                            final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
+                        else:
+                            # Ya está en la carpeta final, solo necesitamos la ruta
+                            final_dest = str(compressed_path)
+                    else:
+                        final_dest = str(compressed_path)
+
+                    if job.dest_type == "local":
+                        from src.destinations.local import LocalDestination
+
+                        destination = LocalDestination()
+                        dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
+
+                        # Subir archivo localmente
+                        if job.db_type != "sync":
+                            await destination.upload(compressed_path, dest_path_str)
+
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Transferencia exitosa a: {final_dest}",
+                            stage="upload",
+                        )
+
+                        # Retención Local
+                        if job.dest_retention_days and job.dest_retention_days > 0:
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Ejecutando política de retención local ({job.dest_retention_days} días)...",
+                                stage="cleanup",
+                            )
+                            deleted = await destination.clean_old_backups(
+                                dest_path_str, job.dest_retention_days
+                            )
+                            if deleted > 0:
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    f"Borrados {deleted} backups antiguos exitosamente.",
+                                    stage="cleanup",
+                                )
+                            else:
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    "No se encontraron backups antiguos que borrar.",
+                                    stage="cleanup",
+                                )
+
+                    elif job.dest_type == "google_drive":
+                        from src.destinations.google_drive import GoogleDriveDestination
+
+                        destination = GoogleDriveDestination(
+                            folder_id=job.dest_gdrive_folder_id,
+                            retention_days=job.dest_retention_days,
+                            job_name=job.name,
+                        )
+
+                        # Subir archivo a GDrive (ejecución síncrona enviada a thread)
+                        web_link = await asyncio.to_thread(
+                            destination.upload, compressed_path
+                        )
+                        final_dest = web_link
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Transferencia a Google Drive exitosa. Enlace: {web_link}",
+                            stage="upload",
+                        )
+
+                        # La retención de GDrive se ejecuta automáticamente dentro de destination.upload
+                        if job.dest_retention_days and job.dest_retention_days > 0:
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Política de retención ejecutada internamente en Drive ({job.dest_retention_days} días).",
+                                stage="cleanup",
+                            )
+
+                    else:
+                        raise NotImplementedError(
+                            f"Destino '{job.dest_type}' no implementado aún."
+                        )
+
+                    # Limpieza de archivos temporales
+                    should_compress = getattr(job, "compress", True)
+                    if job.db_type != "sync" and should_compress:
                         if dump_path.exists():
                             dump_path.unlink()
+                        if compressed_path.exists():
+                            compressed_path.unlink()
 
-                        dump_path = Path(archive_path_str)
-
-                elif job.db_type == "sync":
-                    if not job.db_name:
-                        raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
-                    src_folder = Path(job.db_name)
-                    if not src_folder.exists() or not src_folder.is_dir():
-                        raise FileNotFoundError(f"La carpeta origen {src_folder} no existe.")
-                        
-                    if dump_path.exists():
-                        dump_path.unlink()
-                        
-                    dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
-                    history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (espejo): {src_folder} -> {dest_sync_folder}", stage="dump")
-                    
-                    # Usa copytree directo para hacer un espejo exacto, no pasa por Temp ni comprime.
-                    shutil.copytree(src_folder, dest_sync_folder, dirs_exist_ok=True)
-                    
-                    dump_path = dest_sync_folder
-
-                else:
-                    raise NotImplementedError(
-                        f"El conector para el motor '{job.db_type}' no está implementado aún."
+                    # =====================================================================
+                    # 6.5 Integración Google Drive (Opcional vía Settings)
+                    # =====================================================================
+                    global_settings = crud.setting_get_all(db)
+                    is_cloud_enabled = (
+                        str(global_settings.get("cloud_enabled", "false")).lower() == "true"
                     )
 
-                dump_size = dump_path.stat().st_size
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    f"Volcado completado: {dump_path.name} ({dump_size} bytes)",
-                    stage="dump",
-                )
-
-                # 4. Comprimir el Archivo
-                if job.db_type != "sync":
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        "Iniciando compresión en formato ZIP...",
-                        stage="compress",
-                    )
-                    compressed_path = self.compressor.compress(dump_path)
-                    file_size = compressed_path.stat().st_size
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        f"Compresión exitosa. Tamaño final: {file_size} bytes.",
-                        stage="compress",
-                    )
-                else:
-                    compressed_path = dump_path
-                    # Calcular el tamaño sumando archivos
-                    file_size = sum(f.stat().st_size for f in compressed_path.rglob('*') if f.is_file())
-
-                # 5. Mover a destino (Carpeta local o red) y 6. Política de retención
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    f"Preparando transferencia a destino '{job.dest_type}'...",
-                    stage="upload",
-                )
-
-                # Formatear el nombre del archivo y renombrar el comprimido temporalmente
-                if job.db_type != "sync":
-                    timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                    final_name = f"{job.name}_{timestamp}.sql.zip"
-                    final_temp_path = compressed_path.parent / final_name
-                    compressed_path = compressed_path.rename(final_temp_path)
-                    final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
-                else:
-                    final_dest = str(compressed_path)
-
-                if job.dest_type == "local":
-                    from src.destinations.local import LocalDestination
-
-                    destination = LocalDestination()
-                    dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
-
-                    # Subir archivo localmente
-                    if job.db_type != "sync":
-                        await destination.upload(compressed_path, dest_path_str)
-
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        f"Transferencia exitosa a: {final_dest}",
-                        stage="upload",
-                    )
-
-                    # Retención Local
-                    if job.dest_retention_days and job.dest_retention_days > 0:
-                        history_manager.add_log(
-                            db,
-                            run.id,
-                            "INFO",
-                            f"Ejecutando política de retención local ({job.dest_retention_days} días)...",
-                            stage="cleanup",
-                        )
-                        deleted = await destination.clean_old_backups(
-                            dest_path_str, job.dest_retention_days
-                        )
-                        if deleted > 0:
+                    if is_cloud_enabled:
+                        try:
                             history_manager.add_log(
                                 db,
                                 run.id,
                                 "INFO",
-                                f"Borrados {deleted} backups antiguos exitosamente.",
-                                stage="cleanup",
+                                "Iniciando subida a Google Drive...",
+                                stage="cloud_upload",
                             )
-                        else:
+
+                            from src.destinations.google_drive import GoogleDriveDestination
+
+                            # Recogemos las credenciales dinámicamente desde Settings
+                            creds_path = global_settings.get(
+                                "credentials_path", "credentials.json"
+                            )
+                            folder_id = global_settings.get("drive_folder_id", None)
+
+                            drive_dest = GoogleDriveDestination(
+                                credentials_file=creds_path, folder_id=folder_id
+                            )
+
+                            if job.db_type == "sync":
+                                log.warning("Google Drive no soporta carpetas 'sync' enteras de forma nativa todavía. Omitiendo subida.")
+                            else:
+                                # El archivo final se lee directamente desde la ruta en la que quedó tras el volcado local
+                                drive_dest.upload(Path(final_dest))
+                                
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    "✅ Subida a Google Drive completada exitosamente.",
+                                    stage="cloud_upload",
+                                )
+                                
+                                delete_local = str(global_settings.get("gdrive_delete_local", "false")).lower() == "true"
+                                if delete_local:
+                                    try:
+                                        if Path(final_dest).exists():
+                                            Path(final_dest).unlink()
+                                            history_manager.add_log(
+                                                db,
+                                                run.id,
+                                                "INFO",
+                                                f"🗑️ Archivo local eliminado tras subida a GDrive exitosa.",
+                                                stage="cleanup",
+                                            )
+                                    except Exception as e:
+                                        log.error(f"Error borrando archivo local tras subida a GDrive: {e}")
+                        except Exception as cloud_err:
+                            # Si la nube falla, NO lanzamos la excepción hacia arriba. Es solo un aviso.
+                            aviso = f"Aviso: Drive falló, pero el local está a salvo. Detalle: {str(cloud_err)}"
+                            log.warning(aviso)
                             history_manager.add_log(
-                                db,
-                                run.id,
-                                "INFO",
-                                "No se encontraron backups antiguos que borrar.",
-                                stage="cleanup",
+                                db, run.id, "WARNING", aviso, stage="cloud_upload"
                             )
-
-                elif job.dest_type == "google_drive":
-                    from src.destinations.google_drive import GoogleDriveDestination
-
-                    destination = GoogleDriveDestination(
-                        folder_id=job.dest_gdrive_folder_id,
-                        retention_days=job.dest_retention_days,
-                        job_name=job.name,
-                    )
-                    import asyncio
-
-                    # Subir archivo a GDrive (ejecución síncrona enviada a thread)
-                    web_link = await asyncio.to_thread(
-                        destination.upload, compressed_path
-                    )
-                    final_dest = web_link
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "INFO",
-                        f"Transferencia a Google Drive exitosa. Enlace: {web_link}",
-                        stage="upload",
-                    )
-
-                    # La retención de GDrive se ejecuta automáticamente dentro de destination.upload
-                    if job.dest_retention_days and job.dest_retention_days > 0:
-                        history_manager.add_log(
-                            db,
-                            run.id,
-                            "INFO",
-                            f"Política de retención ejecutada internamente en Drive ({job.dest_retention_days} días).",
-                            stage="cleanup",
-                        )
-
-                else:
-                    raise NotImplementedError(
-                        f"Destino '{job.dest_type}' no implementado aún."
-                    )
-
-                # Limpieza de archivos temporales
-                if job.db_type != "sync":
-                    if dump_path.exists():
-                        dump_path.unlink()
-                    if compressed_path.exists():
-                        compressed_path.unlink()
-
-                # =====================================================================
-                # 6.5 Integración Google Drive (Opcional vía Settings)
-                # =====================================================================
-                global_settings = crud.setting_get_all(db)
-                is_cloud_enabled = (
-                    str(global_settings.get("cloud_enabled", "false")).lower() == "true"
-                )
-
-                if is_cloud_enabled:
+                    # =====================================================================
+                    # =====================================================================
+                    # 8. Limpieza Global (Garbage Collector)
+                    # =====================================================================
                     try:
                         history_manager.add_log(
                             db,
                             run.id,
                             "INFO",
-                            "Iniciando subida a Google Drive...",
-                            stage="cloud_upload",
+                            "Iniciando Garbage Collector...",
+                            stage="cleanup",
                         )
+                        from src.core.cleaner import GarbageCollector
 
-                        from src.destinations.google_drive import GoogleDriveDestination
-
-                        # Recogemos las credenciales dinámicamente desde Settings
-                        creds_path = global_settings.get(
-                            "credentials_path", "credentials.json"
-                        )
-                        folder_id = global_settings.get("drive_folder_id", None)
-
-                        drive_dest = GoogleDriveDestination(
-                            credentials_file=creds_path, folder_id=folder_id
-                        )
-
-                        if job.db_type == "sync":
-                            log.warning("Google Drive no soporta carpetas 'sync' enteras de forma nativa todavía. Omitiendo subida.")
-                        else:
-                            # El archivo final se lee directamente desde la ruta en la que quedó tras el volcado local
-                            drive_dest.upload(Path(final_dest))
-                            
+                        # Ejecutar política de retención global/DB (Garbage Collector 2.0)
+                        deleted_total = GarbageCollector.run_retention_policy(db, global_settings)
+                        
+                        if deleted_total > 0:
                             history_manager.add_log(
                                 db,
                                 run.id,
                                 "INFO",
-                                "✅ Subida a Google Drive completada exitosamente.",
-                                stage="cloud_upload",
+                                f"Garbage Collector: Eliminados {deleted_total} backups antiguos y registros de RunHistory.",
+                                stage="cleanup",
                             )
-                            
-                            delete_local = str(global_settings.get("gdrive_delete_local", "false")).lower() == "true"
-                            if delete_local:
-                                try:
-                                    if Path(final_dest).exists():
-                                        Path(final_dest).unlink()
-                                        history_manager.add_log(
-                                            db,
-                                            run.id,
-                                            "INFO",
-                                            f"🗑️ Archivo local eliminado tras subida a GDrive exitosa.",
-                                            stage="cleanup",
-                                        )
-                                except Exception as e:
-                                    log.error(f"Error borrando archivo local tras subida a GDrive: {e}")
-                    except Exception as cloud_err:
-                        # Si la nube falla, NO lanzamos la excepción hacia arriba. Es solo un aviso.
-                        aviso = f"Aviso: Drive falló, pero el local está a salvo. Detalle: {str(cloud_err)}"
-                        log.warning(aviso)
+
+                    except Exception as gc_err:
+                        log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
                         history_manager.add_log(
-                            db, run.id, "WARNING", aviso, stage="cloud_upload"
+                            db,
+                            run.id,
+                            "WARNING",
+                            f"Aviso en limpieza global: {gc_err}",
+                            stage="cleanup",
                         )
-                # =====================================================================
-                # =====================================================================
-                # 8. Limpieza Global (Garbage Collector)
-                # =====================================================================
-                try:
+                    # =====================================================================
+
                     history_manager.add_log(
                         db,
                         run.id,
                         "INFO",
-                        "Iniciando Garbage Collector...",
-                        stage="cleanup",
+                        "Backup almacenado y pipeline completado.",
+                        stage="done",
                     )
-                    from src.core.cleaner import GarbageCollector
 
-                    # Ejecutar política de retención global/DB (Garbage Collector 2.0)
-                    deleted_total = GarbageCollector.run_retention_policy(db, global_settings)
+                    log.info(f"Job '{job.name}' (ID: {job.id}) finalizado con éxito.")
                     
-                    if deleted_total > 0:
-                        history_manager.add_log(
-                            db,
-                            run.id,
-                            "INFO",
-                            f"Garbage Collector: Eliminados {deleted_total} backups antiguos y registros de RunHistory.",
-                            stage="cleanup",
-                        )
-
-                except Exception as gc_err:
-                    log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
-                    history_manager.add_log(
-                        db,
-                        run.id,
-                        "WARNING",
-                        f"Aviso en limpieza global: {gc_err}",
-                        stage="cleanup",
-                    )
-                # =====================================================================
-
-                history_manager.add_log(
-                    db,
-                    run.id,
-                    "INFO",
-                    "Backup almacenado y pipeline completado.",
-                    stage="done",
-                )
-
+                    # Retornar file_size y final_dest para usarlos fuera de la función
+                    return file_size, str(final_dest)
+                
+                # Ejecutar el pipeline con timeout de 2 horas (7200 segundos)
+                file_size, final_dest = await asyncio.wait_for(pipeline_execution(), timeout=7200)
+                
                 # 7. Actualizar RunHistory a 'SUCCESS' si todo fue bien
                 history_manager.finish_run(
                     db,
                     run.id,
                     status="success",
                     file_size_bytes=file_size,
-                    backup_file_path=str(final_dest),
+                    backup_file_path=final_dest,
                 )
-                log.info(f"Job '{job.name}' (ID: {job.id}) finalizado con éxito.")
                 is_success = True
+
+            except asyncio.TimeoutError:
+                # Manejo específico para timeout del pipeline
+                error_msg = "El pipeline de backup excedió el tiempo límite de 2 horas (7200 segundos) y fue abortado."
+                log.error(error_msg)
+                print(error_msg)
+
+                # Registrar el error en base de datos
+                history_manager.add_log(db, run.id, "ERROR", error_msg, stage="error")
+
+                # Actualizar RunHistory a 'FAILED'
+                history_manager.finish_run(
+                    db, run.id, status="failed", error_message=error_msg
+                )
+                is_success = False
 
             except Exception as e:
                 # 8. Captura global de errores (Si cualquier paso falla)

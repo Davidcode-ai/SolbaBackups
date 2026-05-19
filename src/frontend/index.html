@@ -1013,7 +1013,7 @@
                 </div>
 
                 <!-- PASO 3: DESTINO Y PROGRAMACIÓN -->
-                <div id="wizardStep3" class="hidden space-y-8">
+                <div id="wizardStep3" class="hidden space-y-8 pb-24">
                 <div class="space-y-6 pt-4">
                     <div class="flex flex-col gap-1 bg-slate-50/50 dark:bg-surface-950/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/50">
                         <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="section_backup_destination">🚀 Lugar de Destino</p>
@@ -1161,10 +1161,8 @@
                     </div>
                 </div>
 
-                                </div>
-
                 <!-- WIZARD NAVIGATION -->
-                <div class="sticky bottom-0 bg-white dark:bg-surface-900 pt-6 pb-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center mt-8 z-10 p-6">
+                <div class="sticky bottom-0 bg-white dark:bg-surface-900 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center mt-12 z-20 -mx-6 px-6 py-4 shadow-lg">
                     <button type="button" id="btnWizardPrev" class="hidden bg-slate-100 hover:bg-slate-200 dark:bg-surface-800 dark:hover:bg-surface-700 text-slate-700 dark:text-slate-200 px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2 border border-slate-200 dark:border-slate-700">
                         <i class="fa-solid fa-arrow-left"></i> <span data-i18n="btn_prev">Anterior</span>
                     </button>
@@ -1447,6 +1445,9 @@
                 <div class="flex-1 px-3 py-2 bg-slate-100 dark:bg-surface-950 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex items-center">
                     <span id="explorerCurrentPath" class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate font-mono" data-i18n="status_loading">Cargando...</span>
                 </div>
+                <button type="button" id="btnExplorerCreateFolder" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-surface-800 text-slate-600 dark:text-slate-300 transition-colors" title="Crear Carpeta">
+                    <i class="fa-solid fa-folder-plus"></i>
+                </button>
                 <button type="button" id="btnExplorerRefresh" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-surface-800 text-slate-600 dark:text-slate-300 transition-colors" title="Actualizar">
                     <i class="fa-solid fa-rotate-right"></i>
                 </button>

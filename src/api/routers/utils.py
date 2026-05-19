@@ -304,6 +304,62 @@ def get_gdrive_space():
 class CreateFolderRequest(BaseModel):
     folder_name: str
 
+class CreateLocalFolderRequest(BaseModel):
+    parent_path: str = Field(..., min_length=1, examples=["C:\\Backups"])
+    folder_name: str = Field(..., min_length=1, examples=["MyFolder"])
+
+@router.post("/create-dir")
+def create_local_folder(payload: CreateLocalFolderRequest) -> dict:
+    """Crea una carpeta en el disco del servidor con validación y sanitización."""
+    try:
+        # Sanitizar nombre de la carpeta
+        folder_name = payload.folder_name.strip()
+        if not folder_name:
+            raise HTTPException(status_code=400, detail="El nombre de la carpeta no puede estar vacío.")
+        
+        # Validar caracteres especiales peligrosos
+        invalid_chars = ['<', '>', ':', '"', '|', '?', '*', '\0']
+        if any(char in folder_name for char in invalid_chars):
+            raise HTTPException(status_code=400, detail="El nombre de la carpeta contiene caracteres no permitidos.")
+        
+        # Sanitizar parent_path
+        parent_path = Path(payload.parent_path).resolve()
+        
+        # Validar que la ruta padre existe
+        if not parent_path.exists():
+            raise HTTPException(status_code=404, detail=f"La ruta padre no existe: {parent_path}")
+        
+        if not parent_path.is_dir():
+            raise HTTPException(status_code=400, detail=f"La ruta padre no es un directorio: {parent_path}")
+        
+        # Crear la ruta completa
+        full_path = parent_path / folder_name
+        
+        # Validar que no intenten crear fuera del directorio base (security check)
+        try:
+            full_path.resolve().relative_to(parent_path.resolve())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Ruta no permitida por razones de seguridad.")
+        
+        # Crear la carpeta
+        try:
+            full_path.mkdir(parents=True, exist_ok=True)
+            return {
+                "success": True,
+                "path": str(full_path),
+                "name": folder_name,
+                "message": f"Carpeta creada exitosamente: {full_path}"
+            }
+        except PermissionError:
+            raise HTTPException(status_code=403, detail=f"Permiso denegado para crear carpeta en: {parent_path}")
+        except FileExistsError:
+            raise HTTPException(status_code=409, detail=f"La carpeta ya existe: {full_path}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al crear carpeta: {str(e)}")
+
 @router.post("/gdrive-create-folder")
 def create_gdrive_folder(payload: CreateFolderRequest):
     """Crea una carpeta en Google Drive y devuelve su ID y nombre."""
