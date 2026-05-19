@@ -13,7 +13,7 @@ from src.db.models import Job, RunHistory
 
 def test_scheduler_add_job_cron():
     """Verifica que add_job añade correctamente un Job con trigger CRON."""
-    from src.core.job_scheduler import JobScheduler
+    from src.scheduler.job_scheduler import JobScheduler
 
     mock_jm = MagicMock()
     scheduler = JobScheduler(job_manager=mock_jm)
@@ -34,7 +34,7 @@ def test_scheduler_add_job_cron():
 
 def test_scheduler_remove_job():
     """Verifica que remove_job elimina el job del scheduler."""
-    from src.core.job_scheduler import JobScheduler
+    from src.scheduler.job_scheduler import JobScheduler
 
     mock_jm = MagicMock()
     scheduler = JobScheduler(job_manager=mock_jm)
@@ -55,7 +55,7 @@ def test_scheduler_remove_job():
 
 def test_scheduler_skip_manual_jobs():
     """Verifica que los Jobs 'manual' NO se programan."""
-    from src.core.job_scheduler import JobScheduler
+    from src.scheduler.job_scheduler import JobScheduler
 
     mock_jm = MagicMock()
     scheduler = JobScheduler(job_manager=mock_jm)
@@ -75,7 +75,7 @@ def test_scheduler_skip_manual_jobs():
 
 def test_scheduler_interval():
     """Verifica que un Job de tipo 'interval' se programa correctamente."""
-    from src.core.job_scheduler import JobScheduler
+    from src.scheduler.job_scheduler import JobScheduler
 
     mock_jm = MagicMock()
     scheduler = JobScheduler(job_manager=mock_jm)

@@ -585,15 +585,23 @@ class JobManager:
                                 compressed_path = await asyncio.to_thread(compressed_path.rename, final_temp_path)
                                 final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
                             else:
-                                # Para sin compresión, crear subcarpeta con nombre de BD
-                                backup_folder_name = f"{job.name}_{db_name_item}_{timestamp}"
-                                dest_base_path = Path(job.dest_local_path or str(Path.cwd() / "backups"))
-                                backup_folder = dest_base_path / backup_folder_name
-                                await asyncio.to_thread(backup_folder.mkdir, parents=True, exist_ok=True)
-                                final_backup_path = backup_folder / dump_path.name
-                                await asyncio.to_thread(shutil.move, str(dump_path), str(final_backup_path))
-                                final_dest = str(final_backup_path)
-                                compressed_path = final_backup_path
+                                timestamp_str = timestamp
+                                db_name = db_name_item
+                                staging_dir = Path(tempfile.gettempdir())
+                                
+                                final_sql_name = f"{job.name}_{db_name}_{timestamp_str}.sql"
+                                await asyncio.to_thread(shutil.move, str(dump_path), str(dump_path.parent / final_sql_name))
+                                
+                                task_folder = staging_dir / f"{job.name}_{db_name}_{timestamp_str}"
+                                await asyncio.to_thread(task_folder.mkdir, parents=True, exist_ok=True)
+                                
+                                await asyncio.to_thread(shutil.move, str(dump_path.parent / final_sql_name), str(task_folder / final_sql_name))
+                                
+                                if job.dest_type == "google_drive":
+                                    compressed_path = task_folder / final_sql_name
+                                else:
+                                    compressed_path = task_folder
+                                final_dest = str(compressed_path)
                             
                             all_final_dests.append(final_dest)
                             
@@ -633,10 +641,13 @@ class JobManager:
                             if compressed_path.exists() and compressed_path != Path(final_dest):
                                 compressed_path.unlink()
                         
-                        # Usar el primer destino para el registro final
-                        final_dest = all_final_dests[0]
+                        # Usar la carpeta contenedora como destino final
+                        if job.dest_type == "local":
+                            final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")))
+                        else:
+                            final_dest = "Google Drive (Múltiples Archivos)"
+                            
                         file_size = total_file_size
-                        dump_path = None  # No hay dump_path único para múltiples BDs
                         
                         history_manager.add_log(
                             db,
@@ -645,10 +656,28 @@ class JobManager:
                             f"Procesamiento de {len(db_names)} bases de datos completado.",
                             stage="done",
                         )
+                        
+                        # Ejecutar Garbage Collector global para múltiples BDs antes de retornar
+                        try:
+                            history_manager.add_log(db, run.id, "INFO", "Iniciando Garbage Collector...", stage="cleanup")
+                            from src.core.cleaner import GarbageCollector
+                            global_settings = crud.setting_get_all(db)
+                            deleted_total = GarbageCollector.run_retention_policy(db, global_settings)
+                            if deleted_total > 0:
+                                history_manager.add_log(db, run.id, "INFO", f"Garbage Collector: Eliminados {deleted_total} backups antiguos.", stage="cleanup")
+                        except Exception as gc_err:
+                            log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
+                            
+                        return file_size, final_dest
                     elif job.db_type in ["postgresql", "mysql", "sqlserver"]:
                         # Base de datos única
                         dump_path = await process_single_database(db_names[0], 0, 1)
                     elif job.db_type in ["sqlite", "mdb"]:
+                        # Inicializar dump_path para db locales
+                        fd, dump_path_str = tempfile.mkstemp(suffix=".sql")
+                        os.close(fd)
+                        dump_path = Path(dump_path_str)
+
                         if not job.db_name:
                             raise ValueError(
                                 "Error crítico: El Frontend ha enviado una ruta de origen vacía."
@@ -661,6 +690,11 @@ class JobManager:
                         shutil.copy2(src_file, dump_path)
 
                     elif job.db_type == "folder":
+                        # Inicializar dump_path para carpetas
+                        fd, dump_path_str = tempfile.mkstemp(suffix=".tmp")
+                        os.close(fd)
+                        dump_path = Path(dump_path_str)
+
                         if not job.db_name:
                             raise ValueError(
                                 "Error crítico: El Frontend ha enviado una ruta de origen vacía."
@@ -765,6 +799,11 @@ class JobManager:
                             dump_path = Path(archive_path_str)
 
                     elif job.db_type == "sync":
+                        # Inicializar dump_path para sync
+                        fd, dump_path_str = tempfile.mkstemp(suffix=".tmp")
+                        os.close(fd)
+                        dump_path = Path(dump_path_str)
+
                         if not job.db_name:
                             raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
                         src_folder = Path(job.db_name)
@@ -827,18 +866,23 @@ class JobManager:
                             "Omitiendo compresión (compress=False). Moviendo archivo a carpeta de backup...",
                             stage="compress",
                         )
-                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                        backup_folder_name = f"{job.name}_{timestamp}"
-                        dest_base_path = Path(job.dest_local_path or str(Path.cwd() / "backups"))
-                        backup_folder = dest_base_path / backup_folder_name
+                        timestamp_str = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        db_name = db_names[0] if db_names else (job.db_name or "unknown")
+                        staging_dir = Path(tempfile.gettempdir())
                         
-                        # Crear subcarpeta y mover archivo
-                        await asyncio.to_thread(backup_folder.mkdir, parents=True, exist_ok=True)
-                        final_backup_path = backup_folder / dump_path.name
-                        await asyncio.to_thread(shutil.move, str(dump_path), str(final_backup_path))
+                        final_sql_name = f"{job.name}_{db_name}_{timestamp_str}.sql"
+                        await asyncio.to_thread(shutil.move, str(dump_path), str(dump_path.parent / final_sql_name))
                         
-                        compressed_path = final_backup_path
-                        file_size = final_backup_path.stat().st_size
+                        task_folder = staging_dir / f"{job.name}_{db_name}_{timestamp_str}"
+                        await asyncio.to_thread(task_folder.mkdir, parents=True, exist_ok=True)
+                        
+                        await asyncio.to_thread(shutil.move, str(dump_path.parent / final_sql_name), str(task_folder / final_sql_name))
+                        
+                        if job.dest_type == "google_drive":
+                            compressed_path = task_folder / final_sql_name
+                        else:
+                            compressed_path = task_folder
+                        file_size = (task_folder / final_sql_name).stat().st_size
                         history_manager.add_log(
                             db,
                             run.id,
