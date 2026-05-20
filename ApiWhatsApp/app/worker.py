@@ -1,4 +1,15 @@
+"""
+app/worker.py — Outbox Worker con Patrón Estrategia para proveedores de WhatsApp.
+
+Proveedores disponibles (WHATSAPP_PROVIDER en .env):
+    META  → Meta WhatsApp Cloud API (oficial, requiere Business Account).
+    WAHA  → WhatsApp HTTP API (WAHA, Docker, basado en whatsapp-web.js).
+
+El worker leerá la variable de entorno en cada ciclo para respetar cambios
+en caliente sin reiniciar el proceso.
+"""
 import os
+import json
 import logging
 import httpx
 from datetime import datetime, timezone
@@ -9,7 +20,8 @@ from app.models import WhatsAppNotification, NotificationStatus
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuración de la API de Meta (leída del .env vía database.py → load_dotenv)
+# Configuración de Meta Cloud API (leída al importar el módulo)
+# load_dotenv(override=True) ya fue invocado en database.py antes de esto.
 # ---------------------------------------------------------------------------
 _META_PHONE_NUMBER_ID = os.getenv("META_PHONE_NUMBER_ID", "")
 _META_ACCESS_TOKEN    = os.getenv("META_ACCESS_TOKEN", "")
@@ -20,9 +32,11 @@ _META_API_URL         = (
 )
 
 
-import json
+# ===========================================================================
+# ESTRATEGIA A: Meta WhatsApp Cloud API (proveedor oficial)
+# ===========================================================================
 
-async def send_message_to_meta(
+async def _send_via_meta(
     client: httpx.AsyncClient,
     phone: str,
     content_text: str,
@@ -31,8 +45,8 @@ async def send_message_to_meta(
     Envía un mensaje vía la WhatsApp Cloud API de Meta.
 
     Detecta automáticamente el formato de `content_text`:
-    - JSON con clave "template_name" → envía un mensaje de tipo TEMPLATE.
-    - Texto plano                    → envía un mensaje de tipo TEXT (legacy).
+    - JSON con clave "template_name" → mensaje de tipo TEMPLATE.
+    - Texto plano                    → mensaje de tipo TEXT (legacy).
 
     Returns:
         (True, "")             → Enviado con éxito.
@@ -69,7 +83,6 @@ async def send_message_to_meta(
                 "language": {"code": data.get("language_code", "en_US")},
             },
         }
-        # Si hay variables de componente las añadimos
         vars_ = data.get("template_vars", [])
         if vars_:
             payload["template"]["components"] = [
@@ -111,20 +124,142 @@ async def send_message_to_meta(
         return False, f"Error de red al conectar con Meta: {exc}"
 
 
+# Alias público para compatibilidad con cualquier código externo que lo importe
+send_message_to_meta = _send_via_meta
+
+
+# ===========================================================================
+# ESTRATEGIA B: WAHA — WhatsApp HTTP API (Docker / whatsapp-web.js)
+# ===========================================================================
+
+async def _send_via_waha(
+    client: httpx.AsyncClient,
+    phone: str,
+    content_text: str,
+) -> tuple[bool, str]:
+    """
+    Envía un mensaje de texto vía WAHA (WhatsApp HTTP API).
+
+    WAHA expone un servidor HTTP local que automatiza WhatsApp Web mediante
+    whatsapp-web.js. No requiere Meta Business Account ni aprobación de
+    plantillas: funciona con cualquier número de WhatsApp Personal/Business.
+
+    Endpoint: POST {WHATSAPP_WEB_API_URL}/sendText
+    Payload:
+        {
+            "chatId": "<phone>@c.us",
+            "text":   "<message_text>"
+        }
+
+    La función extrae el texto del mensaje de la siguiente forma:
+    - Si content_text es JSON con clave "template_vars": concatena las variables
+      en una línea por parámetro, precedidas del nombre del template.
+    - Si es texto plano: lo usa directamente.
+
+    Returns:
+        (True, "")             → Enviado con éxito (HTTP 200/201).
+        (False, "descripción") → Error con detalle para logging/retry.
+    """
+    waha_base_url = os.getenv("WHATSAPP_WEB_API_URL", "http://waha:3000/api").rstrip("/")
+    endpoint      = f"{waha_base_url}/sendText"
+
+    # ── Construir el texto legible para WhatsApp Web ──────────────────────
+    try:
+        data = json.loads(content_text)
+        if isinstance(data, dict) and "template_name" in data:
+            # Representación textual del template para envío por WhatsApp Web
+            vars_  = data.get("template_vars", [])
+            header = f"[{data['template_name']}]"
+            body   = "\n".join(str(v) for v in vars_) if vars_ else "(sin parámetros)"
+            text   = f"{header}\n{body}"
+        else:
+            text = content_text
+    except (json.JSONDecodeError, TypeError):
+        text = content_text
+
+    payload = {
+        "chatId": f"{phone}@c.us",
+        "text":   text,
+    }
+
+    try:
+        response = await client.post(endpoint, json=payload)
+
+        if response.status_code in (200, 201):
+            return True, ""
+
+        error_detail = response.text[:300]
+        log.warning(
+            "WAHA API respondió %s para el teléfono %s: %s",
+            response.status_code, phone, error_detail,
+        )
+        return False, f"HTTP {response.status_code}: {error_detail}"
+
+    except httpx.TimeoutException:
+        return False, "Timeout al conectar con WAHA (>5s). ¿Está el contenedor corriendo?"
+    except httpx.RequestError as exc:
+        return False, f"Error de red al conectar con WAHA: {exc}"
+
+
+# ===========================================================================
+# DISPATCHER — selecciona la estrategia según WHATSAPP_PROVIDER
+# ===========================================================================
+
+async def _dispatch_send(
+    client: httpx.AsyncClient,
+    phone: str,
+    content_text: str,
+) -> tuple[bool, str]:
+    """
+    Selecciona y ejecuta la estrategia de envío según la variable de entorno
+    WHATSAPP_PROVIDER (leída en cada llamada para soportar hot-reload).
+
+    Valores válidos (case-insensitive):
+        META  → _send_via_meta
+        WAHA  → _send_via_waha
+
+    Cualquier otro valor provoca un fallo inmediato (FAILED) con log descriptivo.
+    """
+    provider = os.getenv("WHATSAPP_PROVIDER", "META").upper().strip()
+
+    if provider == "META":
+        return await _send_via_meta(client, phone, content_text)
+
+    if provider == "WAHA":
+        return await _send_via_waha(client, phone, content_text)
+
+    # Proveedor desconocido → fallo inmediato sin reintentar
+    error_msg = (
+        f"Proveedor desconocido: WHATSAPP_PROVIDER='{provider}'. "
+        "Valores válidos: 'META' | 'WAHA'. "
+        "Corrígelo en el .env y reinicia el servicio."
+    )
+    log.error(error_msg)
+    return False, error_msg
+
+
+# ===========================================================================
+# WORKER PRINCIPAL — procesar notificaciones PENDING
+# ===========================================================================
+
 async def process_pending_notifications(db_session: AsyncSession) -> None:
     """
-    Worker principal — ciclo de procesamiento:
+    Worker principal — ciclo de procesamiento (Outbox Pattern):
 
     1. SELECT ... FOR UPDATE SKIP LOCKED → toma hasta 50 mensajes PENDING.
        SKIP LOCKED garantiza que instancias horizontales no compitan
        por el mismo registro (mitigación de condiciones de carrera).
     2. Marca en bloque como PROCESSING (commit rápido para liberar locks).
-    3. Envía cada mensaje a Meta de forma aislada (try/except por mensaje).
+    3. Envía cada mensaje usando la estrategia activa (_dispatch_send).
     4. Actualiza el estado final:
-       - SENT → éxito.
-       - retry_count < max_retries → vuelve a PENDING para reintento.
-       - retry_count >= max_retries → FAILED definitivo.
+       - SENT     → éxito.
+       - PENDING  → retry_count < max_retries, reintentará en el próximo ciclo.
+       - FAILED   → retry_count >= max_retries, fallo definitivo.
     5. Persiste todos los estados en un único commit final.
+
+    Restricciones de sintaxis:
+        - Sin 'continue', 'pass', 'break' ni 'while True'.
+        - Flujo controlado exclusivamente con if/else y retornos tempranos.
     """
     stmt = (
         select(WhatsAppNotification)
@@ -136,7 +271,7 @@ async def process_pending_notifications(db_session: AsyncSession) -> None:
     result        = await db_session.execute(stmt)
     notifications = result.scalars().all()
 
-    # Retorno temprano si no hay nada que procesar (sin 'continue' ni 'break')
+    # Retorno temprano si no hay nada que procesar
     if not notifications:
         return
 
@@ -149,7 +284,7 @@ async def process_pending_notifications(db_session: AsyncSession) -> None:
 
     await db_session.commit()
 
-    # ── Fase 2: Enviar a Meta (error aislado por mensaje) ─────────────────
+    # ── Fase 2: Enviar usando la estrategia activa ────────────────────────
     sent_count   = 0
     retry_count  = 0
     failed_count = 0
@@ -157,15 +292,14 @@ async def process_pending_notifications(db_session: AsyncSession) -> None:
     async with httpx.AsyncClient(timeout=5.0) as client:
         for notif in notifications:
             try:
-                success, error_msg = await send_message_to_meta(
+                success, error_msg = await _dispatch_send(
                     client,
                     notif.phone_number,
                     notif.content_text,
                 )
             except Exception as exc:
-                # Captura cualquier excepción inesperada de la función de envío
                 success   = False
-                error_msg = f"Excepción inesperada en send_message_to_meta: {exc}"
+                error_msg = f"Excepción inesperada en _dispatch_send: {exc}"
                 log.error(error_msg)
 
             if success:
@@ -178,7 +312,6 @@ async def process_pending_notifications(db_session: AsyncSession) -> None:
                 notif.error_log    = error_msg
 
                 if notif.retry_count >= notif.max_retries:
-                    # Máximo de reintentos alcanzado → FAILED definitivo
                     notif.status = NotificationStatus.FAILED
                     failed_count += 1
                     log.error(
@@ -187,7 +320,6 @@ async def process_pending_notifications(db_session: AsyncSession) -> None:
                         notif.id, notif.retry_count, notif.phone_number, error_msg,
                     )
                 else:
-                    # Aún tiene reintentos disponibles → vuelve a PENDING
                     notif.status       = NotificationStatus.PENDING
                     notif.processed_at = None
                     retry_count += 1

@@ -1,0 +1,111 @@
+# ============================================================
+# ApiWhatsApp — Docker Compose
+#
+# Servicios:
+#   api      → FastAPI + APScheduler (Outbox Worker)
+#   db       → PostgreSQL local (alternativa a Supabase en dev)
+#   waha     → WhatsApp HTTP API (activo solo si WHATSAPP_PROVIDER=WAHA)
+#
+# Uso básico:
+#   docker compose up -d           # Levanta todos los servicios
+#   docker compose up -d api waha  # Solo API + WAHA (sin DB local)
+#
+# Configuración:
+#   Crea un archivo .env en la misma carpeta que este compose.yml
+#   copiando .env.example y rellenando tus credenciales.
+# ============================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL local (para desarrollo sin Supabase)
+  # En producción, apunta DATABASE_URL a Supabase y omite este servicio.
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: apiwhatsapp_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       whatsapp_outbox
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d whatsapp_outbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # WAHA — WhatsApp HTTP API (basado en whatsapp-web.js)
+  # Alternativa gratuita y sin aprobación de Meta para envío de mensajes.
+  #
+  # Primeros pasos:
+  #   1. Levanta el servicio: docker compose up -d waha
+  #   2. Abre http://localhost:3000/dashboard en tu navegador.
+  #   3. Escanea el código QR con tu WhatsApp para iniciar sesión.
+  #   4. A partir de ese momento el servicio está listo para enviar mensajes.
+  #
+  # Variables de entorno relevantes en tu .env:
+  #   WHATSAPP_PROVIDER=WAHA
+  #   WHATSAPP_WEB_API_URL=http://waha:3000/api   (cuando api corre en compose)
+  #   WHATSAPP_WEB_API_URL=http://localhost:3000/api  (cuando api corre local)
+  # --------------------------------------------------------------------------
+  waha:
+    image: devopsfaith/waha:latest
+    container_name: apiwhatsapp_waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"      # API REST + Dashboard web
+    volumes:
+      - waha_sessions:/app/.waha/sessions   # Persiste la sesión QR entre reinicios
+    environment:
+      # Habilita el dashboard web en /dashboard
+      WHATSAPP_DASHBOARD_ENABLED: "true"
+      # Nivel de log del contenedor WAHA
+      WAHA_LOG_LEVEL: "info"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # --------------------------------------------------------------------------
+  # ApiWhatsApp — FastAPI + Outbox Worker
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apiwhatsapp_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # Si usas WAHA como proveedor, descomenta la dependencia:
+    # depends_on:
+    #   waha:
+    #     condition: service_healthy
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --workers 1
+        --log-level info
+
+# --------------------------------------------------------------------------
+# Volúmenes persistentes
+# --------------------------------------------------------------------------
+volumes:
+  pgdata:
+    name: apiwhatsapp_pgdata
+  waha_sessions:
+    name: apiwhatsapp_waha_sessions

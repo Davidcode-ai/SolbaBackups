@@ -8,8 +8,9 @@ Aunque ha sido empaquetado junto a **SolbaBackups**, está diseñado como un **s
 
 *   **REST API:** Endpoint HTTP simple para encolar notificaciones de forma inmediata (respuesta rápida `202 Accepted`).
 *   **Worker en Segundo Plano:** Procesa la cola de envíos de forma independiente a la API principal.
-*   **Soporte de Plantillas (Templates):** Total compatibilidad con las plantillas dinámicas de Meta (`hello_world`, `solba_backup_status`, etc.) e inserción de variables.
-*   **Gestión de Errores y Reintentos:** Registra detalladamente por qué Meta ha rechazado un mensaje (ej. plantilla no encontrada, error de autenticación).
+*   **Soporte de Plantillas y Texto Plano:** Total compatibilidad con plantillas dinámicas de Meta (`solba_backup_status`) e inserción de variables, además de poder enviar texto plano si usas la versión "Lite".
+*   **Patrón Estrategia (Múltiples Proveedores):** Permite usar la **API Oficial de Meta** (Enterprise) o **WAHA - WhatsApp HTTP API** (versión gratuita auto-hospedada) modificando solo una variable de entorno.
+*   **Gestión de Errores y Reintentos:** Registra detalladamente por qué el proveedor ha rechazado un mensaje.
 *   **Asíncrono:** Construido sobre FastAPI y `asyncpg` para un rendimiento máximo.
 
 ---
@@ -18,8 +19,9 @@ Aunque ha sido empaquetado junto a **SolbaBackups**, está diseñado como un **s
 
 ### 1. Requisitos
 *   Python 3.12+
-*   Cuenta de [Meta Developers](https://developers.facebook.com/) con WhatsApp configurado.
 *   Cuenta de [Supabase](https://supabase.com/) (o base de datos PostgreSQL) para almacenar la cola de mensajes.
+*   (Opcional) Cuenta de [Meta Developers](https://developers.facebook.com/) si usas el proveedor META.
+*   (Opcional) **Docker Desktop** si usas el proveedor WAHA.
 
 ### 2. Entorno Local
 
@@ -39,16 +41,37 @@ pip install -r requirements.txt
 Crea un archivo `.env` en la raíz de la carpeta `ApiWhatsApp` copiando el ejemplo suministrado (`.env.example`):
 
 ```env
-# Conexión a la base de datos (Supabase)
+# Conexión a la base de datos (Supabase o Local)
 DATABASE_URL=postgresql+asyncpg://usuario:password@host:5432/postgres?statement_cache_size=0
 
-# Credenciales de Meta (WhatsApp Business API)
+# --- Proveedor de WhatsApp ---
+# 'META' (Cloud API Oficial) o 'WAHA' (WhatsApp Web Docker)
+WHATSAPP_PROVIDER=META
+WHATSAPP_WEB_API_URL=http://localhost:3000/api
+
+# --- Meta WhatsApp Cloud API ---
 META_ACCESS_TOKEN=tu_token_de_acceso_permanente_o_temporal
 WHATSAPP_PHONE_ID=1020834011123459
 
 # Modo debug (true/false)
 DEBUG_MODE=true
 ```
+
+---
+
+## 🐳 Proveedor WAHA (Versión Lite Gratuita)
+
+Si no quieres depender de los costes o plantillas de Meta, puedes usar **WAHA** (WhatsApp HTTP API), que automatiza una sesión de WhatsApp Web mediante Docker.
+
+1.  Asegúrate de tener instalado y abierto **Docker Desktop**.
+2.  En la raíz del proyecto, arranca el contenedor de WAHA:
+    ```bash
+    docker compose up -d waha
+    ```
+3.  Abre en tu navegador `http://localhost:3000/dashboard` y escanea el código QR con tu WhatsApp móvil (Dispositivos Vinculados).
+4.  En el archivo `.env`, cambia `WHATSAPP_PROVIDER=WAHA`.
+
+A partir de este momento, cualquier petición de envío que realice `SolbaBackups` será convertida automáticamente de un formato de "plantilla de Meta" a un texto plano legible y enviado a través de WAHA.
 
 ---
 
