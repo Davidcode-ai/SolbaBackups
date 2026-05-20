@@ -2,6 +2,13 @@
 
 ## [3.0] — 2026-05-20
 
+### Actualización instalador (build final demo Bartolo)
+- Historial: etiqueta **Manual** / **Programada** por ejecución.
+- Correos: tipo de ejecución correcto cuando dispara Windows (`trigger=scheduled`).
+- Vista previa de retención (qué `.zip` se borrarían y cuándo).
+- Panel de estado del Programador de Windows (`schtasks`) al editar tareas.
+- `StartWhenAvailable`: ejecutar al encender si se perdió la hora programada.
+
 ### UX / Frontend
 - Wizard de 3 pasos con tarjetas de tipo de tarea (BD, Carpeta, Espejo).
 - Contraseña en modo edición: UI "Contraseña configurada" + ojo mostrar/ocultar; no se envía `db_password` vacío al guardar.
