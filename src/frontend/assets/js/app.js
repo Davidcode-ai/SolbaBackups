@@ -34,6 +34,180 @@ function formatDateTimeSpain(isoValue) {
     });
 }
 
+function formatBytes(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getTriggerBadge(trigger) {
+    const tgr = (trigger || 'manual').toLowerCase();
+    if (tgr === 'scheduled') {
+        return {
+            label: t('trigger_scheduled'),
+            cls: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+            icon: 'fa-clock',
+        };
+    }
+    return {
+        label: t('trigger_manual'),
+        cls: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+        icon: 'fa-hand',
+    };
+}
+
+function collectRetentionPreviewPayload() {
+    const destType = document.getElementById('destType');
+    const destLocalPath = document.getElementById('destLocalPath');
+    const destGDriveFolderId = document.getElementById('destGDriveFolderId');
+    const destGDriveFolderName = document.getElementById('destGDriveFolderName');
+    const jobRetention = document.getElementById('jobRetention');
+    const jobName = document.getElementById('jobName');
+    const retentionVal = jobRetention ? parseInt(jobRetention.value, 10) || 0 : 0;
+    return {
+        dest_type: destType ? destType.value : 'local',
+        dest_local_path: destLocalPath ? destLocalPath.value.trim() : null,
+        dest_gdrive_folder_id: destGDriveFolderId ? destGDriveFolderId.value.trim() : null,
+        dest_gdrive_folder_name: destGDriveFolderName ? destGDriveFolderName.value.trim() : null,
+        dest_retention_days: retentionVal,
+        job_name: jobName ? jobName.value.trim() : null,
+    };
+}
+
+function renderRetentionPreviewHtml(data) {
+    if (!data) return `<p>${t('retention_preview_error')}</p>`;
+    const lines = [`<p class="mb-2 font-medium text-slate-700 dark:text-slate-200">${data.note || ''}</p>`];
+    if (data.dest_label) {
+        lines.push(`<p class="text-[10px] text-slate-500 mb-2">${t('label_dest_dir')}: ${data.dest_label}</p>`);
+    }
+    const renderList = (title, files, isDelete) => {
+        if (!files || files.length === 0) return '';
+        const color = isDelete ? 'text-red-500' : 'text-emerald-500';
+        let html = `<p class="font-semibold ${color} mt-2">${title} (${files.length})</p><ul class="mt-1 space-y-1">`;
+        files.forEach((f) => {
+            const when = f.delete_after
+                ? `${t('retention_delete_after')}: ${formatDateTimeSpain(f.delete_after)}`
+                : (isDelete ? t('retention_delete_now') : '');
+            html += `<li class="border-b border-slate-200/50 dark:border-slate-700/50 pb-1">
+                <span class="font-mono">${f.name}</span> · ${formatBytes(f.size_bytes)}
+                ${when ? `<br><span class="text-[10px] text-slate-500">${when}</span>` : ''}
+            </li>`;
+        });
+        html += '</ul>';
+        return html;
+    };
+    lines.push(renderList(t('retention_would_delete'), data.files_to_delete, true));
+    lines.push(renderList(t('retention_would_keep'), data.files_kept, false));
+    return lines.join('');
+}
+
+async function refreshRetentionPreview() {
+    const panel = document.getElementById('retentionPreviewContent');
+    const jobTypeCard = document.querySelector('.job-type-card.border-brand-500, .job-type-card.ring-brand-500');
+    const jobType = jobTypeCard ? jobTypeCard.dataset.jobType : 'db';
+    if (jobType === 'sync') {
+        if (panel) {
+            panel.classList.remove('hidden');
+            panel.innerHTML = `<p>${t('retention_sync_na')}</p>`;
+        }
+        return;
+    }
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.innerHTML = `<p><i class="fa-solid fa-spinner fa-spin"></i> ${t('status_loading')}</p>`;
+    try {
+        const payload = collectRetentionPreviewPayload();
+        const data = currentEditingJobId
+            ? await api.getRetentionPreview(null, currentEditingJobId)
+            : await api.getRetentionPreview(payload);
+        panel.innerHTML = renderRetentionPreviewHtml(data);
+    } catch (err) {
+        panel.innerHTML = `<p class="text-red-400">${err.message || t('retention_preview_error')}</p>`;
+    }
+}
+
+function updateScheduleStatusPanelVisibility() {
+    const panel = document.getElementById('scheduleStatusPanel');
+    const jobSched = document.getElementById('jobSchedule');
+    if (!panel || !jobSched) return;
+    const s = jobSched.value;
+    const show = s !== 'manual' && s !== 'interval';
+    panel.classList.toggle('hidden', !show);
+    if (show && currentEditingJobId) {
+        refreshScheduleStatus();
+    } else if (show && !currentEditingJobId) {
+        const content = document.getElementById('scheduleStatusContent');
+        if (content) {
+            content.innerHTML = `<p>${t('schedule_status_after_save')}</p>`;
+        }
+    }
+}
+
+async function refreshScheduleStatus() {
+    const content = document.getElementById('scheduleStatusContent');
+    if (!content) return;
+    if (!currentEditingJobId) {
+        content.innerHTML = `<p>${t('schedule_status_after_save')}</p>`;
+        return;
+    }
+    content.innerHTML = `<p><i class="fa-solid fa-spinner fa-spin"></i> ${t('status_loading')}</p>`;
+    try {
+        const st = await api.getScheduleStatus(currentEditingJobId);
+        if (!st.registered) {
+            content.innerHTML = `
+                <p class="text-amber-500 font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ${t('schedule_not_registered')}</p>
+                <p>${st.note || st.error || ''}</p>
+                <p class="text-[10px] mt-1">${t('schedule_hint_resave')}</p>`;
+            return;
+        }
+        content.innerHTML = `
+            <p class="text-emerald-500 font-semibold"><i class="fa-solid fa-circle-check"></i> ${t('schedule_registered')}</p>
+            <p><strong>${t('label_task_name')}:</strong> ${st.task_name || ''}</p>
+            <p><strong>${t('label_next_run')}:</strong> ${st.next_run || '—'}</p>
+            <p><strong>${t('label_last_run')}:</strong> ${st.last_run || '—'}</p>
+            <p><strong>${t('label_schedule_type_win')}:</strong> ${st.schedule_type || '—'}</p>
+            <p class="text-[10px] text-slate-500 mt-1">${t('schedule_hint_folder')}</p>`;
+    } catch (err) {
+        content.innerHTML = `<p class="text-red-400">${err.message}</p>`;
+    }
+}
+
+function initRetentionAndSchedulePanels() {
+    const btnRetention = document.getElementById('btnRetentionPreview');
+    const jobRetention = document.getElementById('jobRetention');
+    const btnSchedule = document.getElementById('btnRefreshScheduleStatus');
+    const jobSched = document.getElementById('jobSchedule');
+    const destLocalPath = document.getElementById('destLocalPath');
+    const destType = document.getElementById('destType');
+
+    if (btnRetention) {
+        btnRetention.addEventListener('click', () => refreshRetentionPreview());
+    }
+    if (jobRetention) {
+        let debounce;
+        jobRetention.addEventListener('input', () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(() => {
+                const panel = document.getElementById('retentionPreviewContent');
+                if (panel && !panel.classList.contains('hidden')) refreshRetentionPreview();
+            }, 600);
+        });
+    }
+    if (btnSchedule) {
+        btnSchedule.addEventListener('click', () => refreshScheduleStatus());
+    }
+    if (jobSched) {
+        jobSched.addEventListener('change', () => updateScheduleStatusPanelVisibility());
+    }
+    [destLocalPath, destType].forEach((el) => {
+        if (el) el.addEventListener('change', () => {
+            const panel = document.getElementById('retentionPreviewContent');
+            if (panel && !panel.classList.contains('hidden')) refreshRetentionPreview();
+        });
+    });
+}
+
 function getScheduleTimeValue() {
     const hourSel = document.getElementById('jobScheduleHour');
     const minSel = document.getElementById('jobScheduleMinute');
@@ -108,6 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 4. Inicializar validación del formulario
     initScheduleTimeSelects();
     initJobFormValidation();
+    initRetentionAndSchedulePanels();
 
     // 5. Iniciar polling (Radar) silencioso
     setupPolling();
@@ -351,6 +526,7 @@ async function loadHistory(isSilent = false) {
             const dateStr = formatDateTimeSpain(rawDate);
 
             const runId = record._id || record.id || record.run_id || null;
+            const triggerBadge = getTriggerBadge(record.trigger);
 
             const historyItem = document.createElement('div');
             historyItem.className = `bg-slate-50 dark:bg-surface-800 border rounded-lg p-3 cursor-pointer transition-colors ${borderClass}`;
@@ -359,15 +535,18 @@ async function loadHistory(isSilent = false) {
             historyItem.innerHTML = `
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-semibold text-slate-500 dark:text-slate-300">${dateStr}</span>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap justify-end">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${triggerBadge.cls}">
+                            <i class="fa-solid ${triggerBadge.icon} mr-1"></i>${triggerBadge.label}
+                        </span>
                         <span class="px-2 py-0.5 rounded text-[10px] font-bold ${statusClass} border uppercase tracking-wide">
                             ${record.status}
                         </span>
                     </div>
                 </div>
                 <div class="flex items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-                    <div class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-server"></i> Job ID: ${record.job_id || 'N/A'}
+                    <div class="flex items-center gap-1.5 truncate">
+                        <i class="fa-solid fa-server"></i> ${record.job_name || `Job ${record.job_id || 'N/A'}`}
                     </div>
                     <div class="flex gap-2">
                         ${isSuccess ? `
@@ -613,6 +792,7 @@ function initJobFormValidation() {
                 if (scheduleTimeContainer) scheduleTimeContainer.classList.remove('hidden');
                 if (scheduleDayOfMonthContainer) scheduleDayOfMonthContainer.classList.remove('hidden');
             }
+            updateScheduleStatusPanelVisibility();
         });
     }
 
@@ -1208,6 +1388,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbType) dbType.dispatchEvent(new Event('change'));
     if (destType) destType.dispatchEvent(new Event('change'));
     if (jobSched) jobSched.dispatchEvent(new Event('change'));
+    updateScheduleStatusPanelVisibility();
 
     if (heading) {
         heading.innerHTML = `✏️ Editando Tarea: ${name}`;
@@ -2127,6 +2308,26 @@ const i18n = {
         help_db_multiple: "Tip: Mantén pulsado Ctrl para seleccionar varias de la lista.",
         section_extra_options: "Opciones de Limpieza",
         help_retention_zero: "Pon 0 si quieres que NO se borre nada nunca.",
+        trigger_manual: "Manual",
+        trigger_scheduled: "Programada",
+        btn_retention_preview: "Ver qué se borraría",
+        retention_preview_error: "No se pudo cargar la vista previa.",
+        retention_would_delete: "Se borrarían en el próximo backup",
+        retention_would_keep: "Se conservarían",
+        retention_delete_after: "Se podría borrar después de",
+        retention_delete_now: "Se borraría en el próximo backup",
+        retention_sync_na: "Las tareas de espejo no usan retención por días.",
+        label_windows_schedule: "Programador de Windows",
+        btn_refresh: "Actualizar",
+        schedule_status_after_save: "Guarda la tarea para registrar la programación en Windows y poder comprobarla aquí.",
+        schedule_not_registered: "No registrada en Windows",
+        schedule_registered: "Registrada en el Programador de tareas",
+        schedule_hint_resave: "Prueba a guardar de nuevo la tarea. Requiere permisos en el equipo.",
+        schedule_hint_folder: "En taskschd.msc: Biblioteca → carpeta SolbaBackups → Job_<ID>",
+        label_task_name: "Nombre de tarea",
+        label_next_run: "Próxima ejecución",
+        label_last_run: "Última ejecución",
+        label_schedule_type_win: "Tipo en Windows",
         btn_prev: "Anterior",
         btn_next: "Siguiente",
         prompt_new_local_folder: "Nueva carpeta local",
@@ -2457,6 +2658,26 @@ const i18n = {
         help_db_multiple: "Tip: Hold Ctrl to select multiple databases.",
         section_extra_options: "Cleanup Options",
         help_retention_zero: "Set 0 to never delete old backups.",
+        trigger_manual: "Manual",
+        trigger_scheduled: "Scheduled",
+        btn_retention_preview: "Preview what would be deleted",
+        retention_preview_error: "Could not load preview.",
+        retention_would_delete: "Would delete on next backup",
+        retention_would_keep: "Would keep",
+        retention_delete_after: "Eligible for deletion after",
+        retention_delete_now: "Would delete on next backup",
+        retention_sync_na: "Mirror tasks do not use day-based retention.",
+        label_windows_schedule: "Windows Task Scheduler",
+        btn_refresh: "Refresh",
+        schedule_status_after_save: "Save the job to register it in Windows Task Scheduler, then check here.",
+        schedule_not_registered: "Not registered in Windows",
+        schedule_registered: "Registered in Task Scheduler",
+        schedule_hint_resave: "Try saving the job again. Requires permissions on this machine.",
+        schedule_hint_folder: "In taskschd.msc: Library → SolbaBackups folder → Job_<ID>",
+        label_task_name: "Task name",
+        label_next_run: "Next run",
+        label_last_run: "Last run",
+        label_schedule_type_win: "Windows schedule type",
         btn_prev: "Previous",
         btn_next: "Next",
         prompt_new_local_folder: "New local folder",

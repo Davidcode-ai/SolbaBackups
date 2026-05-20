@@ -81,6 +81,28 @@ class ApiClient {
         }
     }
 
+    async getRetentionPreview(payload, jobId = null) {
+        const url = jobId
+            ? `${this.baseUrl}/jobs/${jobId}/retention-preview`
+            : `${this.baseUrl}/utils/retention-preview`;
+        const options = jobId
+            ? { method: 'GET' }
+            : {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            };
+        const response = await fetch(url, options);
+        if (!response.ok) throw await this._buildErrorFromResponse(response);
+        return await response.json();
+    }
+
+    async getScheduleStatus(jobId) {
+        const response = await fetch(`${this.baseUrl}/jobs/${jobId}/schedule-status`);
+        if (!response.ok) throw await this._buildErrorFromResponse(response);
+        return await response.json();
+    }
+
     /**
      * Prueba la conexión a la base de datos o ruta especificada.
      * @param {Object} connData - Datos de conexión

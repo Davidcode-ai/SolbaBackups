@@ -64,7 +64,10 @@ def create_or_update_windows_task(job) -> None:
     task_name = f"SolbaBackups\\Job_{job.id}"
     
     # El comando invoca un webhook local usando PowerShell
-    command = f'powershell.exe -WindowStyle Hidden -Command "Invoke-RestMethod -Uri http://localhost:8765/api/v1/jobs/{job.id}/run -Method Post"'
+    command = (
+        f'powershell.exe -WindowStyle Hidden -Command '
+        f'"Invoke-RestMethod -Uri http://localhost:8765/api/v1/jobs/{job.id}/run?trigger=scheduled -Method Post"'
+    )
 
     try:
         parsed = parse_cron_to_schtasks(job.schedule_cron)
@@ -93,9 +96,76 @@ def create_or_update_windows_task(job) -> None:
         if process.returncode != 0:
             log.error(f"Error creando tarea en Windows Scheduler: {process.stderr or process.stdout}")
             raise Exception(f"schtasks falló: {process.stderr or process.stdout}")
+
+        # Si el PC estaba apagado a la hora programada, ejecutar al encender
+        _enable_start_when_available(task_name)
             
     except Exception as e:
         log.error(f"Fallo al integrar con schtasks para Job {job.id}: {str(e)}")
+
+
+def _enable_start_when_available(task_name: str) -> None:
+    """
+    Activa StartWhenAvailable en la tarea de Windows (ejecutar al encender si se perdió la hora).
+    task_name formato: SolbaBackups\\Job_5
+    """
+    folder, _, name = task_name.rpartition("\\")
+    if not folder or not name:
+        return
+    ps = (
+        f"$t = Get-ScheduledTask -TaskPath '\\{folder}\\' -TaskName '{name}' -ErrorAction SilentlyContinue; "
+        f"if ($t) {{ $s = $t.Settings; $s.StartWhenAvailable = $true; "
+        f"Set-ScheduledTask -TaskPath '\\{folder}\\' -TaskName '{name}' -Settings $s | Out-Null }}"
+    )
+    try:
+        subprocess.run(
+            ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+    except Exception as e:
+        log.warning("No se pudo activar StartWhenAvailable en %s: %s", task_name, e)
+
+def get_windows_task_status(job_id: int) -> dict:
+    """
+    Consulta si la tarea existe en el Programador de Windows y devuelve datos útiles para la UI.
+    """
+    task_name = f"SolbaBackups\\Job_{job_id}"
+    cmd = ["schtasks", "/Query", "/TN", task_name, "/FO", "LIST", "/V"]
+    try:
+        process = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+        )
+    except Exception as e:
+        return {"registered": False, "task_name": task_name, "error": str(e)}
+
+    if process.returncode != 0:
+        return {
+            "registered": False,
+            "task_name": task_name,
+            "error": (process.stderr or process.stdout or "").strip() or "Tarea no encontrada",
+        }
+
+    parsed: dict[str, str] = {}
+    for line in (process.stdout or "").splitlines():
+        if ":" in line:
+            key, _, val = line.partition(":")
+            parsed[key.strip()] = val.strip()
+
+    return {
+        "registered": True,
+        "task_name": task_name,
+        "status": parsed.get("Status", parsed.get("Estado")),
+        "next_run": parsed.get("Next Run Time", parsed.get("Próxima hora de ejecución programada")),
+        "last_run": parsed.get("Last Run Time", parsed.get("Última hora de ejecución")),
+        "schedule_type": parsed.get("Schedule Type", parsed.get("Tipo de programación")),
+        "start_when_available": parsed.get("Start When Available", parsed.get("Iniciar la tarea cuando esté disponible")),
+    }
+
 
 def delete_windows_task(job_id: int) -> None:
     """

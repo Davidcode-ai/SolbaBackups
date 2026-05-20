@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
 from src.core.db_credentials import resolve_job_db_password
+from src.core.models import RetentionPreviewRequest
+from src.core.retention_preview import preview_gdrive_retention, preview_local_retention
 
 router = APIRouter(prefix="/utils", tags=["Utils"])
 
@@ -420,3 +422,25 @@ def create_gdrive_folder(payload: CreateFolderRequest):
         return {"id": folder.get("id"), "name": folder.get("name")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/retention-preview", summary="Vista previa de retención (sin borrar)")
+def retention_preview(body: RetentionPreviewRequest):
+    """
+    Simula la política de retención para una ruta/destino sin eliminar archivos.
+    Útil en el asistente de creación antes de guardar el job.
+    """
+    days = body.dest_retention_days or 0
+    dest = (body.dest_type or "local").lower()
+
+    if dest == "google_drive":
+        return preview_gdrive_retention(
+            folder_id=body.dest_gdrive_folder_id,
+            job_name=body.job_name or body.dest_gdrive_folder_name or "backup",
+            retention_days=days,
+        )
+
+    path = (body.dest_local_path or "").strip()
+    if not path:
+        raise HTTPException(status_code=400, detail="Indica la carpeta de destino local.")
+    return preview_local_retention(path, days)

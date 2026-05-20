@@ -1289,13 +1289,18 @@ class JobManager:
                         log_text = "\n".join(log_lines)
                         log_section = f"\n\n--- LOGS DE EJECUCIÓN ---\n\n{log_text}" if log_text else "\n\n--- LOGS DE EJECUCIÓN ---\n\n(No hay logs disponibles)"
     
+                        trigger_label = {
+                            "manual": "Manual",
+                            "scheduled": "Programada (Windows)",
+                        }.get((trigger or "").lower(), trigger or "Manual")
+
                         if is_success:
                             send_email_notification(
                                 to_email=notification_email,
                                 subject=f"✅ Backup Exitoso: {job.name}",
                                 body=(
                                     f"El trabajo de backup '{job.name}' (ID: {job.id}) finalizó "
-                                    f"correctamente en su ejecución de tipo '{trigger}'."
+                                    f"correctamente. Tipo de ejecución: {trigger_label}."
                                     f"{log_section}"
                                 ),
                             )
@@ -1304,8 +1309,8 @@ class JobManager:
                                 to_email=notification_email,
                                 subject=f"❌ Error en Backup: {job.name}",
                                 body=(
-                                    f"El trabajo de backup '{job.name}' (ID: {job.id}) ha fallado "
-                                    f"en su ejecución de tipo '{trigger}'.\n\n"
+                                    f"El trabajo de backup '{job.name}' (ID: {job.id}) ha fallado. "
+                                    f"Tipo de ejecución: {trigger_label}.\n\n"
                                     f"Detalle del error:\n{error_msg}\n\n"
                                 f"Revise los logs en el panel."
                                 f"{log_section}"

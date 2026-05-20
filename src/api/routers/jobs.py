@@ -6,14 +6,19 @@ La validación de entrada/salida la realiza Pydantic usando los modelos
 de ``src.core.models``.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 
 from src.core import models
 from src.db import crud
 from src.api.dependencies import get_db, get_job_manager
 from src.core.job_manager import JobManager
-from src.core.windows_tasks import create_or_update_windows_task, delete_windows_task
+from src.core.retention_preview import preview_gdrive_retention, preview_local_retention
+from src.core.windows_tasks import (
+    create_or_update_windows_task,
+    delete_windows_task,
+    get_windows_task_status,
+)
 
 from src.core.discovery import scan_local_databases
 
@@ -137,6 +142,69 @@ def create_job(
     return new_job
 
 
+def _retention_preview_for_job(job) -> dict:
+    days = job.dest_retention_days or 0
+    if job.dest_type == "google_drive":
+        return preview_gdrive_retention(
+            folder_id=job.dest_gdrive_folder_id,
+            job_name=job.name,
+            retention_days=days,
+        )
+    path = job.dest_local_path or ""
+    return preview_local_retention(path, days)
+
+
+@router.get("/{job_id}/retention-preview")
+def job_retention_preview(job_id: int, db: Session = Depends(get_db)):
+    """Vista previa de qué backups se conservarían o borrarían (sin eliminar nada)."""
+    job = crud.job_get_by_id(db, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado.")
+    if job.db_type == "sync":
+        return {
+            "dest_type": "sync",
+            "retention_days": 0,
+            "policy_active": False,
+            "files_to_delete": [],
+            "files_kept": [],
+            "note": "Las tareas de espejo no usan retención por días.",
+        }
+    return _retention_preview_for_job(job)
+
+
+@router.get("/{job_id}/schedule-status")
+def job_schedule_status(job_id: int, db: Session = Depends(get_db)):
+    """Estado de la tarea en el Programador de tareas de Windows."""
+    job = crud.job_get_by_id(db, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado.")
+
+    st = (job.schedule_type or "").lower()
+    if st in ("manual", "none", ""):
+        return {
+            "registered": False,
+            "schedule_type": job.schedule_type or "manual",
+            "note": "Tarea configurada como manual. No hay entrada en el Programador de Windows.",
+        }
+    if st == "interval":
+        return {
+            "registered": False,
+            "schedule_type": job.schedule_type,
+            "note": "Programación por intervalo: no usa el Programador de Windows.",
+        }
+    if st == "cron" and not job.schedule_cron:
+        return {
+            "registered": False,
+            "schedule_type": job.schedule_type,
+            "note": "Falta la expresión cron. Guarda de nuevo la programación.",
+        }
+
+    win = get_windows_task_status(job_id)
+    win["job_schedule_type"] = job.schedule_type
+    win["job_schedule_cron"] = job.schedule_cron
+    return win
+
+
 @router.get("/{job_id}", response_model=models.JobRead)
 def get_job(job_id: int, db: Session = Depends(get_db)):
     """
@@ -211,11 +279,15 @@ def delete_job(
 @router.post("/{job_id}/run")
 async def run_job_manually(
     job_id: int,
+    trigger: str = Query(
+        "manual",
+        description="Origen: 'manual' (botón UI) o 'scheduled' (Programador de tareas Windows).",
+    ),
     db: Session = Depends(get_db),
     manager: JobManager = Depends(get_job_manager),
 ):
     """
-    Ejecuta un Job manualmente bajo demanda.
+    Ejecuta un Job bajo demanda (manual o disparado por el Programador de Windows).
     Nota: Al usar `await`, la respuesta HTTP esperará a que el backup termine.
     """
     job = crud.job_get_by_id(db, job_id)
@@ -224,7 +296,10 @@ async def run_job_manually(
             status_code=status.HTTP_404_NOT_FOUND, detail="Job no encontrado."
         )
 
-    # Inicia la ejecución síncrona/esperada
-    await manager.run_job(job_id, trigger="manual")
+    trigger_norm = (trigger or "manual").lower()
+    if trigger_norm not in ("manual", "scheduled"):
+        trigger_norm = "manual"
+
+    await manager.run_job(job_id, trigger=trigger_norm)
 
     return {"message": f"Backup del Job {job_id} en ejecución"}

@@ -194,6 +194,16 @@ class RunHistoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RetentionPreviewRequest(BaseModel):
+    """Payload para vista previa de retención (wizard o utilidades)."""
+    dest_type: str = "local"
+    dest_local_path: str | None = None
+    dest_gdrive_folder_id: str | None = None
+    dest_gdrive_folder_name: str | None = None
+    dest_retention_days: int = 0
+    job_name: str | None = None
+
+
 class JobTestConnection(BaseModel):
     """Payload para testear conexión a base de datos."""
     db_type: str
