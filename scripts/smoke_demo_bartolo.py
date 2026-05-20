@@ -176,7 +176,7 @@ def main() -> int:
     total = PASS + FAIL + SKIP
     print(f"  Pasaron: {PASS}/{total}  Fallaron: {FAIL}  Omitidos: {SKIP}")
     print("\nChecklist manual (navegador) para Bartolo:")
-    print("  1. Paso 1: Siguiente sin nombre → error inline")
+    print("  1. Paso 1: Siguiente sin nombre -> error inline")
     print("  2. Paso 2 carpeta: origen + destino obligatorios")
     print("  3. Paso 3: Guardar sin ruta → 1 toast, botón NO queda en Guardando...")
     print("  4. Scroll paso 3: Opciones de limpieza visible sobre botones")
