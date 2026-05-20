@@ -163,8 +163,11 @@ class JobManager:
                 is_cloud_backup = True
                 temp_dir_to_cleanup = str(backup_path.parent)
             else:
-                # Es un backup local
-                backup_path = Path(backup_file_path)
+                # Es un backup local (ruta de archivo o carpeta)
+                backup_path = Path(backup_file_path).expanduser()
+                if not backup_path.is_absolute():
+                    backup_path = Path.cwd() / backup_path
+                backup_path = backup_path.resolve()
                 print(f"DEBUG RESTORE: backup_path como Path: {backup_path}")
                 print(f"DEBUG RESTORE: backup_path.exists(): {backup_path.exists()}")
                 if not str(backup_path).strip():
@@ -185,57 +188,84 @@ class JobManager:
             )
 
             try:
-                with tempfile.TemporaryDirectory(prefix="solba_restore_") as tmp_dir:
-                    tmp_dir_path = Path(tmp_dir)
-                    extracted_sql_path: Path | None = None
+                tmp_cleanup: tempfile.TemporaryDirectory | None = None
+                tmp_dir_path: Path
 
+                if backup_path.is_dir():
+                    tmp_dir_path = backup_path
                     history_manager.add_log(
                         db,
                         run_id,
                         "INFO",
-                        "Descomprimiendo backup en carpeta temporal...",
+                        "Usando carpeta de backup en disco (contenido listo para restaurar).",
                         stage="restore_extract",
                     )
+                elif zipfile.is_zipfile(backup_path):
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        "Descomprimiendo backup ZIP en carpeta temporal...",
+                        stage="restore_extract",
+                    )
+                    tmp_cleanup = tempfile.TemporaryDirectory(prefix="solba_restore_")
+                    tmp_dir_path = Path(tmp_cleanup.name)
+                    with zipfile.ZipFile(backup_path, "r") as zf:
+                        zf.extractall(tmp_dir_path)
+                else:
+                    history_manager.add_log(
+                        db,
+                        run_id,
+                        "INFO",
+                        "Preparando archivo de backup suelto (.sql / fichero)...",
+                        stage="restore_extract",
+                    )
+                    tmp_cleanup = tempfile.TemporaryDirectory(prefix="solba_restore_")
+                    tmp_dir_path = Path(tmp_cleanup.name)
+                    shutil.copy2(backup_path, tmp_dir_path / backup_path.name)
 
-                    if zipfile.is_zipfile(backup_path):
-                        with zipfile.ZipFile(backup_path, "r") as zf:
-                            zf.extractall(tmp_dir_path)
+                try:
 
-                    db_type = (job.db_type or "").lower()
-                    
-                    # Detectar archivo/carpeta a restaurar según el tipo
                     extracted_path: Path | None = None
-                    
+
                     if db_type in ["postgresql", "mysql"]:
                         sql_candidates = sorted(tmp_dir_path.rglob("*.sql"))
                         if sql_candidates:
                             extracted_path = sql_candidates[0]
                         else:
-                            extracted_files = [p for p in tmp_dir_path.rglob("*") if p.is_file()]
+                            extracted_files = [
+                                p for p in tmp_dir_path.rglob("*") if p.is_file()
+                            ]
                             if len(extracted_files) == 1:
                                 extracted_path = extracted_files[0]
-                    elif db_type == "sqlite":
-                        db_candidates = sorted(tmp_dir_path.rglob("*.db"))
-                        if db_candidates:
-                            extracted_path = db_candidates[0]
-                        else:
-                            db_candidates = sorted(tmp_dir_path.rglob("*.sqlite"))
+                    elif db_type in ("sqlite", "mdb"):
+                        for pattern in (
+                            "*.db",
+                            "*.sqlite",
+                            "*.sqlite3",
+                            "*.mdb",
+                            "*.accdb",
+                        ):
+                            db_candidates = sorted(tmp_dir_path.rglob(pattern))
                             if db_candidates:
                                 extracted_path = db_candidates[0]
-                            else:
-                                db_candidates = sorted(tmp_dir_path.rglob("*.sqlite3"))
-                                if db_candidates:
-                                    extracted_path = db_candidates[0]
-                    elif db_type == "folder":
+                                break
+                    elif db_type in ("folder", "sync"):
                         extracted_path = tmp_dir_path
                         top_level = [
-                            p for p in tmp_dir_path.iterdir() if p.name not in ("__MACOSX",)
+                            p
+                            for p in tmp_dir_path.iterdir()
+                            if p.name not in ("__MACOSX",)
                         ]
                         if len(top_level) == 1 and top_level[0].is_dir():
                             extracted_path = top_level[0]
                         else:
                             zip_candidates = sorted(
-                                [p for p in tmp_dir_path.rglob("*.zip") if p.is_file()]
+                                [
+                                    p
+                                    for p in tmp_dir_path.rglob("*.zip")
+                                    if p.is_file()
+                                ]
                             )
                             if len(zip_candidates) == 1:
                                 inner_zip = zip_candidates[0]
@@ -297,7 +327,9 @@ class JobManager:
                         if job.db_password:
                             env["PGPASSWORD"] = str(job.db_password)
 
-                        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+                        result = subprocess.run(
+                            cmd, capture_output=True, text=True, env=env
+                        )
                         if result.returncode != 0:
                             raise RuntimeError(
                                 f"Restauración PostgreSQL falló (code={result.returncode}): "
@@ -323,7 +355,9 @@ class JobManager:
                             cmd.append(f"--password={job.db_password}")
                         cmd.append(str(job.db_name))
 
-                        with extracted_path.open("r", encoding="utf-8", errors="ignore") as sql_fp:
+                        with extracted_path.open(
+                            "r", encoding="utf-8", errors="ignore"
+                        ) as sql_fp:
                             result = subprocess.run(
                                 cmd,
                                 stdin=sql_fp,
@@ -336,12 +370,12 @@ class JobManager:
                                 f"{(result.stderr or result.stdout).strip()}"
                             )
 
-                    elif db_type == "sqlite":
+                    elif db_type in ("sqlite", "mdb"):
                         if not job.db_name:
                             raise ValueError(
-                                "Falta la ruta del archivo de base de datos SQLite (db_name)."
+                                "Falta la ruta del archivo de base de datos de origen (db_name)."
                             )
-                        
+
                         original_db_path = Path(job.db_name)
                         if not original_db_path.exists():
                             raise FileNotFoundError(
@@ -352,7 +386,7 @@ class JobManager:
                             db,
                             run_id,
                             "INFO",
-                            f"Sobrescribiendo archivo SQLite original: {original_db_path}",
+                            f"Sobrescribiendo archivo local: {original_db_path}",
                             stage="restore_execute",
                         )
 
@@ -362,51 +396,55 @@ class JobManager:
                                 db,
                                 run_id,
                                 "INFO",
-                                f"Archivo SQLite restaurado exitosamente.",
+                                "Archivo de base de datos restaurado correctamente.",
                                 stage="restore_execute",
                             )
-                        except PermissionError as perm_err:
+                        except OSError as os_err:
                             raise RuntimeError(
-                                f"Error de permisos al sobrescribir archivo SQLite: {perm_err}"
-                            )
+                                f"No se pudo sobrescribir el archivo de destino: {os_err}"
+                            ) from os_err
 
-                    elif db_type == "folder":
+                    elif db_type in ("folder", "sync"):
                         if not job.db_name:
                             raise ValueError(
-                                "Falta la ruta de la carpeta original (db_name)."
+                                "Falta la ruta de la carpeta de origen (db_name)."
                             )
 
                         original_folder_path = Path(job.db_name)
                         if not original_folder_path.exists() or not original_folder_path.is_dir():
                             raise FileNotFoundError(
-                                f"La carpeta original no existe: {original_folder_path}"
+                                f"La carpeta de origen no existe o no es un directorio: {original_folder_path}"
                             )
 
                         history_manager.add_log(
                             db,
                             run_id,
                             "INFO",
-                            f"Restaurando contenido de carpeta: {original_folder_path}",
+                            f"Volcando backup sobre carpeta de origen: {original_folder_path}",
                             stage="restore_execute",
                         )
 
                         try:
                             if not extracted_path or not Path(extracted_path).is_dir():
                                 raise FileNotFoundError(
-                                    "No se pudo localizar el contenido descomprimido de la carpeta para restaurar."
+                                    "No hay una carpeta válida dentro del backup para restaurar."
                                 )
-                            shutil.copytree(extracted_path, original_folder_path, dirs_exist_ok=True)
+                            shutil.copytree(
+                                extracted_path,
+                                original_folder_path,
+                                dirs_exist_ok=True,
+                            )
                             history_manager.add_log(
                                 db,
                                 run_id,
                                 "INFO",
-                                f"Carpeta restaurada exitosamente.",
+                                "Carpeta restaurada correctamente.",
                                 stage="restore_execute",
                             )
-                        except PermissionError as perm_err:
+                        except OSError as os_err:
                             raise RuntimeError(
-                                f"Error de permisos al restaurar carpeta: {perm_err}"
-                            )
+                                f"Error al restaurar carpeta (permisos o disco): {os_err}"
+                            ) from os_err
 
                     else:
                         raise NotImplementedError(
@@ -427,6 +465,9 @@ class JobManager:
                         "db_type": db_type,
                         "message": "Restauración ejecutada correctamente.",
                     }
+                finally:
+                    if tmp_cleanup is not None:
+                        tmp_cleanup.cleanup()
             except Exception as exc:
                 history_manager.add_log(
                     db,

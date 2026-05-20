@@ -15,15 +15,21 @@ function setDbNetworkPanelVisible(visible) {
     if (panel) panel.classList.toggle('hidden', !visible);
 }
 
+/** Servidor autodetectado: oculta el bloque avanzado (motor/host/puerto); manual lo muestra. */
+function setDetectedServerWizardMode(isDetected) {
+    const details = document.getElementById('dbNetworkDetails');
+    if (!details) return;
+    details.classList.toggle('hidden', Boolean(isDetected));
+    if (isDetected) {
+        details.removeAttribute('open');
+    }
+}
+
 function updateDiscoverySelectionSummary(text) {
     const el = document.getElementById('dbDiscoverySelectionSummary');
-    const btn = document.getElementById('btnDiscoveryEditConnection');
     if (el) {
         el.textContent = text || '';
         el.classList.toggle('hidden', !text);
-    }
-    if (btn) {
-        btn.classList.toggle('hidden', !text);
     }
 }
 
@@ -314,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
 
     // 0. Cargar configuración inicial (como el idioma) de forma bloqueante
-    await loadInitialSettings();
+    const initialSettings = await loadInitialSettings();
 
     // 1. Autodescubrimiento
     await loadDiscovery();
@@ -348,6 +354,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 7. Inicializar el modal de Ajustes Globales
     initSettingsModal();
 
+    try {
+        await maybeOpenNotificationsOnboarding(initialSettings);
+    } catch (e) {
+        console.warn('Onboarding notificaciones omitido:', e);
+    }
+
     // 8. Chequear estado de Google Drive
     checkGoogleDriveStatus();
 });
@@ -361,9 +373,29 @@ async function loadInitialSettings() {
                 populateSettingsForm(settings);
             }
         }
+        return settings || null;
     } catch (e) {
         console.error("Error cargando configuración inicial:", e);
+        return null;
     }
+}
+
+/**
+ * Primera visita: si faltan canales de notificación, abre Ajustes una sola vez.
+ */
+async function maybeOpenNotificationsOnboarding(s) {
+    if (!s || localStorage.getItem('solba_onboarding_shown')) {
+        return;
+    }
+    const emailEmpty = !String(s.notification_email || '').trim();
+    const waToggled = s.notify_whatsapp === true || s.notify_whatsapp === 'true';
+    const waOk = s.whatsapp_runtime_configured === true || s.whatsapp_runtime_configured === 'true';
+    const whatsappIncomplete = waToggled && !waOk;
+    if (!emailEmpty && !whatsappIncomplete) {
+        return;
+    }
+    localStorage.setItem('solba_onboarding_shown', '1');
+    await openSettingsModal();
 }
 
 /**
@@ -867,11 +899,13 @@ function initJobFormValidation() {
                 dbFilePathContainer.classList.add('hidden');
                 jobOptionsContainer.classList.remove('hidden');
                 setDbNetworkPanelVisible(false);
+                setDetectedServerWizardMode(false);
                 updateDiscoverySelectionSummary('');
                 explorerFilterExt = null;
                 if (dbType) dbType.dispatchEvent(new Event('change'));
             } else if (currentJobType === 'folder') {
                 dbConfigContainer.classList.add('hidden');
+                setDetectedServerWizardMode(false);
                 setDbNetworkPanelVisible(false);
                 dbFilePathContainer.classList.remove('hidden');
                 applyFolderSourcePathLabels();
@@ -879,6 +913,7 @@ function initJobFormValidation() {
                 explorerFilterExt = null;
             } else if (currentJobType === 'sync') {
                 dbConfigContainer.classList.add('hidden');
+                setDetectedServerWizardMode(false);
                 setDbNetworkPanelVisible(false);
                 dbFilePathContainer.classList.remove('hidden');
                 applyFolderSourcePathLabels();
@@ -915,11 +950,16 @@ function initJobFormValidation() {
                     applyFileDbPathLabels();
                 }
                 explorerFilterExt = 'sqlite';
+                setDetectedServerWizardMode(false);
             } else {
                 explorerFilterExt = null;
                 if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
                 if (netPanel) netPanel.classList.remove('hidden');
-                if (networkDetails) networkDetails.setAttribute('open', '');
+                setDetectedServerWizardMode(false);
+                if (networkDetails) {
+                    networkDetails.classList.remove('hidden');
+                    networkDetails.setAttribute('open', '');
+                }
             }
 
             if (tval === 'postgresql') {
@@ -1309,10 +1349,6 @@ function initJobFormValidation() {
         }
     });
 
-    document.getElementById('btnDiscoveryEditConnection')?.addEventListener('click', () => {
-        setDbNetworkPanelVisible(true);
-        document.getElementById('dbNetworkDetails')?.setAttribute('open', '');
-    });
 }
 
 async function handleEditJob(event) {
@@ -1354,6 +1390,7 @@ async function handleEditJob(event) {
 function syncEditModeWizardStep2Layout(extra) {
     const dt = (extra.db_type || '').toLowerCase();
     if (dt === 'sqlite' || dt === 'mdb') {
+        setDetectedServerWizardMode(false);
         setDbNetworkPanelVisible(false);
         const dbFilePathContainer = document.getElementById('dbFilePathContainer');
         if (dbFilePathContainer) {
@@ -1362,18 +1399,18 @@ function syncEditModeWizardStep2Layout(extra) {
         }
         explorerFilterExt = 'sqlite';
         updateDiscoverySelectionSummary('');
-        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
-        if (btnEdit) btnEdit.classList.add('hidden');
         return;
     }
     if (['postgresql', 'mysql', 'sqlserver'].includes(dt)) {
+        setDetectedServerWizardMode(false);
         setDbNetworkPanelVisible(true);
         const nd = document.getElementById('dbNetworkDetails');
-        if (nd) nd.setAttribute('open', '');
+        if (nd) {
+            nd.classList.remove('hidden');
+            nd.setAttribute('open', '');
+        }
         const summary = `${dt} @ ${extra.db_host || ''}:${extra.db_port || ''}`;
         updateDiscoverySelectionSummary(summary);
-        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
-        if (btnEdit) btnEdit.classList.remove('hidden');
         explorerFilterExt = null;
     }
 }
@@ -1599,6 +1636,7 @@ function resetFormToCreateMode() {
     }
 
     setDbNetworkPanelVisible(false);
+    setDetectedServerWizardMode(false);
     updateDiscoverySelectionSummary('');
     explorerFilterExt = null;
     document.getElementById('dbNetworkDetails')?.removeAttribute('open');
@@ -2166,6 +2204,7 @@ async function loadDiscovery() {
 
     if (!document.getElementById('createJobForm')?.dataset.editingId) {
         setDbNetworkPanelVisible(false);
+        setDetectedServerWizardMode(false);
         updateDiscoverySelectionSummary('');
     }
 }
@@ -2209,11 +2248,10 @@ function handleDiscoveryClick(event) {
     const networkDetails = document.getElementById('dbNetworkDetails');
 
     if (card.dataset.manual === 'true') {
+        setDetectedServerWizardMode(false);
         setDbNetworkPanelVisible(true);
         if (networkDetails) networkDetails.setAttribute('open', '');
         updateDiscoverySelectionSummary('');
-        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
-        if (btnEdit) btnEdit.classList.add('hidden');
         if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
         explorerFilterExt = null;
         return;
@@ -2222,6 +2260,7 @@ function handleDiscoveryClick(event) {
     const engine = card.dataset.engine;
 
     if (engine === 'sqlite' && currentJobType === 'db') {
+        setDetectedServerWizardMode(false);
         if (dbTypeEl) {
             dbTypeEl.value = 'sqlite';
             dbTypeEl.dispatchEvent(new Event('change'));
@@ -2235,15 +2274,14 @@ function handleDiscoveryClick(event) {
             applyFileDbPathLabels();
         }
         explorerFilterExt = 'sqlite';
-        updateDiscoverySelectionSummary(t('summary_selected_local_db'));
-        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
-        if (btnEdit) btnEdit.classList.remove('hidden');
+        updateDiscoverySelectionSummary('');
         const dbFilePathEl = document.getElementById('dbFilePath');
         if (dbFilePathEl) dbFilePathEl.focus();
         return;
     }
 
     if (engine === 'sqlite' || engine === 'folder' || engine === 'mdb') {
+        setDetectedServerWizardMode(false);
         if (dbTypeEl) {
             dbTypeEl.value = engine;
             dbTypeEl.dispatchEvent(new Event('change'));
@@ -2275,7 +2313,8 @@ function handleDiscoveryClick(event) {
     if (dbHostEl) dbHostEl.value = card.dataset.host || '127.0.0.1';
     if (dbPortEl) dbPortEl.value = card.dataset.port || '';
 
-    setDbNetworkPanelVisible(false);
+    setDbNetworkPanelVisible(true);
+    setDetectedServerWizardMode(true);
     if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
     if (networkDetails) networkDetails.removeAttribute('open');
     explorerFilterExt = null;
@@ -2284,8 +2323,6 @@ function handleDiscoveryClick(event) {
     const port = card.dataset.port || '';
     const name = card.dataset.name || engine;
     updateDiscoverySelectionSummary(`${name} — ${host}:${port}`);
-    const btnEdit = document.getElementById('btnDiscoveryEditConnection');
-    if (btnEdit) btnEdit.classList.remove('hidden');
 
     if (dbUserEl) {
         const lang = getCurrentLanguage();
@@ -2295,7 +2332,7 @@ function handleDiscoveryClick(event) {
         else dbUserEl.placeholder = t('label_user', lang);
     }
 
-    if (dbNameEl) dbNameEl.focus();
+    if (dbUserEl) dbUserEl.focus();
 }
 
 // ============================================================================

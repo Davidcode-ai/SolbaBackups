@@ -29,11 +29,14 @@ Modelo de datos de una ejecución (RunHistory):
 """
 
 import logging
-
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
@@ -320,7 +323,12 @@ def download_run_backup(
 
     backup_file_path = (run.backup_file_path or "").strip()
     if not backup_file_path:
-        raise HTTPException(status_code=404, detail="La ejecución no contiene backup_file_path.")
+        backup_file_path = (run.destination_url or "").strip()
+    if not backup_file_path:
+        raise HTTPException(
+            status_code=404,
+            detail="La ejecución no tiene ruta de backup almacenada (backup_file_path).",
+        )
 
     if backup_file_path.startswith("https://drive.google.com"):
         if "/d/" not in backup_file_path:
@@ -337,12 +345,54 @@ def download_run_backup(
             "view_url": backup_file_path,
         }
 
-    path = Path(backup_file_path)
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="No se encontró el archivo de backup en disco.")
+    if backup_file_path.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="Este backup está en un destino remoto; no hay archivo local para descargar.",
+        )
 
-    return FileResponse(
-        path=str(path),
-        filename=path.name,
-        media_type="application/octet-stream",
+    path = Path(backup_file_path).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    path = path.resolve()
+
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontró el artefacto de backup en disco: {path}",
+        )
+
+    if path.is_file():
+        return FileResponse(
+            path=str(path),
+            filename=path.name,
+            media_type="application/octet-stream",
+        )
+
+    if path.is_dir():
+        tmpdir = tempfile.mkdtemp(prefix="solba_history_dl_")
+        base_name = os.path.join(tmpdir, "backup_bundle")
+        try:
+            archive_path = shutil.make_archive(base_name, "zip", root_dir=str(path))
+        except OSError as exc:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"No se pudo comprimir la carpeta para descarga: {exc}",
+            ) from exc
+
+        def cleanup_zip_dir() -> None:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+        zip_filename = f"{path.name}.zip"
+        return FileResponse(
+            path=archive_path,
+            filename=zip_filename,
+            media_type="application/zip",
+            background=BackgroundTask(cleanup_zip_dir),
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="La ruta de backup no es un archivo ni un directorio válido.",
     )

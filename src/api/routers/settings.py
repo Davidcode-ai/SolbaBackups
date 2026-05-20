@@ -5,6 +5,7 @@ src/api/routers/settings.py — Endpoints para configuración global.
 import os
 import sys
 from fastapi import APIRouter, Depends
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from typing import Any
 
@@ -41,8 +42,14 @@ def _get_env_path() -> str:
 def get_settings(db: Session = Depends(get_db)):
     """
     Devuelve todas las variables de configuración global guardadas en la BD.
+    Incluye flags derivados del entorno (p. ej. WhatsApp) para la UI/onboarding.
     """
     settings_dict = crud.setting_get_all(db)
+    env_path = _get_env_path()
+    load_dotenv(dotenv_path=env_path, override=False)
+    phone = (os.getenv("WHATSAPP_PHONE") or "").strip()
+    wa_enabled = os.getenv("WHATSAPP_ENABLED", "false").lower() == "true"
+    settings_dict["whatsapp_runtime_configured"] = bool(phone and wa_enabled)
     return {"settings": settings_dict}
 
 @router.put("", response_model=models.AppSettingsRead)
