@@ -123,12 +123,19 @@ def restore_run_backup(
     run_id: int,
     db: Session = Depends(get_db),
 ) -> dict:
-    """
-    Restaura el backup asociado a un run exitoso.
+    """Trigger in-process restore for a **successful** run.
 
-    Validaciones:
-    - El run debe existir.
-    - El run debe estar en estado 'success'.
+    Args:
+        run_id: Execution id whose ``backup_file_path`` will be restored.
+        db: Database session.
+
+    Returns:
+        Result dict from :meth:`~src.core.job_manager.JobManager.restore_backup`.
+
+    Raises:
+        HTTPException: 404 if run missing; 409 if status is not ``success``;
+            400/404/501/500 wrapping ``ValueError``, ``FileNotFoundError``,
+            ``NotImplementedError``, and ``RuntimeError`` from the core layer.
     """
     log.info(f"RESTORE: Intentando restaurar run_id={run_id}")
     
@@ -317,6 +324,24 @@ def download_run_backup(
     run_id: int,
     db: Session = Depends(get_db),
 ):
+    """Return a local backup file, a ZIP of a backup directory, or Drive URLs.
+
+    If ``backup_file_path`` points to Google Drive, responds with JSON
+    containing ``download_url`` and ``view_url``. Local files use
+    :class:`~fastapi.responses.FileResponse`; local directories are zipped
+    into a temp folder and streamed with a background cleanup task.
+
+    Args:
+        run_id: Run whose artifact path should be served.
+        db: Database session.
+
+    Returns:
+        ``FileResponse``, a JSON dict for Drive, or error payload.
+
+    Raises:
+        HTTPException: 404 if run or path missing; 400 for unsupported remote
+            schemes or bad Drive URLs; 500 if zipping a directory fails.
+    """
     run = crud.run_get_by_id(db, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Ejecución no encontrada.")

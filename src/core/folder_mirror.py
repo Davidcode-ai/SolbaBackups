@@ -1,14 +1,15 @@
 """
-Sincronización unidireccional (espejo): destino = copia exacta del origen.
+Sincronización literal (modo sync): vacía el destino y copia el árbol del origen.
 
-- Archivos nuevos o modificados en origen se copian (sobrescribiendo en destino).
-- Archivos que ya no existen en origen se eliminan del destino.
-- Directorios vacíos sobrantes se eliminan de abajo hacia arriba.
+Estrategia «nuclear» solicitada:
+1) Borrar solo el *contenido* de la carpeta destino (raíz intacta).
+2) Copiar solo el *contenido* del origen: cada entrada de ``src`` va directamente bajo ``dst``
+   (equivalente a copytree con dest vacío; evita cualquier carpeta extra con el nombre del origen).
 """
 from __future__ import annotations
 
-import filecmp
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -18,18 +19,16 @@ log = logging.getLogger(__name__)
 LogFn = Callable[[str], None]
 
 
-def mirror_unidirectional(
+def sync_nuclear_clone(
     src: Path,
     dst: Path,
     log_fn: LogFn | None = None,
 ) -> tuple[int, int, int]:
     """
-    Args:
-        src: Carpeta origen (debe existir y ser directorio).
-        dst: Carpeta destino (se crea si no existe).
+    Vacía ``dst`` (sin eliminar la carpeta raíz) y copia todo ``src`` dentro de ``dst``.
 
     Returns:
-        Tupla (copiados_nuevos, sobrescritos, eliminados_en_destino).
+        (archivos_en_destino_tras_copiar, 0, entradas_eliminadas_en_raíz_destino)
     """
     def _log(msg: str) -> None:
         if log_fn:
@@ -37,94 +36,42 @@ def mirror_unidirectional(
         else:
             log.info(msg)
 
-    src = src.resolve()
-    dst = dst.resolve()
+    src = src.expanduser().resolve()
+    dst = dst.expanduser().resolve()
 
     if not src.is_dir():
         raise NotADirectoryError(f"Origen no es un directorio: {src}")
+    if src == dst:
+        raise ValueError("Origen y destino no pueden ser la misma ruta.")
 
     dst.mkdir(parents=True, exist_ok=True)
 
-    # Mapa rel_posix -> Path origen
-    src_files: dict[str, Path] = {}
-    for p in src.rglob("*"):
-        if p.is_file():
-            rel = p.relative_to(src).as_posix()
-            src_files[rel] = p
-
-    copied = 0
-    overwritten = 0
-
-    for rel, sp in src_files.items():
-        dp = dst / rel
-        dp.parent.mkdir(parents=True, exist_ok=True)
-
-        if not dp.exists():
-            shutil.copy2(sp, dp)
-            copied += 1
-            continue
-
-        if not dp.is_file():
-            shutil.copy2(sp, dp)
-            overwritten += 1
-            continue
-
+    removed_root_entries = 0
+    for child in list(dst.iterdir()):
         try:
-            s_stat = sp.stat()
-            d_stat = dp.stat()
-        except OSError:
-            shutil.copy2(sp, dp)
-            overwritten += 1
-            continue
-
-        same_size_mtime = (
-            s_stat.st_size == d_stat.st_size
-            and int(s_stat.st_mtime_ns) == int(d_stat.st_mtime_ns)
-        )
-        if same_size_mtime:
-            continue
-
-        if s_stat.st_size != d_stat.st_size or s_stat.st_mtime > d_stat.st_mtime:
-            shutil.copy2(sp, dp)
-            overwritten += 1
-            continue
-
-        if filecmp.cmp(sp, dp, shallow=False):
-            continue
-
-        shutil.copy2(sp, dp)
-        overwritten += 1
-
-    deleted = 0
-    # Borrar archivos en destino que no están en origen
-    for p in list(dst.rglob("*")):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(dst).as_posix()
-        if rel not in src_files:
-            try:
-                p.unlink()
-                deleted += 1
-            except OSError as e:
-                _log(f"No se pudo eliminar '{p}': {e}")
-
-    # Eliminar directorios vacíos (excepto la raíz dest), de profundo a superficial
-    all_dirs = sorted(
-        (p for p in dst.rglob("*") if p.is_dir()),
-        key=lambda x: len(x.parts),
-        reverse=True,
-    )
-    for d in all_dirs:
-        if d == dst:
-            continue
-        try:
-            if not any(d.iterdir()):
-                d.rmdir()
-        except OSError:
-            pass
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                os.remove(child)
+            removed_root_entries += 1
+        except OSError as exc:
+            _log(f"No se pudo eliminar '{child}': {exc}")
+            raise RuntimeError(
+                f"No se pudo vaciar el destino antes del sync: {child}"
+            ) from exc
 
     _log(
-        f"Espejo completado: nuevos={copied}, actualizados={overwritten}, "
-        f"eliminados_en_destino={deleted}"
+        f"Sync nuclear: eliminadas {removed_root_entries} entradas en la raíz del destino; "
+        f"copiando contenido de {src} dentro de {dst}..."
     )
-    return copied, overwritten, deleted
+    for entry in src.iterdir():
+        target = dst / entry.name
+        if entry.is_dir():
+            shutil.copytree(entry, target, dirs_exist_ok=True)
+        else:
+            shutil.copy2(entry, target)
+
+    file_count = sum(1 for p in dst.rglob("*") if p.is_file())
+    _log(f"Sync nuclear completado: {file_count} archivos bajo {dst}.")
+
+    return (file_count, 0, removed_root_entries)

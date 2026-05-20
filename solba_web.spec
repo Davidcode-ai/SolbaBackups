@@ -5,9 +5,6 @@
 #
 # Genera: dist/SolbaBackups/SolbaBackups.exe (modo onedir)
 
-import os
-from pathlib import Path
-
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
@@ -20,10 +17,8 @@ added_files = [
 ]
 added_files += collect_data_files("certifi")
 
-# Archivos locales opcionales (solo si existen en la máquina de build)
-for _optional in (".env", "credentials.json", "token.json"):
-    if os.path.isfile(_optional):
-        added_files.append((_optional, "."))
+# No empaquetar .env ni OAuth en el ejecutable: en builds locales incluiría secretos.
+# Tras instalar, el usuario copia credentials.json / token.json al directorio de la app y edita .env.
 
 # ---------------------------------------------------------------------------
 # Hidden imports

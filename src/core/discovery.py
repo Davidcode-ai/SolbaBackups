@@ -8,8 +8,25 @@ configurar manualmente los puertos y el host.
 
 import asyncio
 import logging
+import re
 
 log = logging.getLogger(__name__)
+
+# Quitar pictogramas / símbolos decorativos de nombres mostrados en UI (corporativo)
+_EMOJI_AND_SYMBOL_RE = re.compile(
+    "["
+    "\U0001F300-\U0001FAFF"  # Supplemental Symbols and Pictographs, extended
+    "\U00002600-\U000027BF"  # Misc symbols / dingbats
+    "\U0000FE00-\U0000FE0F"  # Variation selectors
+    "\U0000200D"             # ZWJ
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def _clean_display_name(text: str) -> str:
+    s = _EMOJI_AND_SYMBOL_RE.sub("", text)
+    return " ".join(s.split())
 
 # Puertos estándar de los motores de bases de datos soportados
 SUPPORTED_ENGINES = {
@@ -32,12 +49,13 @@ async def check_port(host: str, port: int, engine_id: str, engine_name: str, tim
         writer.close()
         await writer.wait_closed()
         
-        log.info(f"¡Servicio descubierto! {engine_name} en {host}:{port}")
+        log.info("Servicio descubierto: %s en %s:%s", engine_name, host, port)
+        label = f"{engine_name} detectado en el puerto {port}"
         return {
             "engine": engine_id,
             "host": host,
             "port": port,
-            "name": f"{engine_name} detectado en el puerto {port}"
+            "name": _clean_display_name(label),
         }
     except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
         # El puerto está cerrado o no responde a tiempo

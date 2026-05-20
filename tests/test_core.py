@@ -112,4 +112,58 @@ async def test_notification_filter_only_errors(db_session, tmp_path):
         mock_send_email.assert_called_once()
         args, kwargs = mock_send_email.call_args
         assert kwargs["to_email"] == "admin@test.com"
-        assert "❌ Error en Backup" in kwargs["subject"]
+        assert "Error en backup:" in kwargs["subject"]
+
+
+@pytest.mark.asyncio
+async def test_sync_mirror_uses_dest_local_path_not_timestamp_subfolder(db_session, tmp_path):
+    """Regresión: sync puro escribe en la raíz de dest_local_path (sin pipeline ni subcarpeta job)."""
+    src = tmp_path / "src_sync"
+    dst = tmp_path / "dst_sync"
+    src.mkdir()
+    dst.mkdir()
+    (src / "marker.txt").write_text("ok", encoding="utf-8")
+
+    job = crud.job_create(
+        db_session,
+        {
+            "name": "TareaMirror",
+            "db_type": "sync",
+            "db_name": str(src),
+            "dest_local_path": str(dst),
+            "dest_type": "local",
+            "compress": False,
+        },
+    )
+    manager = JobManager()
+    await manager.run_job(job.id, trigger="manual")
+
+    assert (dst / "marker.txt").exists()
+    assert not any(p.name.startswith("TareaMirror_") for p in dst.iterdir() if p.is_dir())
+
+
+@pytest.mark.asyncio
+async def test_sync_job_db_type_case_insensitive_no_folder_subfolder(db_session, tmp_path):
+    """Regresión: motor 'Sync' usa bypass y no crea subcarpeta job.name_timestamp."""
+    src = tmp_path / "src_sync2"
+    dst = tmp_path / "dst_sync2"
+    src.mkdir()
+    dst.mkdir()
+    (src / "marker.txt").write_text("ok", encoding="utf-8")
+
+    job = crud.job_create(
+        db_session,
+        {
+            "name": "TareaMirrorCaps",
+            "db_type": "Sync",
+            "db_name": str(src),
+            "dest_local_path": str(dst),
+            "dest_type": "local",
+            "compress": False,
+        },
+    )
+    manager = JobManager()
+    await manager.run_job(job.id, trigger="manual")
+
+    assert (dst / "marker.txt").exists()
+    assert not any(p.name.startswith("TareaMirrorCaps_") for p in dst.iterdir() if p.is_dir())

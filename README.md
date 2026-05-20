@@ -2,37 +2,48 @@
   <img src="src/frontend/assets/logo_solba.png" alt="SolbaBackups Logo" width="250" />
 </div>
 
-# SolbaBackups
+# SolbaBackups v3.0
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
 
-**Copias de seguridad empresariales con panel web, programación nativa en Windows y destinos local / Google Drive.**
+**Enterprise-grade backups for Windows teams** — web dashboard, native **Task Scheduler** integration, and **local or Google Drive** destinations. *SolbaBackups v3.0* runs a predictable pipeline (dump or mirror → optional ZIP → upload → retention → **HTML or console reports**) while hiding operational noise (`pg_dump` paths, cron syntax, Drive API details).
 
-[Descripción](#descripcion) · [Novedades v3](#novedades-v3) · [Instalación](#instalacion) · [Uso](#uso) · [API](#api) · [Tests](#tests) · [Estructura](#estructura) · [Seguridad](#seguridad)
+[Vista rápida (ES)](#descripcion) · [Key features](#key-features) · [Install & run](#install--run) · [End-user workflow](#uso) · [API](#api) · [Tests](#tests) · [Project layout](#estructura) · [Security](#seguridad)
 
 ---
 
 <a id="descripcion"></a>
-## Descripción
+## Vista rápida (ES)
 
-**SolbaBackups** protege bases de datos y carpetas mediante un pipeline automatizado: volcado → compresión (opcional) → subida → retención → notificaciones. La interfaz web guía al usuario sin exponer detalles técnicos (cron, rutas de `pg_dump`, etc.).
+**SolbaBackups** protege bases de datos y carpetas con un flujo guiado: volcado o espejo → compresión opcional → destino → retención → notificaciones. El panel web está disponible en **español e inglés**.
+
+<a id="key-features"></a>
+## Key features
+
+| Capability | What you get |
+|------------|----------------|
+| **Database auto-discovery** | Detected engines and connection cards in the wizard; SQLite / file engines alongside PostgreSQL, MySQL, and SQL Server. |
+| **True-sync mirror** | Folder jobs with **1:1 mirror** (no ZIP) to a local path, with safe destination-root semantics and job-name path normalization. |
+| **Notifications** | **Corporate HTML email** (inline CSS, escaped content) plus plain-text fallback; optional **WhatsApp** via the bundled [`ApiWhatsApp/`](ApiWhatsApp/) outbox service. |
+| **Corporate UI** | Dark/light dashboard, guided job creation, history with logs, retention preview, and schedule status tied to Windows tasks. |
+| **Multi-database export** | Comma-separated `db_name` values produce **one ZIP** and **one upload** per run where applicable. |
+
+Release history: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+
+---
 
 <a id="novedades-v3"></a>
-## Novedades v3 (2026)
+## Highlights in v3.0
 
-| Área | Mejora |
-|------|--------|
-| **UX** | Wizard 3 pasos, tarjetas de tipo de tarea, desplegables de hora (España), contraseña segura en edición |
-| **Multi-BD** | Varias BDs en `db_name` (comas) → **un solo ZIP** y **una subida** |
-| **Drive** | Retención por días; no borra copias al cambiar formato; subida solo añade archivos |
-| **Edición** | Probar / Listar BDs sin reescribir contraseña (`job_id` en API) |
-| **PostgreSQL** | Autodetección de `pg_dump.exe` en Windows |
-| **Limpieza** | Temporales solo en `%TEMP%`; nunca toca la carpeta destino del usuario |
-
-Detalle completo: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+| Area | Improvement |
+|------|-------------|
+| **UX** | Three-step wizard, job-type cards, schedule dropdowns (Spain local time hints), secure password handling on edit |
+| **Drive** | Day-based retention; additive uploads; safer cleanup semantics |
+| **PostgreSQL** | Typical Windows `pg_dump.exe` auto-detection |
+| **Safety** | Staging and restore temp files under **`%TEMP%`** only — never the user’s backup destination tree |
 
 ---
 
@@ -64,7 +75,7 @@ BackUp-Solba/
 │       └── assets/js/
 │           ├── app.js           # UI principal (wizard, i18n, historial)
 │           └── api.js           # Cliente REST
-├── tests/                       # pytest (71+ tests)
+├── tests/                       # pytest (~98 tests, see CI / local run)
 ├── scripts/
 │   └── smoke_demo_bartolo.py    # Smoke E2E (servidor en marcha)
 ├── ApiWhatsApp/                 # Microservicio WhatsApp (Render) — independiente
@@ -80,8 +91,9 @@ BackUp-Solba/
 
 ---
 
+<a id="install--run"></a>
 <a id="instalacion"></a>
-## Instalación (desarrollo)
+## Install & run (development)
 
 ```bash
 git clone https://github.com/Davidcode-ai/SolbaBackups.git
@@ -89,13 +101,13 @@ cd SolbaBackups
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 pip install -r requirements_web.txt
-copy .env.example .env          # Editar SMTP, etc.
+copy .env.example .env          # Edit SMTP and options
 python solba_web.py
 ```
 
-Abrir: **http://localhost:8765**
+Open **http://localhost:8765**. Switch language under **Global Settings** (ES / EN).
 
-### Variables de entorno (`.env`)
+### Environment (`.env`)
 
 | Variable | Uso |
 |----------|-----|
@@ -168,14 +180,16 @@ Prefijo: `/api/v1`
 ## Tests
 
 ```bash
-# Suite completa (BD de test aislada)
 python -m pytest tests/ -q
-
-# Smoke con servidor en marcha (otra terminal: python solba_web.py)
-python scripts/smoke_demo_bartolo.py
 ```
 
-Estado esperado: **71 passed**, 12 skipped (tests async sin `pytest-asyncio`).
+Expected: **98 passed** (warnings from SQLAlchemy/pytest-asyncio may appear depending on Python version).
+
+Smoke (server running in another terminal: `python solba_web.py`):
+
+```bash
+python scripts/smoke_demo_bartolo.py
+```
 
 ---
 
@@ -205,9 +219,9 @@ Estado esperado: **71 passed**, 12 skipped (tests async sin `pytest-asyncio`).
 
 ---
 
-## Microservicio WhatsApp
+## WhatsApp microservice (`ApiWhatsApp/`)
 
-La carpeta [`ApiWhatsApp/`](ApiWhatsApp/) contiene la API desacoplada desplegada en Render (no forma parte del runtime de `solba_web.py`). Ver su `README.md` local.
+The [`ApiWhatsApp/`](ApiWhatsApp/) folder ships a **standalone** FastAPI + outbox worker for Meta / WAHA delivery. It is **not** imported by `solba_web.py`; SolbaBackups optionally POSTs backup status events when that service is configured. See **[ApiWhatsApp/README.md](ApiWhatsApp/README.md)** for deploy and env vars.
 
 ---
 

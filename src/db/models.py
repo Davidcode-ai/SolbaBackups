@@ -67,7 +67,7 @@ class Job(Base):
     # ── Conector de Base de Datos ─────────────────────────────────────────
     db_type: Mapped[str] = mapped_column(
         String(50), nullable=False,
-        comment="postgresql | mysql | sqlserver | sqlite"
+        comment="postgresql | mysql | sqlserver | sqlite | mdb | folder (copia con timestamp opcional) | sync (espejo 1:1 en dest_local_path)"
     )
     db_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     db_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -152,6 +152,11 @@ class Job(Base):
         # Sort runs by started_at descending and get the first one's status
         sorted_runs = sorted(self.runs, key=lambda r: r.started_at, reverse=True)
         return sorted_runs[0].status
+
+    @property
+    def source_local_path(self) -> str | None:
+        """Origen local en disco para carpeta/sincronización (en el esquema actual, ``db_name``)."""
+        return self.db_name
 
 
 class RunHistory(Base):

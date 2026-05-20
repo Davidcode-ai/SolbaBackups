@@ -11,28 +11,40 @@ from src.destinations.base import BaseDestination
 
 log = logging.getLogger(__name__)
 
+
 class LocalDestination(BaseDestination):
     """
     Gestiona el almacenamiento en carpetas locales o rutas de red (UNC).
     """
 
     async def upload(self, file_path: Path, destination_path: str) -> bool:
+        """
+        Mueve un archivo suelto al directorio destino con su mismo nombre.
+
+        No debe usarse con directorios: el modo ``sync`` escribe ya en
+        ``dest_local_path`` y no debe pasar por aquí (evita subcarpetas espurias).
+        """
+        if file_path.is_dir():
+            raise ValueError(
+                "LocalDestination.upload solo acepta archivos. "
+                "Las tareas 'sync' no deben invocar upload: el destino ya es la raíz configurada."
+            )
         # Asegurar que el directorio destino existe
         import os
         try:
             os.makedirs(destination_path, exist_ok=True)
         except Exception as e:
-            raise RuntimeError(f"Error crítico al crear o acceder al directorio destino ({destination_path}): {str(e)}")
-            
+            raise RuntimeError(f"Error crítico al crear o acceder al directorio destino ({destination_path}): {str(e)}") from e
+
         dest_dir = Path(destination_path)
 
         final_path = dest_dir / file_path.name
         log.info(f"Moviendo backup local de {file_path} a {final_path}...")
-        
+
         # Mover archivo de forma asíncrona usando un thread para evitar
         # bloquear el loop si destination_path es una unidad de red lenta.
         await asyncio.to_thread(shutil.move, str(file_path), str(final_path))
-        
+
         return True
 
     async def clean_old_backups(self, destination_path: str, retention_days: int) -> int:

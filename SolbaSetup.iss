@@ -38,9 +38,7 @@ Source: "dist\SolbaBackups\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; Plantilla de configuración (no sobrescribe .env existente en actualizaciones)
 Source: ".env.example"; DestDir: "{app}"; DestName: ".env"; Flags: onlyifdoesntexist
-; Google Drive (opcional en build; no sobrescribir en actualizaciones)
-Source: "credentials.json"; DestDir: "{app}"; Flags: onlyifdoesntexist skipifsourcedoesntexist
-Source: "token.json"; DestDir: "{app}"; Flags: onlyifdoesntexist skipifsourcedoesntexist
+; Google Drive: el usuario copia credentials.json / token.json a {app} tras instalar (no empaquetar en releases públicos).
 ; Icono para accesos directos
 Source: "src\frontend\assets\logo_solba.ico"; DestDir: "{app}"; DestName: "logo_solba.ico"; Flags: ignoreversion
 

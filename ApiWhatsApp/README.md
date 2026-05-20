@@ -1,5 +1,9 @@
 # ApiWhatsApp Microservice
 
+**Companion to [SolbaBackups v3.0](..)** (repository root): optional WhatsApp delivery for backup status via a transactional outbox. This service is **not** a Python dependency of `solba_web.py`; run it separately and point Solba to its HTTP API when needed.
+
+---
+
 **ApiWhatsApp** es un microservicio robusto y asíncrono diseñado para gestionar el envío de notificaciones de WhatsApp utilizando la API Oficial de Meta (WhatsApp Cloud API). Implementa el patrón **Transactional Outbox**, apoyándose en una base de datos externa (Supabase PostgreSQL) para encolar los mensajes y enviarlos en un proceso secundario (`worker`), lo que garantiza que nunca se pierdan notificaciones por caídas de red o errores temporales de Meta.
 
 Aunque ha sido empaquetado junto a **SolbaBackups**, está diseñado como un **sistema autónomo e independiente** que puede ser consumido por cualquier otro programa o ERP que necesite enviar WhatsApps transaccionales.

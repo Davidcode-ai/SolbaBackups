@@ -334,11 +334,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3.5 Obtener Estadísticas (Centro de Mando)
     await loadStats();
 
-    // Aplicar traducción de nuevo por si se generó contenido dinámico en español
+    // Aplicar idioma UI (incl. document.title vía data-i18n-title) siempre tras cargar ajustes
     const langSelect = document.getElementById('s-language');
-    if (langSelect && langSelect.value !== 'es') {
-        applyTranslations(langSelect.value);
-    }
+    const uiLang = (langSelect && langSelect.value) ? langSelect.value : 'es';
+    applyTranslations(uiLang);
 
     // 4. Inicializar validación del formulario
     initScheduleTimeSelects();
@@ -462,7 +461,7 @@ async function loadJobs(isSilent = false) {
             if (job.db_type === 'folder' || job.db_type === 'sync') iconClass = "fa-solid fa-folder-tree";
             else if (job.db_type === 'sqlite' || job.db_type === 'mdb') iconClass = "fa-solid fa-file-lines";
 
-            let actionTitle = t('Ejecutar') || 'Ejecutar';
+            let actionTitle = t('btn_tooltip_run');
 
             jobBtn.innerHTML = `
                 <div class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer btn-edit-job" 
@@ -559,7 +558,7 @@ async function handleRunJob(event) {
         button.disabled = false;
         button.className = originalClass;
 
-        button.title = t('Ejecutar');
+        button.title = t('btn_tooltip_run');
         button.innerHTML = '<i class="fa-solid fa-play text-[10px]"></i>';
     }
 }
@@ -1033,7 +1032,7 @@ function initJobFormValidation() {
                     showToast('Error al listar bases de datos: ' + (data.detail || 'Error desconocido'), 'error');
                 }
             } catch (error) {
-                showToast(`❌ Error de red: ${error.message}`, 'error');
+                showToast(`Error de red: ${error.message}`, 'error');
             } finally {
                 btnListDbs.disabled = false;
                 btnListDbs.innerHTML = originalHtml;
@@ -1081,10 +1080,10 @@ function initJobFormValidation() {
                     } else if (typeof errorMsg === 'object') {
                         errorMsg = JSON.stringify(errorMsg);
                     }
-                    showToast(`❌ ${errorMsg}`, 'error');
+                    showToast(`${errorMsg}`, 'error');
                 }
             } catch (error) {
-                showToast(`❌ ${t('error_network')}: ${error.message}`, 'error');
+                showToast(`${t('error_network')}: ${error.message}`, 'error');
             } finally {
                 btnTestConnection.disabled = false;
                 btnTestConnection.innerHTML = originalHtml;
@@ -1341,7 +1340,7 @@ function initJobFormValidation() {
                     errMsg = error.apiDetail;
                 }
             }
-            showToast(`❌ ${errMsg}`, 'error');
+            showToast(`${errMsg}`, 'error');
         } finally {
             delete btnSave.dataset.saving;
             resetSaveButtonState(btnSave);
@@ -1534,7 +1533,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     syncEditModeWizardStep2Layout(extra);
 
     if (heading) {
-        heading.innerHTML = `✏️ Editando Tarea: ${name}`;
+        heading.innerHTML = `${t('title_editing_job') || 'Editando tarea'}: ${name}`;
     }
 
     form.classList.remove('border-slate-200', 'dark:border-slate-800');
@@ -2108,14 +2107,14 @@ async function handleSaveSettings(silent = false) {
     try {
         await api.saveSettings(payload);
         if (!silent) {
-            showToast(`✅ ${t('toast_settings_saved')}`, 'success');
+            showToast(`${t('toast_settings_saved')}`, 'success');
             applyTranslations(payload.language);
             closeSettingsModal();
             setTimeout(() => { location.reload(); }, 1500);
         }
     } catch (err) {
         console.error('Error al guardar los ajustes:', err);
-        if (!silent) showToast(`❌ ${t('toast_settings_error')}`, 'error');
+        if (!silent) showToast(`${t('toast_settings_error')}`, 'error');
     } finally {
         saveBtn.disabled = false;
         saveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${t('btn_save_changes')}`;
@@ -2519,6 +2518,24 @@ async function loadTerminalLogs(runId) {
 const i18n = {
     es: {
         app_title: "SolbaBackups",
+        doc_title_dashboard: "SolbaBackups — Panel",
+        help_job_name_hint: "Usa un nombre descriptivo para identificarla después, ej: \"Contabilidad Semanal\".",
+        help_job_type_intro: "Selecciona el tipo de contenido que quieres poner a salvo.",
+        job_type_db_subtitle: "PostgreSQL, MySQL, SQL Server, Fichero",
+        job_type_folder_subtitle: "Copia, empaquetado y cifrado",
+        job_type_sync_subtitle: "Copia directa 1:1 sin comprimir",
+        help_job_description_hint: "Notas extra que te ayuden a recordar detalles de este respaldo.",
+        hint_db_server_access_intro: "Primero valida usuario y contraseña. Luego lista las bases de datos activas.",
+        hint_db_list_after_validate: "Después de validar credenciales, usa «Listar BDs» y selecciona una o varias.",
+        hint_section_backup_destination: "Indica dónde se guardará la copia: carpeta local o Google Drive.",
+        hint_storage_radio_help: "Elige «Carpeta Local» para discos duros o pendrives, o «Google Drive» para internet.",
+        hint_section_schedule_intro: "Configura si la copia se ejecuta manualmente, diaria, semanal o mensual.",
+        hint_schedule_timezone_peninsula: "Hora peninsular (España). Recomendamos madrugada, p. ej. 02:00.",
+        hint_weekly_select_day: "Selecciona el día de la semana para la copia.",
+        hint_monthly_select_day: "Selecciona el día del mes (1 al 28).",
+        hint_dest_browse_intro: "Pulsa «Buscar» para elegir la carpeta exacta donde caerá el respaldo.",
+        hint_retention_keep_days: "¿Cuántos días quieres guardar las copias viejas antes de que las borremos para ahorrar espacio?",
+        btn_tooltip_run: "Ejecutar",
         title_create_job: "Crear Nueva Tarea",
         btn_new_job: "Nueva Tarea",
         sidebar_my_jobs: "Mis Tareas",
@@ -2579,6 +2596,8 @@ const i18n = {
         opt_db_select_type: "Selecciona un tipo...",
         label_user: "Usuario",
         label_password: "Contraseña",
+        password_saved_label: "Contraseña configurada",
+        btn_modify_password: "Modificar",
         label_db_name: "Nombre de la Base de Datos",
         label_schedule_time: "Hora de Ejecución",
         label_schedule_hour: "Hora",
@@ -2609,7 +2628,7 @@ const i18n = {
         discovery_detected_at: "Detectado en",
         hint_discovery_cards: "Elige un servidor detectado, un fichero local o añade manualmente la conexión.",
         btn_discovery_edit_connection: "Editar conexión",
-        discovery_add_manual_title: "➕ Añadir servidor manualmente",
+        discovery_add_manual_title: "Añadir servidor manualmente",
         discovery_add_manual_hint: "Define host, puerto, motor y credenciales tú mismo.",
         label_file_db_path: "Ruta del archivo",
         hint_file_db_path_explorer: "Al explorar solo verás carpetas y archivos .db, .sqlite, .sqlite3, .mdb y .accdb.",
@@ -2791,7 +2810,7 @@ const i18n = {
         stat_free_space_title: "Espacio Libre en Destino",
         badge_active: "Activo",
         badge_edit_mode: "modo edición",
-        title_editing_job: "Editando Job",
+        title_editing_job: "Editando tarea",
         title_success: "¡Éxito!",
         title_restore_confirm: "Confirmar Restauración",
         title_file_explorer: "Explorador de Archivos",
@@ -2864,7 +2883,7 @@ const i18n = {
         btn_delete: "Borrar",
         btn_yes_discard: "Sí, descartar",
         confirm_discard_title: "¿Descartar cambios?",
-        toast_connection_ok: "✅ Conexión establecida correctamente",
+        toast_connection_ok: "Conexión establecida correctamente",
         error_network: "Error de red o servidor",
         error_gdrive_quota: "Error al obtener cuota de Google Drive",
         error_create_folder: "Error al crear la carpeta en Drive",
@@ -2878,6 +2897,24 @@ const i18n = {
     },
     en: {
         app_title: "SolbaBackups",
+        doc_title_dashboard: "SolbaBackups — Dashboard",
+        help_job_name_hint: "Use a descriptive name so you can recognize this task later, e.g. \"Weekly accounting\".",
+        help_job_type_intro: "Choose the kind of content you want to protect.",
+        job_type_db_subtitle: "PostgreSQL, MySQL, SQL Server, local file",
+        job_type_folder_subtitle: "Copy, packaging, and optional encryption",
+        job_type_sync_subtitle: "Direct 1:1 mirror without compression",
+        help_job_description_hint: "Optional notes to remember details about this backup.",
+        hint_db_server_access_intro: "Validate user and password first. Then list active databases.",
+        hint_db_list_after_validate: "After validating credentials, use \"List databases\" and pick one or more.",
+        hint_section_backup_destination: "Choose where the copy is stored: local folder or Google Drive.",
+        hint_storage_radio_help: "Pick \"Local folder\" for disks or USB drives, or \"Google Drive\" for the cloud.",
+        hint_section_schedule_intro: "Choose whether the job runs on demand, daily, weekly, or monthly.",
+        hint_schedule_timezone_peninsula: "Time in Spain (Peninsula). We recommend off-peak hours, e.g. 02:00.",
+        hint_weekly_select_day: "Pick the weekday for the backup.",
+        hint_monthly_select_day: "Pick the day of the month (1 to 28).",
+        hint_dest_browse_intro: "Click \"Browse\" to pick the exact folder where backups will be stored.",
+        hint_retention_keep_days: "How many days should we keep old copies before deleting them to save space?",
+        btn_tooltip_run: "Run now",
         title_create_job: "Create New Task",
         btn_new_job: "New Task",
         sidebar_my_jobs: "My Tasks",
@@ -2938,6 +2975,8 @@ const i18n = {
         opt_db_select_type: "Select a type...",
         label_user: "User",
         label_password: "Password",
+        password_saved_label: "Password saved",
+        btn_modify_password: "Change",
         label_db_name: "Database Name",
         label_schedule_time: "Execution Time",
         label_schedule_hour: "Hour",
@@ -2968,7 +3007,7 @@ const i18n = {
         discovery_detected_at: "Detected at",
         hint_discovery_cards: "Pick a detected server, a local database file, or add the connection manually.",
         btn_discovery_edit_connection: "Edit connection",
-        discovery_add_manual_title: "➕ Add server manually",
+        discovery_add_manual_title: "Add server manually",
         discovery_add_manual_hint: "Set host, port, engine and credentials yourself.",
         label_file_db_path: "Database file path",
         hint_file_db_path_explorer: "The file browser only shows folders and .db, .sqlite, .sqlite3, .mdb, .accdb files.",
@@ -3149,7 +3188,7 @@ const i18n = {
         stat_free_space_title: "Free Space at Destination",
         badge_active: "Active",
         badge_edit_mode: "edit mode",
-        title_editing_job: "Editing Job",
+        title_editing_job: "Editing task",
         title_success: "Success!",
         title_restore_confirm: "Confirm Restore",
         title_file_explorer: "File Explorer",
@@ -3222,7 +3261,7 @@ const i18n = {
         btn_delete: "Delete",
         btn_yes_discard: "Yes, discard",
         confirm_discard_title: "Discard changes?",
-        toast_connection_ok: "✅ Connection established successfully",
+        toast_connection_ok: "Connection established successfully",
         error_network: "Network or server error",
         error_gdrive_quota: "Error fetching Google Drive quota",
         error_create_folder: "Error creating folder in Drive",
@@ -3301,6 +3340,17 @@ function applyTranslations(lang) {
             console.warn('[i18n] Error translating placeholder:', error);
         }
     });
+
+    const titleKeyEl = document.querySelector('title[data-i18n-title]');
+    if (titleKeyEl) {
+        const tk = titleKeyEl.getAttribute('data-i18n-title');
+        if (tk) {
+            const ttd = dict[tk] ?? fallback[tk];
+            if (ttd !== undefined) {
+                document.title = ttd;
+            }
+        }
+    }
 }
 
 document.getElementById('s-language')?.addEventListener('change', (e) => {
