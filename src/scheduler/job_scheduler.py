@@ -60,7 +60,12 @@ def create_scheduler() -> BackgroundScheduler:
         BackgroundScheduler: Scheduler configurado pero NO iniciado.
                              Llamar a ``scheduler.start()`` explícitamente.
     """
-    pass
+    return BackgroundScheduler(
+        jobstores={"default": MemoryJobStore()},
+        executors={"default": APSThreadPoolExecutor(max_workers=4)},
+        job_defaults={"coalesce": True, "misfire_grace_time": 60},
+        timezone="Europe/Madrid",
+    )
 
 
 def load_jobs_from_db(scheduler: BackgroundScheduler, db: Session, job_manager) -> int:
@@ -79,7 +84,14 @@ def load_jobs_from_db(scheduler: BackgroundScheduler, db: Session, job_manager) 
     Returns:
         int: Número de jobs cargados y registrados exitosamente.
     """
-    pass
+    from src.db import crud
+
+    wrapper = JobScheduler(job_manager=job_manager, scheduler=scheduler)
+    loaded = 0
+    for job in crud.job_get_all(db, is_active=True):
+        if wrapper.add_job(job):
+            loaded += 1
+    return loaded
 
 
 def schedule_job(
@@ -113,7 +125,16 @@ def schedule_job(
     Raises:
         ValueError: Si ``schedule_type`` no es válido o faltan parámetros.
     """
-    pass
+    from types import SimpleNamespace
+
+    job = SimpleNamespace(
+        id=job_id,
+        name=job_name,
+        schedule_type=schedule_type,
+        schedule_cron=cron_expression,
+        schedule_interval_minutes=interval_minutes,
+    )
+    return JobScheduler(job_manager=job_manager, scheduler=scheduler).add_job(job)
 
 
 def unschedule_job(scheduler: BackgroundScheduler, job_id: int) -> bool:
@@ -129,7 +150,11 @@ def unschedule_job(scheduler: BackgroundScheduler, job_id: int) -> bool:
     Returns:
         bool: ``True`` si se encontró y eliminó la tarea, ``False`` si no existía.
     """
-    pass
+    aps_id = f"{JOB_ID_PREFIX}{job_id}"
+    if scheduler.get_job(aps_id) is None:
+        return False
+    JobScheduler(scheduler=scheduler).remove_job(job_id)
+    return True
 
 
 def pause_job(scheduler: BackgroundScheduler, job_id: int) -> bool:

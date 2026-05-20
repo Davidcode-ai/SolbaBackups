@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db
-from src.db import crud
+from src.core.db_credentials import resolve_job_db_password
 
 router = APIRouter(prefix="/utils", tags=["Utils"])
 
@@ -46,41 +46,16 @@ def _resolve_db_password(
     job_id: int | None,
     db: Session,
 ) -> str:
-    """
-    Devuelve la contraseña del payload o, si está vacía, la guardada en el job.
-    Nunca registra la contraseña en logs.
-    """
-    plain = (password or "").strip()
-    if plain:
-        return plain
-
+    """Wrapper HTTP: 404 si se pide job_id y el job no existe."""
+    if (password or "").strip():
+        return (password or "").strip()
     if job_id is None:
         return ""
+    from src.db import crud
 
-    job = crud.job_get_by_id(db, job_id)
-    if not job:
+    if crud.job_get_by_id(db, job_id) is None:
         raise HTTPException(status_code=404, detail="Job no encontrado.")
-
-    stored = getattr(job, "db_password", None)
-    if stored and str(stored).strip():
-        return str(stored).strip()
-
-    enc = getattr(job, "db_password_enc", None)
-    if enc and str(enc).strip():
-        try:
-            from src.config.settings import Settings
-            from src.processors.encryptor import Encryptor
-
-            settings = Settings()
-            key_raw = (settings._config.get("encryption_key") or "").strip()
-            if key_raw:
-                decrypted = Encryptor.decrypt_field(str(enc).strip(), key_raw.encode("utf-8"))
-                if decrypted and str(decrypted).strip():
-                    return str(decrypted).strip()
-        except Exception:
-            pass
-
-    return ""
+    return resolve_job_db_password(None, job_id, db)
 
 
 @router.post(
