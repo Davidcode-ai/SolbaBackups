@@ -59,6 +59,13 @@ htmlcov/
 
 # Base de datos local
 solba_data.db
+solba_data.db-shm
+solba_data.db-wal
+test_solba_data.sqlite3
+*.sqlite3-journal
+
+# Artefactos de test / salida temporal
+test_run_output.txt
 
 # Instalador
 Output/
