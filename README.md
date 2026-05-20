@@ -222,6 +222,18 @@ La carpeta [`ApiWhatsApp/`](ApiWhatsApp/) contiene la API desacoplada desplegada
 
 ---
 
+## Instalador Windows
+
+Generar el `.exe` de instalación (como en [Releases](https://github.com/Davidcode-ai/SolbaBackups/releases)):
+
+```powershell
+.\scripts\build_installer.ps1
+```
+
+Resultado: `Output\SolbaSetup-3.0.0.exe`. Guía detallada: [`docs/BUILD_INSTALLER.md`](docs/BUILD_INSTALLER.md).
+
+---
+
 ## Licencia
 
 MIT — ver [`LICENSE`](LICENSE).

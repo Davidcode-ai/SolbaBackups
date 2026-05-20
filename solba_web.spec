@@ -1,74 +1,75 @@
 # solba_web.spec — PyInstaller spec file para SolbaBackups Web
 #
 # Uso:
-#   pyinstaller solba_web.spec
+#   pyinstaller solba_web.spec --noconfirm
 #
-# Genera: dist/SolbaBackups/SolbaBackups.exe (modo onedir, más rápido al arrancar)
-# Para un solo archivo: cambiar onefile=True (arranque más lento, ~10-15s en Windows)
+# Genera: dist/SolbaBackups/SolbaBackups.exe (modo onedir)
 
-import sys
+import os
 from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
 # ---------------------------------------------------------------------------
-# Archivos de datos adicionales a incluir en el bundle
-# Formato: (origen_en_disco, destino_dentro_del_bundle)
+# Archivos de datos adicionales
 # ---------------------------------------------------------------------------
 added_files = [
-    # Frontend completo
-    ('src/frontend', 'src/frontend'),
-    # Certificados SSL (necesarios para requests HTTPS de google-auth)
-    ('venv/Lib/site-packages/certifi/cacert.pem', 'certifi'),
-    # Archivo de configuración de variables de entorno
-    ('.env', '.'),
-    # Credenciales de Google Drive (OAuth2 / Service Account)
-    ('credentials.json', '.'),
-    # Token de sesión OAuth2 de Google Drive (demo pre-autorizada)
-    ('token.json', '.'),
+    ("src/frontend", "src/frontend"),
 ]
+added_files += collect_data_files("certifi")
+
+# Archivos locales opcionales (solo si existen en la máquina de build)
+for _optional in (".env", "credentials.json", "token.json"):
+    if os.path.isfile(_optional):
+        added_files.append((_optional, "."))
 
 # ---------------------------------------------------------------------------
-# Hidden imports (módulos que PyInstaller no detecta automáticamente)
+# Hidden imports
 # ---------------------------------------------------------------------------
-hidden_imports = [
-    'uvicorn.logging',
-    'uvicorn.loops',
-    'uvicorn.loops.auto',
-    'uvicorn.protocols',
-    'uvicorn.protocols.http',
-    'uvicorn.protocols.http.auto',
-    'uvicorn.protocols.websockets',
-    'uvicorn.protocols.websockets.auto',
-    'uvicorn.lifespan',
-    'uvicorn.lifespan.on',
-    'apscheduler.triggers.cron',
-    'apscheduler.triggers.interval',
-    'apscheduler.schedulers.background',
-    'apscheduler.executors.pool',
-    'apscheduler.jobstores.memory',
-    'sqlalchemy.dialects.sqlite',
-    'sqlalchemy.orm',
-    'cryptography.hazmat.backends.openssl',
-    'google.auth.transport.requests',
-    'google_auth_oauthlib.flow',
-    'googleapiclient.discovery',
+hiddenimports = [
+    "uvicorn.logging",
+    "uvicorn.loops",
+    "uvicorn.loops.auto",
+    "uvicorn.protocols",
+    "uvicorn.protocols.http",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.lifespan",
+    "uvicorn.lifespan.on",
+    "apscheduler.triggers.cron",
+    "apscheduler.triggers.interval",
+    "apscheduler.schedulers.background",
+    "apscheduler.executors.pool",
+    "apscheduler.jobstores.memory",
+    "sqlalchemy.dialects.sqlite",
+    "sqlalchemy.orm",
+    "cryptography.hazmat.backends.openssl",
+    "google.auth.transport.requests",
+    "google_auth_oauthlib.flow",
+    "googleapiclient.discovery",
 ]
 
 a = Analysis(
-    ['solba_web.py'],
-    pathex=['.'],
+    ["solba_web.py"],
+    pathex=["."],
     binaries=[],
     datas=added_files,
-    hiddenimports=hidden_imports,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Excluir módulos de test y desarrollo para reducir tamaño
-        'pytest', 'pylint', 'flake8', 'black',
-        'tkinter', 'matplotlib', 'numpy', 'pandas',
+        "pytest",
+        "pylint",
+        "flake8",
+        "black",
+        "tkinter",
+        "matplotlib",
+        "numpy",
+        "pandas",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -83,18 +84,18 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='SolbaBackups',
+    name="SolbaBackups",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,          # Sin ventana de consola (app GUI/web)
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='src/frontend/assets/logo_solba.ico',  # Icono añadido
+    icon="src/frontend/assets/logo_solba.ico",
 )
 
 coll = COLLECT(
@@ -105,5 +106,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='SolbaBackups',
+    name="SolbaBackups",
 )
