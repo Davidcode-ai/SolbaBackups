@@ -329,6 +329,24 @@ class ApiClient {
     }
 
     /**
+     * Crea una carpeta en el sistema de archivos local.
+     * @param {string} parentPath - Ruta del directorio padre
+     * @param {string} folderName - Nombre de la nueva carpeta
+     */
+    async createLocalDir(parentPath, folderName) {
+        const response = await fetch(`${this.baseUrl}/utils/create-local-dir`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent_path: parentPath, folder_name: folderName }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || `Error HTTP: ${response.status}`);
+        }
+        return data;
+    }
+
+    /**
      * Calcula el espacio libre de un disco o ruta.
      * @param {string} path - Ruta a comprobar
      * @returns {Promise<Object>} { free_space_mb: 1024 }

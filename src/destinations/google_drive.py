@@ -243,11 +243,6 @@ class GoogleDriveDestination:
 
             log.info("✅ Archivo subido exitosamente. file_id=%s", file_id)
 
-            # Aplicar retención tras cada subida exitosa.
-            deleted = self.apply_retention(current_file_id=file_id)
-            if deleted:
-                log.info("🗑️  Retención aplicada: %d archivo(s) eliminado(s).", len(deleted))
-
             return web_view_link
 
         except HttpError as exc:
@@ -424,8 +419,8 @@ class GoogleDriveDestination:
 
     def apply_retention(self, current_file_id: str | None = None) -> list[str]:
         """
-        Elimina de Drive los backups del job, manteniendo sólo los más recientes.
-        Usa self._retention_days como el límite máximo de archivos.
+        Elimina de Drive los backups del job más antiguos que ``retention_days`` días.
+        Si ``retention_days`` es 0 o negativo, no elimina nada (conservar todo).
 
         Returns:
             list[str]: IDs de Drive de los archivos eliminados.
@@ -436,6 +431,7 @@ class GoogleDriveDestination:
         try:
             service = self._get_service()
             job_folder_id = self._get_or_create_job_folder(service)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=self._retention_days)
 
             query = (
                 f"'{job_folder_id}' in parents "
@@ -456,22 +452,36 @@ class GoogleDriveDestination:
                 .execute()
             )
             files = results.get("files", [])
-            
-            files_to_delete = files[self._retention_days:]
             deleted_ids: list[str] = []
 
-            for file in files_to_delete:
+            for file in files:
                 fid = file["id"]
                 fname = file["name"]
-                
+
                 if current_file_id and fid == current_file_id:
-                    log.info("Protegiendo el backup recién creado de la limpieza de retención: %s", fname)
+                    log.debug(
+                        "Omitiendo backup recién subido en retención: %s", fname
+                    )
+                    continue
+
+                created_raw = file.get("createdTime", "")
+                try:
+                    created_at = datetime.fromisoformat(
+                        created_raw.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    log.warning(
+                        "No se pudo interpretar createdTime de '%s', se omite.", fname
+                    )
+                    continue
+
+                if created_at > cutoff:
                     continue
 
                 try:
                     service.files().delete(fileId=fid, supportsAllDrives=True).execute()
                     deleted_ids.append(fid)
-                    log.info("🗑️  Eliminado de Drive: %s (id=%s)", fname, fid)
+                    log.info("🗑️  Eliminado de Drive (>%d días): %s", self._retention_days, fname)
                 except HttpError as exc:
                     log.warning("No se pudo eliminar '%s' (id=%s): %s", fname, fid, exc)
 

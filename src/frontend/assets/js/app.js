@@ -3,6 +3,82 @@
  */
 
 let isFormDirty = false; // Estado para saber si hay cambios sin guardar
+let currentEditingJobId = null; // ID del job en modo edición (contraseña en servidor)
+
+const SPAIN_TIMEZONE = 'Europe/Madrid';
+
+/** Interpreta fechas del servidor (UTC sin zona) y las muestra en hora de España. */
+function parseUtcDate(isoValue) {
+    if (!isoValue) return null;
+    let s = String(isoValue).trim();
+    if (!s) return null;
+    if (!/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) {
+        s = s.includes('T') ? `${s}Z` : `${s.replace(' ', 'T')}Z`;
+    }
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatDateTimeSpain(isoValue) {
+    const d = parseUtcDate(isoValue);
+    if (!d) return 'N/A';
+    return d.toLocaleString('es-ES', {
+        timeZone: SPAIN_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
+function getScheduleTimeValue() {
+    const hourSel = document.getElementById('jobScheduleHour');
+    const minSel = document.getElementById('jobScheduleMinute');
+    if (!hourSel || !minSel) return '';
+    const hour = hourSel.value;
+    const minute = minSel.value;
+    if (hour === '' || minute === '') return '';
+    return `${hour}:${minute}`;
+}
+
+function setScheduleTimeValue(timeStr) {
+    const hourSel = document.getElementById('jobScheduleHour');
+    const minSel = document.getElementById('jobScheduleMinute');
+    if (!hourSel || !minSel) return;
+    const parts = (timeStr || '02:00').split(':');
+    const h = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
+    const m = Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0));
+    hourSel.value = String(h).padStart(2, '0');
+    minSel.value = String(m).padStart(2, '0');
+}
+
+function initScheduleTimeSelects() {
+    const hourSel = document.getElementById('jobScheduleHour');
+    const minSel = document.getElementById('jobScheduleMinute');
+    const domSel = document.getElementById('jobScheduleDayOfMonth');
+    if (hourSel && hourSel.options.length === 0) {
+        for (let h = 0; h < 24; h++) {
+            const v = String(h).padStart(2, '0');
+            hourSel.add(new Option(v, v));
+        }
+    }
+    if (minSel && minSel.options.length === 0) {
+        for (let m = 0; m < 60; m++) {
+            const v = String(m).padStart(2, '0');
+            minSel.add(new Option(v, v));
+        }
+    }
+    if (domSel && domSel.options.length === 0) {
+        for (let d = 1; d <= 28; d++) {
+            domSel.add(new Option(String(d), String(d)));
+        }
+    }
+    setScheduleTimeValue('02:00');
+    if (domSel && !domSel.value) domSel.value = '1';
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Inicializar Tema Claro/Oscuro
@@ -30,6 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // 4. Inicializar validación del formulario
+    initScheduleTimeSelects();
     initJobFormValidation();
 
     // 5. Iniciar polling (Radar) silencioso
@@ -271,10 +348,7 @@ async function loadHistory(isSilent = false) {
                 : 'border-red-500/30 hover:border-red-500';
 
             const rawDate = record.started_at || record.finished_at || record.timestamp || record.end_time || null;
-            const dateObj = rawDate ? new Date(rawDate) : null;
-            const dateStr = dateObj && !Number.isNaN(dateObj.getTime())
-                ? dateObj.toLocaleString()
-                : 'N/A';
+            const dateStr = formatDateTimeSpain(rawDate);
 
             const runId = record._id || record.id || record.run_id || null;
 
@@ -389,6 +463,78 @@ async function restoreBackup(runId) {
 /**
  * Inicializa la validación del formulario.
  */
+/**
+ * Payload para /utils/test-connection y /utils/test-db.
+ * En edición sin contraseña en el input, envía job_id para usar la guardada.
+ */
+function buildDbUtilsPayload({ engine, host, port, user, password, database = '' }) {
+    const body = {
+        engine: engine || 'postgresql',
+        host: host || 'localhost',
+        port: port ? parseInt(port, 10) : 5432,
+        user: user || 'postgres',
+        password: password || '',
+        database: database || ''
+    };
+    const jobId = currentEditingJobId
+        || document.getElementById('createJobForm')?.dataset.editingId;
+    if (jobId && !String(body.password).trim()) {
+        body.job_id = parseInt(jobId, 10);
+    }
+    return body;
+}
+
+function isPasswordUnchangedInEditMode() {
+    const form = document.getElementById('createJobForm');
+    const passwordSavedUI = document.getElementById('passwordSavedUI');
+    return Boolean(form && form.dataset.editingId && passwordSavedUI && !passwordSavedUI.classList.contains('hidden'));
+}
+
+function setPasswordEditMode(showSavedState) {
+    const dbPassword = document.getElementById('dbPassword');
+    const passwordSavedUI = document.getElementById('passwordSavedUI');
+    const dbPasswordInputWrapper = document.getElementById('dbPasswordInputWrapper');
+    if (!dbPassword || !passwordSavedUI || !dbPasswordInputWrapper) return;
+
+    if (showSavedState) {
+        passwordSavedUI.classList.remove('hidden');
+        dbPasswordInputWrapper.classList.add('hidden');
+        dbPassword.value = '';
+        dbPassword.type = 'password';
+        const icon = document.getElementById('dbPasswordToggleIcon');
+        if (icon) icon.className = 'fa-solid fa-eye';
+    } else {
+        passwordSavedUI.classList.add('hidden');
+        dbPasswordInputWrapper.classList.remove('hidden');
+    }
+}
+
+function initPasswordFieldUX() {
+    const dbPassword = document.getElementById('dbPassword');
+    const btnToggle = document.getElementById('btnToggleDbPassword');
+    const btnModify = document.getElementById('btnModifyPassword');
+    const icon = document.getElementById('dbPasswordToggleIcon');
+
+    if (btnToggle && dbPassword) {
+        btnToggle.addEventListener('click', () => {
+            const isHidden = dbPassword.type === 'password';
+            dbPassword.type = isHidden ? 'text' : 'password';
+            if (icon) {
+                icon.className = isHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            }
+        });
+    }
+
+    if (btnModify && dbPassword) {
+        btnModify.addEventListener('click', () => {
+            setPasswordEditMode(false);
+            dbPassword.value = '';
+            dbPassword.placeholder = '••••••••';
+            dbPassword.focus();
+        });
+    }
+}
+
 function initJobFormValidation() {
     const form = document.getElementById('createJobForm');
     const btnSave = document.getElementById('btnSaveJob');
@@ -401,6 +547,8 @@ function initJobFormValidation() {
     const dbName = document.getElementById('dbName');
     const dbUser = document.getElementById('dbUser');
     const dbPassword = document.getElementById('dbPassword');
+
+    initPasswordFieldUX();
 
     // Destinos
     const destType = document.getElementById('destType');
@@ -437,11 +585,14 @@ function initJobFormValidation() {
     const scheduleDayOfMonthContainer = document.getElementById('scheduleDayOfMonthContainer');
     const jobScheduleInterval = document.getElementById('jobScheduleInterval');
     const jobScheduleCron = document.getElementById('jobScheduleCron');
-    const jobScheduleTime = document.getElementById('jobScheduleTime');
+    const jobScheduleHour = document.getElementById('jobScheduleHour');
+    const jobScheduleMinute = document.getElementById('jobScheduleMinute');
     const jobScheduleDayOfWeek = document.getElementById('jobScheduleDayOfWeek');
     const jobScheduleDayOfMonth = document.getElementById('jobScheduleDayOfMonth');
 
     if (!form || !btnSave) return;
+
+    form.addEventListener('submit', (ev) => ev.preventDefault());
 
     if (jobSched) {
         jobSched.addEventListener('change', () => {
@@ -472,6 +623,8 @@ function initJobFormValidation() {
 
     jobTypeCards.forEach(card => {
         card.addEventListener('click', () => {
+            const wizardStep2 = document.getElementById('wizardStep2');
+            clearAllErrors(wizardStep2 || document);
             jobTypeCards.forEach(c => c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500'));
             card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
             currentJobType = card.dataset.jobType;
@@ -479,15 +632,18 @@ function initJobFormValidation() {
             if (currentJobType === 'db') {
                 dbConfigContainer.classList.remove('hidden');
                 dbFilePathContainer.classList.add('hidden');
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
                 jobOptionsContainer.classList.remove('hidden');
                 // Trigger change to update credentials visibility based on selected engine
                 if (dbType) dbType.dispatchEvent(new Event('change'));
             } else if (currentJobType === 'folder') {
                 dbConfigContainer.classList.add('hidden');
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
                 dbFilePathContainer.classList.remove('hidden');
                 jobOptionsContainer.classList.remove('hidden');
             } else if (currentJobType === 'sync') {
                 dbConfigContainer.classList.add('hidden');
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
                 dbFilePathContainer.classList.remove('hidden');
                 jobOptionsContainer.classList.add('hidden'); // Ocultar retención y compresión
             }
@@ -504,9 +660,9 @@ function initJobFormValidation() {
             if (currentJobType !== 'db') return;
             const t = dbType.value;
             if (t === 'sqlite' || t === 'mdb') {
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
                 if (networkDetails) networkDetails.classList.add('hidden');
-                if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
+                if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
             } else {
                 if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
                 if (networkDetails) networkDetails.classList.remove('hidden');
@@ -563,14 +719,14 @@ function initJobFormValidation() {
                 const response = await fetch('/api/v1/utils/test-db', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        engine: engine || 'postgresql',
-                        host: hostVal || 'localhost',
-                        port: portVal ? parseInt(portVal) : 5432,
-                        user: userVal || 'postgres',
+                    body: JSON.stringify(buildDbUtilsPayload({
+                        engine,
+                        host: hostVal,
+                        port: portVal,
+                        user: userVal,
                         password: passwordVal,
                         database: ''
-                    })
+                    }))
                 });
 
                 const data = await response.json();
@@ -611,14 +767,14 @@ function initJobFormValidation() {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        engine: engine || 'postgresql',
-                        host: hostVal || 'localhost',
-                        port: portVal ? parseInt(portVal) : 5432,
-                        user: userVal || 'postgres',
+                    body: JSON.stringify(buildDbUtilsPayload({
+                        engine,
+                        host: hostVal,
+                        port: portVal,
+                        user: userVal,
                         password: passwordVal,
                         database: databaseVal
-                    })
+                    }))
                 });
 
                 const errorData = await response.json();
@@ -645,13 +801,10 @@ function initJobFormValidation() {
 
     btnSave.addEventListener('click', async (e) => {
         e.preventDefault();
-        let isValid = true;
+        if (btnSave.dataset.saving === 'true') return;
 
-        // Prevent native form submission
-        if (form && !form.dataset.submitPrevented) {
-            form.addEventListener('submit', (ev) => ev.preventDefault());
-            form.dataset.submitPrevented = 'true';
-        }
+        clearAllErrors(form || document);
+        let isValid = true;
 
         // --- BUG FIX 1: Leer el tipo de tarea desde la tarjeta activa (no desde el select) ---
         const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
@@ -671,9 +824,66 @@ function initJobFormValidation() {
             isValid = false;
         }
 
+        const dbFilePathEl = document.getElementById('dbFilePath');
+        const isFileEngine = finalJobType === 'db' && dbType && (dbType.value === 'sqlite' || dbType.value === 'mdb');
+        const requiresServerAuth = finalJobType === 'db' && !isFileEngine;
+
+        if (requiresServerAuth) {
+            if (!dbHost || !dbHost.value.trim()) {
+                showError(dbHost, t('error_field_required') || 'Host obligatorio');
+                isValid = false;
+            } else {
+                clearErrors(dbHost);
+            }
+
+            if (!dbPort || !dbPort.value.trim()) {
+                showError(dbPort, t('error_field_required') || 'Puerto obligatorio');
+                isValid = false;
+            } else {
+                clearErrors(dbPort);
+            }
+
+            if (!dbUser || !dbUser.value.trim()) {
+                showError(dbUser, t('error_field_required') || 'Usuario obligatorio');
+                isValid = false;
+            } else {
+                clearErrors(dbUser);
+            }
+
+            if (!isPasswordUnchangedInEditMode()) {
+                if (!dbPassword || !dbPassword.value.trim()) {
+                    showError(dbPassword, t('error_field_required') || 'Contraseña obligatoria');
+                    isValid = false;
+                } else {
+                    clearErrors(dbPassword);
+                }
+            } else if (dbPassword) {
+                clearErrors(dbPassword);
+            }
+
+            const selectedDbsForSave = dbName && dbName.tagName.toLowerCase() === 'select'
+                ? Array.from(dbName.selectedOptions).map(opt => opt.value).filter(Boolean)
+                : [];
+            if (!dbName || selectedDbsForSave.length === 0) {
+                showError(dbName, t('error_field_required') || 'Selecciona al menos una BD');
+                isValid = false;
+            } else {
+                clearErrors(dbName);
+            }
+        }
+
+        if (finalJobType === 'folder' || finalJobType === 'sync') {
+            const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
+            if (!pathValue) {
+                showError(dbFilePathEl, t('error_path_required') || 'Especifica la ruta de origen');
+                isValid = false;
+            } else {
+                clearErrors(dbFilePathEl);
+            }
+        }
+
         if (!isValid) {
-            btnSave.classList.add('animate-shake');
-            setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+            abortSaveValidation(btnSave);
             return;
         }
 
@@ -682,9 +892,15 @@ function initJobFormValidation() {
         if (destType && destType.value === 'local') {
             const destVal = destLocalPath ? destLocalPath.value.trim() : '';
             if (!destVal) {
-                showToast(t('error_path_required') || 'Debes especificar la ruta de destino', 'error');
-                btnSave.classList.add('animate-shake');
-                setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+                showValidationToast(t('error_path_required') || 'Debes especificar la ruta de destino');
+                abortSaveValidation(btnSave);
+                return;
+            }
+        } else if (destType && destType.value === 'google_drive') {
+            const folderName = destGDriveFolderName ? destGDriveFolderName.value.trim() : '';
+            if (!folderName) {
+                showValidationToast('Selecciona una carpeta de Google Drive antes de guardar.');
+                abortSaveValidation(btnSave);
                 return;
             }
         }
@@ -699,15 +915,11 @@ function initJobFormValidation() {
             finalDbName = dbName.value.trim() || null;
         }
 
-        // --- BUG FIX 2: Validar ruta de fichero usando finalJobType (tarjeta), no dbType.value ---
-        if (finalJobType === 'folder' || finalJobType === 'sync' ||
-            (finalJobType === 'db' && dbType && (dbType.value === 'sqlite' || dbType.value === 'mdb'))) {
-            const dbFilePathEl = document.getElementById('dbFilePath');
+        if (finalJobType === 'folder' || finalJobType === 'sync') {
             const pathValue = dbFilePathEl ? dbFilePathEl.value.trim() : '';
             if (!pathValue) {
-                showToast(t('error_path_required') || 'Especifica la ruta de origen', 'error');
-                btnSave.classList.add('animate-shake');
-                setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+                showValidationToast(t('error_path_required') || 'Especifica la ruta de origen');
+                abortSaveValidation(btnSave);
                 return;
             }
             finalDbName = pathValue;
@@ -718,8 +930,17 @@ function initJobFormValidation() {
         let finalInterval = jobScheduleInterval ? parseInt(jobScheduleInterval.value) || null : null;
 
         if (finalScheduleType === 'daily' || finalScheduleType === 'weekly' || finalScheduleType === 'monthly') {
-            const timeVal = jobScheduleTime ? jobScheduleTime.value : '';
-            const [hourStr, minStr] = timeVal ? timeVal.split(':') : ['02', '00'];
+            const timeVal = getScheduleTimeValue();
+            const scheduleTimeContainer = document.getElementById('scheduleTimeContainer');
+            if (!timeVal) {
+                showValidationToast('Debes indicar una hora para la programación seleccionada.');
+                if (scheduleTimeContainer) showError(scheduleTimeContainer, t('error_field_required') || 'Obligatorio');
+                abortSaveValidation(btnSave);
+                return;
+            } else if (scheduleTimeContainer) {
+                clearErrors(scheduleTimeContainer);
+            }
+            const [hourStr, minStr] = timeVal.split(':');
             const hour = parseInt(hourStr) || 0;
             const min = parseInt(minStr) || 0;
 
@@ -727,9 +948,24 @@ function initJobFormValidation() {
                 finalCron = `${min} ${hour} * * *`;
             } else if (finalScheduleType === 'weekly') {
                 const dow = jobScheduleDayOfWeek ? jobScheduleDayOfWeek.value : '0';
+                if (!dow && jobScheduleDayOfWeek) {
+                    showError(jobScheduleDayOfWeek, t('error_field_required') || 'Obligatorio');
+                    abortSaveValidation(btnSave);
+                    return;
+                } else if (jobScheduleDayOfWeek) {
+                    clearErrors(jobScheduleDayOfWeek);
+                }
                 finalCron = `${min} ${hour} * * ${dow}`;
             } else if (finalScheduleType === 'monthly') {
-                const dom = jobScheduleDayOfMonth ? jobScheduleDayOfMonth.value : '1';
+                const dom = jobScheduleDayOfMonth ? jobScheduleDayOfMonth.value : '';
+                const domNum = parseInt(dom, 10);
+                if (!dom || Number.isNaN(domNum) || domNum < 1 || domNum > 28) {
+                    if (jobScheduleDayOfMonth) showError(jobScheduleDayOfMonth, t('error_field_required') || 'Selecciona un día del mes');
+                    abortSaveValidation(btnSave);
+                    return;
+                } else if (jobScheduleDayOfMonth) {
+                    clearErrors(jobScheduleDayOfMonth);
+                }
                 finalCron = `${min} ${hour} ${dom} * *`;
             }
             finalScheduleType = 'cron';
@@ -760,7 +996,9 @@ function initJobFormValidation() {
             db_port: dbPort ? parseInt(dbPort.value) || null : null,
             db_name: finalDbName,
             db_user: dbUser ? dbUser.value.trim() || null : null,
-            db_password: dbPassword && dbPassword.value ? dbPassword.value : undefined,
+            db_password: (!isPasswordUnchangedInEditMode() && dbPassword && dbPassword.value.trim())
+                ? dbPassword.value
+                : undefined,
             schedule: finalScheduleType,
             schedule_interval_minutes: finalInterval,
             schedule_cron: finalCron,
@@ -777,6 +1015,7 @@ function initJobFormValidation() {
         console.log('--- INTENTANDO GUARDAR ---');
         console.log('Payload:', jobData);
 
+        btnSave.dataset.saving = 'true';
         btnSave.disabled = true;
         btnSave.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('status_saving')}`;
 
@@ -811,11 +1050,8 @@ function initJobFormValidation() {
             }
             showToast(`❌ ${errMsg}`, 'error');
         } finally {
-            btnSave.disabled = false;
-            const btnSaveText = document.getElementById('btnSaveJobText');
-            if (btnSaveText) {
-                btnSaveText.innerHTML = editingId ? t('btn_update_job') : t('btn_save_job');
-            }
+            delete btnSave.dataset.saving;
+            resetSaveButtonState(btnSave);
             isFormDirty = false;
         }
     });
@@ -881,6 +1117,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (!form) return;
 
     form.dataset.editingId = id;
+    currentEditingJobId = id;
 
     if (jobName) jobName.value = name;
     if (dbType) dbType.value = extra.db_type || '';
@@ -891,8 +1128,9 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (dbUser) dbUser.value = extra.db_user || '';
     if (dbPassword) {
         dbPassword.value = '';
-        dbPassword.placeholder = t('ph_password_saved');
+        dbPassword.placeholder = t('ph_password_saved') || '••••••••';
     }
+    setPasswordEditMode(true);
 
     const dbFilePathEl = document.getElementById('dbFilePath');
     if (extra.db_type === 'sqlite' || extra.db_type === 'folder' || extra.db_type === 'mdb' || extra.db_type === 'sync') {
@@ -942,13 +1180,13 @@ function setFormEditMode(id, name, extra = {}, schedule) {
 
     const jobScheduleInterval = document.getElementById('jobScheduleInterval');
     const jobScheduleCron = document.getElementById('jobScheduleCron');
-    const jobScheduleTime = document.getElementById('jobScheduleTime');
     const jobScheduleDayOfWeek = document.getElementById('jobScheduleDayOfWeek');
     const jobScheduleDayOfMonth = document.getElementById('jobScheduleDayOfMonth');
 
+    initScheduleTimeSelects();
     if (jobScheduleInterval) jobScheduleInterval.value = extra.schedule_interval_minutes || '';
     if (jobScheduleCron) jobScheduleCron.value = displaySchedule === 'cron' ? displayCron : '';
-    if (jobScheduleTime && displayTime) jobScheduleTime.value = displayTime;
+    if (displayTime) setScheduleTimeValue(displayTime);
     if (jobScheduleDayOfWeek && displayDow) jobScheduleDayOfWeek.value = displayDow;
     if (jobScheduleDayOfMonth && displayDom) jobScheduleDayOfMonth.value = displayDom;
 
@@ -1027,13 +1265,20 @@ function resetFormToCreateMode() {
     if (!form) return;
 
     form.reset();
+    setScheduleTimeValue('02:00');
+    const domSel = document.getElementById('jobScheduleDayOfMonth');
+    if (domSel) domSel.value = '1';
     if (dbPassword) {
+        dbPassword.value = '';
         dbPassword.placeholder = '••••••••';
+        dbPassword.type = 'password';
     }
+    setPasswordEditMode(false);
     delete form.dataset.editingId;
+    currentEditingJobId = null;
     delete form.dataset.editingSchedule;
 
-    if (heading) heading.innerHTML = `✨ ${t('title_new_backup_job') || 'Crear Nueva Tarea'}`;
+    if (heading) heading.textContent = t('title_new_backup_job') || 'Crear Nueva Tarea';
 
     if (btnSaveText) {
         btnSaveText.innerHTML = `${t('btn_save_job') || 'Crear Tarea'}`;
@@ -1140,6 +1385,8 @@ function showDeleteConfirm(jobId, name) {
 }
 
 function showError(inputElement, message) {
+    if (!inputElement || !inputElement.parentElement) return;
+    clearErrors(inputElement);
     inputElement.classList.add('input-error');
     const errorText = document.createElement('div');
     errorText.className = 'error-message text-red-500 text-xs mt-1';
@@ -1148,11 +1395,18 @@ function showError(inputElement, message) {
 }
 
 function clearErrors(inputElement) {
+    if (!inputElement || !inputElement.parentElement) return;
     inputElement.classList.remove('input-error');
     const existingError = inputElement.parentElement.querySelector('.error-message');
     if (existingError) {
         existingError.remove();
     }
+}
+
+function clearAllErrors(scope = document) {
+    if (!scope) return;
+    scope.querySelectorAll('.input-error').forEach((el) => el.classList.remove('input-error'));
+    scope.querySelectorAll('.error-message').forEach((el) => el.remove());
 }
 
 function setupPolling() {
@@ -1170,9 +1424,53 @@ function setupPolling() {
 }
 
 
-function showToast(message, type = 'success') {
+function dismissToasts(type = null) {
     const container = document.getElementById('toast-container');
     if (!container) return;
+    container.querySelectorAll('.toast').forEach((toast) => {
+        if (!type || toast.classList.contains(`toast-${type}`)) {
+            toast.remove();
+        }
+    });
+}
+
+function showValidationToast(message) {
+    showToast(message, 'error', { replace: true });
+}
+
+function resetSaveButtonState(btnSave) {
+    if (!btnSave) return;
+    const form = document.getElementById('createJobForm');
+    const editingId = form && form.dataset.editingId;
+    delete btnSave.dataset.saving;
+    btnSave.disabled = false;
+    const label = editingId
+        ? (t('btn_update_job') || 'Actualizar Tarea')
+        : (t('btn_save_job') || 'Finalizar y Guardar');
+    btnSave.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> <span id="btnSaveJobText" data-i18n="btn_save_job">${label}</span>`;
+    if (editingId) {
+        btnSave.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'bg-brand-500', 'hover:bg-brand-600');
+        btnSave.classList.add('bg-orange-500', 'hover:bg-orange-600');
+    } else {
+        btnSave.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+        btnSave.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
+    }
+}
+
+function abortSaveValidation(btnSave) {
+    resetSaveButtonState(btnSave);
+    if (!btnSave) return;
+    btnSave.classList.add('animate-shake');
+    setTimeout(() => btnSave.classList.remove('animate-shake'), 400);
+}
+
+function showToast(message, type = 'success', options = {}) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    if (options.replace && type) {
+        dismissToasts(type);
+    }
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type} bg-white dark:bg-[#1e293b] text-slate-800 dark:text-white border shadow-lg`;
@@ -1313,9 +1611,8 @@ function initSettingsModal() {
 
     const tzSelect = document.getElementById('s-timezone');
     if (tzSelect) {
-        const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        tzSelect.innerHTML = `<option value="${userTz}">${userTz}</option>`;
-        tzSelect.value = userTz;
+        tzSelect.innerHTML = `<option value="${SPAIN_TIMEZONE}">España (${SPAIN_TIMEZONE})</option>`;
+        tzSelect.value = SPAIN_TIMEZONE;
         tzSelect.setAttribute('readonly', 'true');
         tzSelect.style.pointerEvents = 'none';
         tzSelect.classList.add('bg-slate-100', 'dark:bg-slate-800', 'opacity-80');
@@ -1568,6 +1865,8 @@ function translateDiscoveryEngineName(service, lang = getCurrentLanguage()) {
 function handleDiscoveryClick(event) {
     const card = event.currentTarget;
     const engine = card.dataset.engine;
+    const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
+    const currentJobType = activeJobTypeCard ? activeJobTypeCard.dataset.jobType : 'db';
 
     document.querySelectorAll('.discovery-card').forEach(c => {
         c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
@@ -1591,12 +1890,18 @@ function handleDiscoveryClick(event) {
         if (dbHostEl) dbHostEl.value = '';
         if (dbPortEl) dbPortEl.value = '';
 
-        if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+        if (dbCredentialsContainer) {
+            if (currentJobType === 'db') dbCredentialsContainer.classList.remove('hidden');
+            else dbCredentialsContainer.classList.add('hidden');
+        }
         if (networkDetails) networkDetails.classList.add('hidden');
-        if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
+        if (dbFilePathContainer) {
+            if (currentJobType === 'db') dbFilePathContainer.classList.add('hidden');
+            else dbFilePathContainer.classList.remove('hidden');
+        }
 
         const dbFilePathEl = document.getElementById('dbFilePath');
-        if (dbFilePathEl) dbFilePathEl.focus();
+        if (dbFilePathEl && currentJobType !== 'db') dbFilePathEl.focus();
 
     } else {
         if (dbTypeEl) {
@@ -1814,6 +2119,18 @@ const i18n = {
         stat_success_rate: "Tasa de Éxito",
         stat_storage_used: "Espacio Ocupado",
         label_job_name: "Nombre de la Tarea",
+        label_job_type: "¿Qué vamos a respaldar?",
+        job_type_db: "Copia de Base de Datos",
+        job_type_folder: "Copia de Carpeta",
+        job_type_sync: "Sincronización (Espejo)",
+        section_db_credentials: "Acceso al Servidor",
+        help_db_multiple: "Tip: Mantén pulsado Ctrl para seleccionar varias de la lista.",
+        section_extra_options: "Opciones de Limpieza",
+        help_retention_zero: "Pon 0 si quieres que NO se borre nada nunca.",
+        btn_prev: "Anterior",
+        btn_next: "Siguiente",
+        prompt_new_local_folder: "Nueva carpeta local",
+        ph_new_local_folder: "Nombre de la nueva carpeta",
         label_detected_engines: "Motores Detectados",
         title_new_backup_job: "Nueva Tarea de Backup",
         label_job_description: "Descripción",
@@ -1836,6 +2153,8 @@ const i18n = {
         label_password: "Contraseña",
         label_db_name: "Nombre de la Base de Datos",
         label_schedule_time: "Hora de Ejecución",
+        label_schedule_hour: "Hora",
+        label_schedule_minute: "Minutos",
         label_day_of_week: "Día de la semana",
         label_day_of_month: "Día del mes",
         label_interval_minutes: "Intervalo en Minutos",
@@ -2018,7 +2337,8 @@ const i18n = {
         ph_smtp_port: "587",
         ph_smtp_user: "tu-correo@gmail.com",
         ph_smtp_password: "Contraseña de aplicación",
-        btn_test_connection: "Probar Conexión",
+        btn_list_dbs: "Listar BDs",
+        btn_test_connection: "Probar",
         btn_download: "Descargar",
         status_testing: "Probando...",
         status_checking: "Comprobando...",
@@ -2129,6 +2449,18 @@ const i18n = {
         stat_success_rate: "Success Rate",
         stat_storage_used: "Used Space",
         label_job_name: "Task Name",
+        label_job_type: "What are we backing up?",
+        job_type_db: "Database Backup",
+        job_type_folder: "Folder Backup",
+        job_type_sync: "Sync (Mirror)",
+        section_db_credentials: "Server Access",
+        help_db_multiple: "Tip: Hold Ctrl to select multiple databases.",
+        section_extra_options: "Cleanup Options",
+        help_retention_zero: "Set 0 to never delete old backups.",
+        btn_prev: "Previous",
+        btn_next: "Next",
+        prompt_new_local_folder: "New local folder",
+        ph_new_local_folder: "New folder name",
         label_detected_engines: "Detected Engines",
         title_new_backup_job: "New Backup Task",
         label_job_description: "Description",
@@ -2151,6 +2483,8 @@ const i18n = {
         label_password: "Password",
         label_db_name: "Database Name",
         label_schedule_time: "Execution Time",
+        label_schedule_hour: "Hour",
+        label_schedule_minute: "Minutes",
         label_day_of_week: "Day of week",
         label_day_of_month: "Day of month",
         label_interval_minutes: "Interval in Minutes",
@@ -2332,7 +2666,8 @@ const i18n = {
         "Ej: 60": "Ex: 60",
         "/ruta/absoluta/credentials.json": "/absolute/path/to/credentials.json",
         "Raíz de Mi Unidad": "Root of My Drive",
-        btn_test_connection: "Test Connection",
+        btn_list_dbs: "List Databases",
+        btn_test_connection: "Test",
         btn_download: "Download",
         status_testing: "Testing...",
         status_checking: "Checking...",
@@ -2667,6 +3002,35 @@ document.getElementById('btnExplorerCancel')?.addEventListener('click', closeFil
 document.getElementById('btnCloseExplorer')?.addEventListener('click', closeFileExplorer);
 document.getElementById('btnExplorerRefresh')?.addEventListener('click', () => renderExplorerPath(currentExplorerPath));
 
+document.getElementById('btnExplorerCreateFolder')?.addEventListener('click', async () => {
+    const parentPath = currentExplorerPath || '';
+    const folderName = await showInputPrompt(
+        t('prompt_new_local_folder') || 'Nueva carpeta',
+        t('ph_new_local_folder') || 'Nombre de la carpeta'
+    );
+    if (!folderName || !folderName.trim()) return;
+
+    const btn = document.getElementById('btnExplorerCreateFolder');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> ${t('status_creating') || 'Creando...'}`;
+    }
+
+    try {
+        await api.createLocalDir(parentPath, folderName.trim());
+        showToast(t('toast_folder_created') || `Carpeta "${folderName.trim()}" creada`, 'success');
+        await renderExplorerPath(parentPath);
+    } catch (error) {
+        showToast(`${t('label_error') || 'Error'}: ${error.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+});
+
 document.getElementById('btnRestoreCancel')?.addEventListener('click', closeRestoreConfirmModal);
 document.getElementById('btnRestoreConfirm')?.addEventListener('click', async () => {
     const runId = currentRestoreRunId;
@@ -2861,10 +3225,13 @@ function showWizardStep(step) {
     const s1 = document.getElementById('wizardStep1');
     const s2 = document.getElementById('wizardStep2');
     const s3 = document.getElementById('wizardStep3');
+    const form = document.getElementById('createJobForm');
     
     const btnPrev = document.getElementById('btnWizardPrev');
     const btnNext = document.getElementById('btnWizardNext');
     const btnSave = document.getElementById('btnSaveJob');
+
+    clearAllErrors(form || document);
 
     // Hide all
     if (s1) s1.classList.add('hidden');
@@ -2885,7 +3252,10 @@ function showWizardStep(step) {
         if (s3) s3.classList.remove('hidden');
         if (btnPrev) btnPrev.classList.remove('hidden');
         if (btnNext) btnNext.classList.add('hidden');
-        if (btnSave) btnSave.classList.remove('hidden');
+        if (btnSave) {
+            btnSave.classList.remove('hidden');
+            resetSaveButtonState(btnSave);
+        }
     }
 
     currentWizardStep = step;
@@ -2906,10 +3276,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (btnNext) {
             btnNext.addEventListener('click', () => {
+                const form = document.getElementById('createJobForm');
+                clearAllErrors(form || document);
                 const jobName = document.getElementById('jobName');
                 if (currentWizardStep === 1) {
-                    if (!jobName.value.trim()) {
-                        showError(jobName, t('error_field_required') || 'Obligatorio');
+                    if (!jobName || !jobName.value.trim()) {
+                        if (jobName) showError(jobName, t('error_field_required') || 'Obligatorio');
                         return;
                     }
                     clearErrors(jobName);
@@ -2918,11 +3290,81 @@ document.addEventListener('DOMContentLoaded', () => {
                     const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
                     const currentJobType = activeJobTypeCard ? activeJobTypeCard.dataset.jobType : 'db';
                     const dbType = document.getElementById('dbType');
-                    if (currentJobType === 'db' && (!dbType || !dbType.value.trim())) {
-                        showError(dbType, t('error_select_engine') || 'Obligatorio');
+                    const dbHost = document.getElementById('dbHost');
+                    const dbPort = document.getElementById('dbPort');
+                    const dbUser = document.getElementById('dbUser');
+                    const dbPassword = document.getElementById('dbPassword');
+                    const dbName = document.getElementById('dbName');
+                    const dbFilePath = document.getElementById('dbFilePath');
+
+                    let step2Valid = true;
+
+                    if (currentJobType === 'db') {
+                        if (!dbType || !dbType.value.trim()) {
+                            if (dbType) showError(dbType, t('error_select_engine') || 'Obligatorio');
+                            step2Valid = false;
+                        } else if (dbType) {
+                            clearErrors(dbType);
+                        }
+                        const isFileEngine = dbType && (dbType.value === 'sqlite' || dbType.value === 'mdb');
+                        if (!isFileEngine) {
+                            if (!dbHost || !dbHost.value.trim()) {
+                                if (dbHost) showError(dbHost, t('error_field_required') || 'Host obligatorio');
+                                step2Valid = false;
+                            } else if (dbHost) {
+                                clearErrors(dbHost);
+                            }
+
+                            if (!dbPort || !dbPort.value.trim()) {
+                                if (dbPort) showError(dbPort, t('error_field_required') || 'Puerto obligatorio');
+                                step2Valid = false;
+                            } else if (dbPort) {
+                                clearErrors(dbPort);
+                            }
+
+                            if (!dbUser || !dbUser.value.trim()) {
+                                if (dbUser) showError(dbUser, t('error_field_required') || 'Usuario obligatorio');
+                                step2Valid = false;
+                            } else if (dbUser) {
+                                clearErrors(dbUser);
+                            }
+
+                            if (!isPasswordUnchangedInEditMode()) {
+                                if (!dbPassword || !dbPassword.value.trim()) {
+                                    if (dbPassword) showError(dbPassword, t('error_field_required') || 'Contraseña obligatoria');
+                                    step2Valid = false;
+                                } else if (dbPassword) {
+                                    clearErrors(dbPassword);
+                                }
+                            } else if (dbPassword) {
+                                clearErrors(dbPassword);
+                            }
+
+                        }
+
+                        const selectedDbs = dbName && dbName.tagName.toLowerCase() === 'select'
+                            ? Array.from(dbName.selectedOptions).map(opt => opt.value).filter(Boolean)
+                            : [];
+                        if (!dbName || selectedDbs.length === 0) {
+                            if (dbName) showError(dbName, t('error_field_required') || 'Selecciona al menos una BD');
+                            step2Valid = false;
+                        } else if (dbName) {
+                            clearErrors(dbName);
+                        }
+                    } else {
+                        if (!dbFilePath || !dbFilePath.value.trim()) {
+                            if (dbFilePath) showError(dbFilePath, t('error_path_required') || 'Especifica la ruta de origen');
+                            step2Valid = false;
+                        } else if (dbFilePath) {
+                            clearErrors(dbFilePath);
+                        }
+                    }
+
+                    if (!step2Valid) {
+                        btnNext.classList.add('animate-shake');
+                        setTimeout(() => btnNext.classList.remove('animate-shake'), 400);
                         return;
                     }
-                    if (dbType) clearErrors(dbType);
                     showWizardStep(3);
                 }
             });

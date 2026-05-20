@@ -9,6 +9,7 @@ import asyncio
 import logging
 import filecmp
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -22,6 +23,58 @@ from src.processors.compressor import Compressor
 from src.core.history_manager import HistoryManager
 
 log = logging.getLogger(__name__)
+
+
+def _safe_staging_cleanup(paths: list[Path], dest_local_path: str | None) -> None:
+    """Elimina rutas temporales solo bajo el directorio temp del sistema."""
+    if not paths:
+        return
+
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    dest_resolved = None
+    if dest_local_path:
+        try:
+            dest_resolved = Path(dest_local_path).resolve()
+        except (OSError, ValueError):
+            dest_resolved = None
+
+    seen: set[str] = set()
+    for raw_path in paths:
+        try:
+            resolved = Path(raw_path).resolve()
+        except (OSError, ValueError):
+            continue
+
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        if not str(resolved).startswith(str(temp_root)):
+            log.warning("Omitiendo limpieza fuera de directorio temporal: %s", resolved)
+            continue
+
+        if dest_resolved:
+            if resolved == dest_resolved:
+                log.warning("Omitiendo limpieza del destino local: %s", resolved)
+                continue
+            try:
+                resolved.relative_to(dest_resolved)
+                log.warning("Omitiendo limpieza dentro del destino local: %s", resolved)
+                continue
+            except ValueError:
+                pass
+
+        if not resolved.exists():
+            continue
+
+        try:
+            if resolved.is_dir():
+                shutil.rmtree(resolved, ignore_errors=True)
+            else:
+                resolved.unlink(missing_ok=True)
+        except Exception as exc:
+            log.warning("No se pudo limpiar temporal %s: %s", resolved, exc)
 
 
 class JobManager:
@@ -438,6 +491,7 @@ class JobManager:
             # TODO EL PROCESO ENVUELTO EN UN GRAN TRY-EXCEPT CON TIMEOUT
             # Protegemos el pipeline completo con un timeout de 2 horas (7200 segundos)
             # para evitar que se quede en estado RUNNING infinitamente
+            staging_paths_to_cleanup: list[Path] = []
             try:
                 async def pipeline_execution():
                     """Función interna que ejecuta el pipeline completo."""
@@ -471,11 +525,19 @@ class JobManager:
                         # Para otros tipos (sqlite, mdb, folder, sync), usar db_name tal cual
                         db_names = [job.db_name]
 
+                    def _safe_filename_component(value: str, fallback: str = "backup") -> str:
+                        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", (value or "").strip())
+                        cleaned = cleaned.strip("._-")
+                        return cleaned or fallback
+
                     # Función interna para procesar una sola base de datos
-                    async def process_single_database(db_name_to_process: str, db_index: int = 0, total_dbs: int = 1):
-                        """Procesa el backup de una sola base de datos."""
-                        # 3. Extracción de BD (Dump)
-                        db_display_name = db_name_to_process
+                    async def process_single_database(
+                        db_name_to_process: str,
+                        db_index: int = 0,
+                        total_dbs: int = 1,
+                        output_dir: Path | None = None,
+                    ):
+                        """Procesa el volcado de una base de datos (opcionalmente dentro de output_dir)."""
                         if total_dbs > 1:
                             history_manager.add_log(
                                 db,
@@ -493,25 +555,36 @@ class JobManager:
                                 stage="dump",
                             )
 
-                        # Archivo temporal por defecto
                         suffix = ".bak" if job.db_type == "sqlserver" else ".sql"
-                        if job.db_type == "folder":
-                            suffix = ".tmp"
+                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        safe_db_name = _safe_filename_component(db_name_to_process, "database")
 
-                        fd, dump_path_str = tempfile.mkstemp(suffix=suffix)
-                        os.close(fd)
-                        dump_path = Path(dump_path_str)
+                        if output_dir is not None:
+                            await asyncio.to_thread(output_dir.mkdir, parents=True, exist_ok=True)
+                            dump_path = output_dir / f"{safe_db_name}_{timestamp}{suffix}"
+                            if dump_path.exists():
+                                dump_path.unlink()
+                            dump_path_str = str(dump_path)
+                        else:
+                            fd, dump_path_str = tempfile.mkstemp(suffix=suffix)
+                            os.close(fd)
+                            dump_path = Path(dump_path_str)
 
-                        # Modificar job.db_name temporalmente para esta base de datos específica
                         original_db_name = job.db_name
                         job.db_name = db_name_to_process
 
-                        # Seleccionar y ejecutar conector
                         if job.db_type == "postgresql":
                             from src.connectors.postgresql import PostgreSQLConnector
 
                             connector = PostgreSQLConnector()
                             await connector.extract(job, dump_path)
+
+                            if output_dir is None:
+                                final_sql_name = f"{safe_db_name}_{timestamp}.sql"
+                                final_sql_path = dump_path.with_name(final_sql_name)
+                                if final_sql_path.exists():
+                                    final_sql_path.unlink()
+                                dump_path = await asyncio.to_thread(dump_path.rename, final_sql_path)
 
                         elif job.db_type == "mysql":
                             from src.connectors.mysql import MySQLConnector
@@ -542,132 +615,141 @@ class JobManager:
                                     f"Error en sqlcmd: {process.stderr or process.stdout}"
                                 )
 
-                        # Restaurar db_name original
                         job.db_name = original_db_name
-
-                        # Continuar con el resto del pipeline (compresión y subida)
-                        # para esta base de datos específica
                         return dump_path
 
                     # Procesar bases de datos múltiples o única
                     if job.db_type in ["postgresql", "mysql", "sqlserver"] and len(db_names) > 1:
-                        # Múltiples bases de datos - procesar cada una secuencialmente con pipeline completo
-                        all_final_dests = []
-                        total_file_size = 0
-                        
-                        for idx, db_name_item in enumerate(db_names):
-                            # Dump de esta base de datos
-                            dump_path = await process_single_database(db_name_item, idx, len(db_names))
-                            
-                            # Compresión para esta base de datos
-                            should_compress = getattr(job, "compress", True)
-                            if should_compress:
-                                history_manager.add_log(
-                                    db,
-                                    run.id,
-                                    "INFO",
-                                    f"Comprimiendo backup de BD {db_name_item} ({idx + 1}/{len(db_names)})...",
-                                    stage="compress",
-                                )
-                                compressed_path = await asyncio.to_thread(self.compressor.compress, dump_path)
-                                file_size = compressed_path.stat().st_size
-                            else:
-                                compressed_path = dump_path
-                                file_size = dump_path.stat().st_size
-                            
-                            total_file_size += file_size
-                            
-                            # Formatear nombre con nombre de la base de datos específica
-                            timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
-                            if should_compress:
-                                final_name = f"{job.name}_{db_name_item}_{timestamp}.sql.zip"
-                                final_temp_path = compressed_path.parent / final_name
-                                compressed_path = await asyncio.to_thread(compressed_path.rename, final_temp_path)
-                                final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
-                            else:
-                                timestamp_str = timestamp
-                                db_name = db_name_item
-                                staging_dir = Path(tempfile.gettempdir())
-                                
-                                final_sql_name = f"{job.name}_{db_name}_{timestamp_str}.sql"
-                                await asyncio.to_thread(shutil.move, str(dump_path), str(dump_path.parent / final_sql_name))
-                                
-                                task_folder = staging_dir / f"{job.name}_{db_name}_{timestamp_str}"
-                                await asyncio.to_thread(task_folder.mkdir, parents=True, exist_ok=True)
-                                
-                                await asyncio.to_thread(shutil.move, str(dump_path.parent / final_sql_name), str(task_folder / final_sql_name))
-                                
-                                if job.dest_type == "google_drive":
-                                    compressed_path = task_folder / final_sql_name
-                                else:
-                                    compressed_path = task_folder
-                                final_dest = str(compressed_path)
-                            
-                            all_final_dests.append(final_dest)
-                            
-                            # Subida a destino
-                            if job.dest_type == "local":
-                                from src.destinations.local import LocalDestination
-                                destination = LocalDestination()
-                                dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
-                                await destination.upload(compressed_path, dest_path_str)
-                                history_manager.add_log(
-                                    db,
-                                    run.id,
-                                    "INFO",
-                                    f"Backup de BD {db_name_item} subido exitosamente a: {final_dest}",
-                                    stage="upload",
-                                )
-                            elif job.dest_type == "google_drive":
-                                from src.destinations.google_drive import GoogleDriveDestination
-                                destination = GoogleDriveDestination(
-                                    folder_id=job.dest_gdrive_folder_id,
-                                    retention_days=job.dest_retention_days,
-                                    job_name=job.name,
-                                )
-                                web_link = await asyncio.to_thread(destination.upload, compressed_path)
-                                all_final_dests[-1] = web_link
-                                history_manager.add_log(
-                                    db,
-                                    run.id,
-                                    "INFO",
-                                    f"Backup de BD {db_name_item} subido a Google Drive: {web_link}",
-                                    stage="upload",
-                                )
-                            
-                            # Limpieza de temporales para esta BD
-                            if should_compress and dump_path.exists():
-                                dump_path.unlink()
-                            if compressed_path.exists() and compressed_path != Path(final_dest):
-                                compressed_path.unlink()
-                        
-                        # Usar la carpeta contenedora como destino final
-                        if job.dest_type == "local":
-                            final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")))
-                        else:
-                            final_dest = "Google Drive (Múltiples Archivos)"
-                            
-                        file_size = total_file_size
-                        
+                        timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
+                        safe_job_name = _safe_filename_component(job.name, "tarea")
+                        pipeline_staging_root = (
+                            Path(tempfile.gettempdir()) / f"solba_staging_{job.id}_{timestamp}"
+                        )
+                        task_folder = pipeline_staging_root / f"{safe_job_name}_multiple_{timestamp}"
+                        await asyncio.to_thread(task_folder.mkdir, parents=True, exist_ok=True)
+                        staging_paths_to_cleanup.append(pipeline_staging_root)
+
                         history_manager.add_log(
                             db,
                             run.id,
                             "INFO",
-                            f"Procesamiento de {len(db_names)} bases de datos completado.",
+                            f"Volcando {len(db_names)} bases de datos en carpeta temporal unificada...",
+                            stage="dump",
+                        )
+
+                        for idx, db_name_item in enumerate(db_names):
+                            await process_single_database(
+                                db_name_item, idx, len(db_names), output_dir=task_folder
+                            )
+
+                        should_compress = getattr(job, "compress", True)
+
+                        if should_compress:
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                "Comprimiendo todas las bases de datos en un único archivo ZIP...",
+                                stage="compress",
+                            )
+                            base_name = str(pipeline_staging_root / f"{safe_job_name}_{timestamp}")
+                            archive_path_str = await asyncio.to_thread(
+                                shutil.make_archive, base_name, "zip", task_folder
+                            )
+                            compressed_path = Path(archive_path_str)
+                            final_name = f"{safe_job_name}_{timestamp}.zip"
+                            final_temp_path = compressed_path.parent / final_name
+                            if final_temp_path != compressed_path:
+                                compressed_path = await asyncio.to_thread(
+                                    compressed_path.rename, final_temp_path
+                                )
+                            file_size = compressed_path.stat().st_size
+                            final_dest = str(
+                                Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name
+                            )
+                        else:
+                            compressed_path = task_folder
+                            file_size = sum(
+                                f.stat().st_size
+                                for f in task_folder.rglob("*")
+                                if f.is_file()
+                            )
+                            final_dest = str(task_folder)
+
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Subiendo backup unificado ({file_size} bytes) a destino '{job.dest_type}'...",
+                            stage="upload",
+                        )
+
+                        if job.dest_type == "local":
+                            from src.destinations.local import LocalDestination
+
+                            destination = LocalDestination()
+                            dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
+                            await destination.upload(compressed_path, dest_path_str)
+                            if should_compress:
+                                final_dest = str(Path(dest_path_str) / compressed_path.name)
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Backup unificado subido exitosamente a: {final_dest}",
+                                stage="upload",
+                            )
+                        elif job.dest_type == "google_drive":
+                            from src.destinations.google_drive import GoogleDriveDestination
+
+                            destination = GoogleDriveDestination(
+                                folder_id=job.dest_gdrive_folder_id,
+                                retention_days=job.dest_retention_days,
+                                job_name=job.name,
+                            )
+                            web_link = await asyncio.to_thread(destination.upload, compressed_path)
+                            final_dest = web_link
+                            if job.dest_retention_days and job.dest_retention_days > 0:
+                                await asyncio.to_thread(destination.apply_retention)
+                            history_manager.add_log(
+                                db,
+                                run.id,
+                                "INFO",
+                                f"Backup unificado subido a Google Drive: {web_link}",
+                                stage="upload",
+                            )
+                        else:
+                            raise NotImplementedError(
+                                f"Destino '{job.dest_type}' no implementado aún."
+                            )
+
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Procesamiento unificado de {len(db_names)} bases de datos completado.",
                             stage="done",
                         )
-                        
-                        # Ejecutar Garbage Collector global para múltiples BDs antes de retornar
+
                         try:
-                            history_manager.add_log(db, run.id, "INFO", "Iniciando Garbage Collector...", stage="cleanup")
+                            history_manager.add_log(
+                                db, run.id, "INFO", "Iniciando Garbage Collector...", stage="cleanup"
+                            )
                             from src.core.cleaner import GarbageCollector
+
                             global_settings = crud.setting_get_all(db)
                             deleted_total = GarbageCollector.run_retention_policy(db, global_settings)
                             if deleted_total > 0:
-                                history_manager.add_log(db, run.id, "INFO", f"Garbage Collector: Eliminados {deleted_total} backups antiguos.", stage="cleanup")
+                                history_manager.add_log(
+                                    db,
+                                    run.id,
+                                    "INFO",
+                                    f"Garbage Collector: Eliminados {deleted_total} backups antiguos.",
+                                    stage="cleanup",
+                                )
                         except Exception as gc_err:
-                            log.warning(f"Error silencioso en Garbage Collector: {gc_err}")
-                            
+                            log.warning("Error silencioso en Garbage Collector: %s", gc_err)
+
                         return file_size, final_dest
                     elif job.db_type in ["postgresql", "mysql", "sqlserver"]:
                         # Base de datos única
@@ -731,6 +813,7 @@ class JobManager:
                             # Directorio temporal de empaquetado para sincronización incremental
                             staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
                             staging_dir.mkdir(parents=True, exist_ok=True)
+                            staging_paths_to_cleanup.append(staging_dir)
                             
                             history_manager.add_log(
                                 db, run.id, "INFO", 
@@ -870,12 +953,13 @@ class JobManager:
                         db_name = db_names[0] if db_names else (job.db_name or "unknown")
                         staging_dir = Path(tempfile.gettempdir())
                         
-                        final_sql_name = f"{job.name}_{db_name}_{timestamp_str}.sql"
+                        final_sql_name = f"{_safe_filename_component(db_name, 'database')}_{timestamp_str}.sql"
                         await asyncio.to_thread(shutil.move, str(dump_path), str(dump_path.parent / final_sql_name))
                         
                         task_folder = staging_dir / f"{job.name}_{db_name}_{timestamp_str}"
                         await asyncio.to_thread(task_folder.mkdir, parents=True, exist_ok=True)
-                        
+                        staging_paths_to_cleanup.append(task_folder)
+
                         await asyncio.to_thread(shutil.move, str(dump_path.parent / final_sql_name), str(task_folder / final_sql_name))
                         
                         if job.dest_type == "google_drive":
@@ -910,7 +994,8 @@ class JobManager:
                         should_compress = getattr(job, "compress", True)
                         
                         if should_compress:
-                            final_name = f"{job.name}_{timestamp}.sql.zip"
+                            safe_job_name = _safe_filename_component(job.name, "tarea")
+                            final_name = f"{safe_job_name}_{timestamp}.zip"
                             final_temp_path = compressed_path.parent / final_name
                             compressed_path = await asyncio.to_thread(compressed_path.rename, final_temp_path)
                             final_dest = str(Path(job.dest_local_path or str(Path.cwd() / "backups")) / final_name)
@@ -981,6 +1066,8 @@ class JobManager:
                             destination.upload, compressed_path
                         )
                         final_dest = web_link
+                        if job.dest_retention_days and job.dest_retention_days > 0:
+                            await asyncio.to_thread(destination.apply_retention)
                         history_manager.add_log(
                             db,
                             run.id,
@@ -989,7 +1076,6 @@ class JobManager:
                             stage="upload",
                         )
 
-                        # La retención de GDrive se ejecuta automáticamente dentro de destination.upload
                         if job.dest_retention_days and job.dest_retention_days > 0:
                             history_manager.add_log(
                                 db,
@@ -1170,6 +1256,9 @@ class JobManager:
                     db, run.id, status="failed", error_message=error_msg
                 )
                 is_success = False
+
+            finally:
+                _safe_staging_cleanup(staging_paths_to_cleanup, job.dest_local_path)
 
             # =====================================================================
             # 9. Notificaciones Centralizadas (Email + WhatsApp)

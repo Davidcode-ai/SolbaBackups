@@ -187,8 +187,8 @@ def _make_trigger(
     Crea el trigger de APScheduler según el tipo de schedule.
 
     Args:
-        schedule_type:    'cron' | 'interval'.
-        cron_expression:  Expresión cron de 5 campos (para tipo 'cron').
+        schedule_type:    'cron' | 'interval' | 'daily' | 'weekly' | 'monthly'.
+        cron_expression:  Expresión cron de 5 campos (min hora dom mes dow).
         interval_minutes: Intervalo en minutos (para tipo 'interval').
 
     Returns:
@@ -197,4 +197,85 @@ def _make_trigger(
     Raises:
         ValueError: Si los parámetros son inconsistentes.
     """
-    pass
+    st = (schedule_type or "").lower()
+
+    if st == "interval":
+        minutes = interval_minutes or 60
+        return IntervalTrigger(minutes=minutes)
+
+    if cron_expression:
+        parts = cron_expression.strip().split()
+        if len(parts) == 5:
+            return CronTrigger(
+                minute=parts[0],
+                hour=parts[1],
+                day=parts[2],
+                month=parts[3],
+                day_of_week=parts[4],
+            )
+        return CronTrigger.from_crontab(cron_expression)
+
+    if st == "daily":
+        return CronTrigger(hour=2, minute=0)
+
+    raise ValueError(
+        f"No se pudo crear trigger para schedule_type={schedule_type!r}"
+    )
+
+
+class JobScheduler:
+    """
+    Fachada sobre APScheduler para registrar jobs de backup desde modelos Job.
+    """
+
+    def __init__(self, job_manager=None, scheduler: BackgroundScheduler | None = None) -> None:
+        self.job_manager = job_manager
+        self.scheduler = scheduler
+
+    def _job_scheduler_id(self, job_id: int) -> str:
+        return f"{JOB_ID_PREFIX}{job_id}"
+
+    def add_job(self, job) -> bool:
+        """Registra un Job en APScheduler. Devuelve False si es manual o inválido."""
+        schedule_type = (getattr(job, "schedule_type", None) or "").lower()
+        if schedule_type in ("manual", "none", ""):
+            return False
+
+        if self.scheduler is None:
+            log.warning("JobScheduler sin instancia APScheduler; omitiendo job %s", job.id)
+            return False
+
+        try:
+            trigger = _make_trigger(
+                schedule_type,
+                getattr(job, "schedule_cron", None),
+                getattr(job, "schedule_interval_minutes", None),
+            )
+        except ValueError as exc:
+            log.warning("No se programó job %s: %s", job.id, exc)
+            return False
+
+        job_id = getattr(job, "id", None)
+        if job_id is None:
+            return False
+
+        def _callback(jid: int = job_id, jm=self.job_manager) -> None:
+            if jm is not None:
+                run_job_in_background(jid, jm, trigger="scheduled")
+
+        self.scheduler.add_job(
+            _callback,
+            trigger=trigger,
+            id=self._job_scheduler_id(job_id),
+            replace_existing=True,
+        )
+        return True
+
+    def remove_job(self, job_id: int) -> None:
+        """Elimina la tarea programada de un job (silencioso si no existe)."""
+        if self.scheduler is None:
+            return
+        try:
+            self.scheduler.remove_job(self._job_scheduler_id(job_id))
+        except Exception:
+            pass

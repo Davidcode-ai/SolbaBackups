@@ -11,18 +11,76 @@ if getattr(sys, 'frozen', False):
     _GDRIVE_BASE_DIR = Path(sys.executable).parent
 else:
     _GDRIVE_BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from src.api.dependencies import get_db
+from src.db import crud
 
 router = APIRouter(prefix="/utils", tags=["Utils"])
 
-class TestConnectionRequest(BaseModel):
+
+class TestDbRequest(BaseModel):
+    """Payload para probar conexión o listar bases de datos."""
+
     host: str = Field(..., min_length=1, examples=["localhost"])
     port: int = Field(..., ge=1, le=65535, examples=[5432])
     user: str = Field(..., min_length=1, examples=["postgres"])
-    password: str = Field(..., examples=["secret"])
+    password: str = Field(default="", examples=["secret"])
     engine: str = Field(..., min_length=1, examples=["postgresql"])
     database: str = Field(default="", examples=["postgres"])
+    job_id: int | None = Field(
+        default=None,
+        ge=1,
+        description="Si la contraseña viene vacía en modo edición, se usa la del job.",
+    )
+
+
+# Alias retrocompatible con el nombre anterior del esquema.
+TestConnectionRequest = TestDbRequest
+
+
+def _resolve_db_password(
+    password: str | None,
+    job_id: int | None,
+    db: Session,
+) -> str:
+    """
+    Devuelve la contraseña del payload o, si está vacía, la guardada en el job.
+    Nunca registra la contraseña en logs.
+    """
+    plain = (password or "").strip()
+    if plain:
+        return plain
+
+    if job_id is None:
+        return ""
+
+    job = crud.job_get_by_id(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job no encontrado.")
+
+    stored = getattr(job, "db_password", None)
+    if stored and str(stored).strip():
+        return str(stored).strip()
+
+    enc = getattr(job, "db_password_enc", None)
+    if enc and str(enc).strip():
+        try:
+            from src.config.settings import Settings
+            from src.processors.encryptor import Encryptor
+
+            settings = Settings()
+            key_raw = (settings._config.get("encryption_key") or "").strip()
+            if key_raw:
+                decrypted = Encryptor.decrypt_field(str(enc).strip(), key_raw.encode("utf-8"))
+                if decrypted and str(decrypted).strip():
+                    return str(decrypted).strip()
+        except Exception:
+            pass
+
+    return ""
 
 
 @router.post(
@@ -81,7 +139,12 @@ class TestConnectionRequest(BaseModel):
         },
     },
 )
-def test_connection(payload: TestConnectionRequest) -> dict:
+def test_connection(
+    payload: TestDbRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    password = _resolve_db_password(payload.password, payload.job_id, db)
+
     if payload.engine.lower() == "postgresql":
         try:
             import psycopg2
@@ -89,7 +152,7 @@ def test_connection(payload: TestConnectionRequest) -> dict:
                 host=payload.host,
                 port=payload.port,
                 user=payload.user,
-                password=payload.password,
+                password=password,
                 dbname=payload.database or "postgres",
                 connect_timeout=5
             )
@@ -115,7 +178,11 @@ def test_connection(payload: TestConnectionRequest) -> dict:
         )
 
 @router.post("/test-db")
-def list_databases(payload: TestConnectionRequest) -> dict:
+def list_databases(
+    payload: TestDbRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    password = _resolve_db_password(payload.password, payload.job_id, db)
     engine = payload.engine.lower()
     databases = []
     
@@ -126,7 +193,7 @@ def list_databases(payload: TestConnectionRequest) -> dict:
                 host=payload.host,
                 port=payload.port,
                 user=payload.user,
-                password=payload.password,
+                password=password,
                 dbname=payload.database or "postgres",
                 connect_timeout=5
             )
@@ -142,7 +209,7 @@ def list_databases(payload: TestConnectionRequest) -> dict:
                 host=payload.host,
                 port=payload.port,
                 user=payload.user,
-                password=payload.password,
+                password=password,
                 database=payload.database or None,
                 connect_timeout=5
             )
@@ -155,7 +222,7 @@ def list_databases(payload: TestConnectionRequest) -> dict:
         elif engine == "sqlserver":
             import subprocess
             host_str = f"{payload.host},{payload.port}" if payload.port else payload.host
-            cmd = ["sqlcmd", "-S", host_str, "-U", payload.user, "-P", payload.password, "-Q", "SET NOCOUNT ON; SELECT name FROM master.dbo.sysdatabases;", "-h", "-1"]
+            cmd = ["sqlcmd", "-S", host_str, "-U", payload.user, "-P", password, "-Q", "SET NOCOUNT ON; SELECT name FROM master.dbo.sysdatabases;", "-h", "-1"]
             process = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
             if process.returncode != 0:
                 raise Exception(process.stderr or process.stdout)
@@ -303,6 +370,39 @@ def get_gdrive_space():
 
 class CreateFolderRequest(BaseModel):
     folder_name: str
+
+
+class CreateLocalDirRequest(BaseModel):
+    parent_path: str = Field(..., min_length=1)
+    folder_name: str = Field(..., min_length=1)
+
+
+@router.post("/create-local-dir")
+def create_local_dir(payload: CreateLocalDirRequest):
+    """Crea una carpeta en el sistema de archivos local."""
+    folder_name = payload.folder_name.strip()
+    if not folder_name or folder_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Nombre de carpeta no válido")
+    if any(sep in folder_name for sep in ("/", "\\", ":")):
+        raise HTTPException(status_code=400, detail="El nombre de carpeta no puede contener separadores de ruta")
+
+    parent = Path(payload.parent_path.strip())
+    if not parent.exists() or not parent.is_dir():
+        raise HTTPException(status_code=404, detail="Directorio padre no encontrado")
+
+    new_dir = parent / folder_name
+    if new_dir.exists():
+        raise HTTPException(status_code=409, detail="La carpeta ya existe")
+
+    try:
+        os.makedirs(new_dir, exist_ok=False)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Permiso denegado para crear la carpeta")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {"path": str(new_dir), "name": folder_name}
+
 
 @router.post("/gdrive-create-folder")
 def create_gdrive_folder(payload: CreateFolderRequest):

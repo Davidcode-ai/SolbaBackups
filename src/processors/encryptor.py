@@ -239,7 +239,7 @@ class Encryptor:
 
         Args:
             token:      Token Fernet (string base64url) guardado en BD.
-            master_key: Clave Fernet de 32 bytes de la instalación.
+            master_key: Clave Fernet (bytes) o string base64url de 44 caracteres.
 
         Returns:
             str: Texto en claro desencriptado.
@@ -247,7 +247,9 @@ class Encryptor:
         Raises:
             cryptography.fernet.InvalidToken: Si la clave es incorrecta o el token está corrupto.
         """
-        pass
+        key = master_key.decode("utf-8") if isinstance(master_key, bytes) else master_key
+        fernet = Fernet(key.encode("utf-8") if isinstance(key, str) else key)
+        return fernet.decrypt(token.encode("utf-8")).decode("utf-8")
 
     @staticmethod
     def generate_master_key() -> bytes:
