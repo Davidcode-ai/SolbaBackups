@@ -5,7 +5,62 @@
 let isFormDirty = false; // Estado para saber si hay cambios sin guardar
 let currentEditingJobId = null; // ID del job en modo edición (contraseña en servidor)
 
+/** Filtro opcional para GET /utils/list-dir (p. ej. sqlite → solo .db / .accdb). */
+let explorerFilterExt = null;
+
 const SPAIN_TIMEZONE = 'Europe/Madrid';
+
+function setDbNetworkPanelVisible(visible) {
+    const panel = document.getElementById('dbNetworkPanel');
+    if (panel) panel.classList.toggle('hidden', !visible);
+}
+
+function updateDiscoverySelectionSummary(text) {
+    const el = document.getElementById('dbDiscoverySelectionSummary');
+    const btn = document.getElementById('btnDiscoveryEditConnection');
+    if (el) {
+        el.textContent = text || '';
+        el.classList.toggle('hidden', !text);
+    }
+    if (btn) {
+        btn.classList.toggle('hidden', !text);
+    }
+}
+
+function applyFileDbPathLabels() {
+    const lbl = document.getElementById('dbFilePathLabel');
+    const hint = document.getElementById('dbFilePathHint');
+    const inp = document.getElementById('dbFilePath');
+    if (lbl) {
+        lbl.textContent = t('label_file_db_path');
+        lbl.removeAttribute('data-i18n');
+    }
+    if (hint) {
+        hint.textContent = t('hint_file_db_path_explorer');
+        hint.removeAttribute('data-i18n');
+    }
+    if (inp) {
+        inp.placeholder = t('ph_file_db_path');
+    }
+}
+
+function applyFolderSourcePathLabels() {
+    const lbl = document.getElementById('dbFilePathLabel');
+    const hint = document.getElementById('dbFilePathHint');
+    const inp = document.getElementById('dbFilePath');
+    if (lbl) {
+        lbl.setAttribute('data-i18n', 'label_source_absolute_path');
+        lbl.textContent = t('label_source_absolute_path');
+    }
+    if (hint) {
+        hint.setAttribute('data-i18n', 'hint_db_file_path_folder');
+        hint.textContent = t('hint_db_file_path_folder');
+    }
+    if (inp) {
+        inp.setAttribute('data-i18n-placeholder', 'ph_source_absolute_path');
+        inp.placeholder = t('ph_source_absolute_path');
+    }
+}
 
 /** Interpreta fechas del servidor (UTC sin zona) y las muestra en hora de España. */
 function parseUtcDate(isoValue) {
@@ -737,8 +792,6 @@ function initJobFormValidation() {
     const destLocalPathContainer = document.getElementById('destLocalPathContainer');
     const destGDriveContainer = document.getElementById('destGDriveContainer');
     const dbFilePathContainer = document.getElementById('dbFilePathContainer');
-    const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
-    const networkDetails = document.querySelector('details.group');
 
     form.addEventListener('input', () => { isFormDirty = true; });
     form.addEventListener('change', () => { isFormDirty = true; });
@@ -812,20 +865,25 @@ function initJobFormValidation() {
             if (currentJobType === 'db') {
                 dbConfigContainer.classList.remove('hidden');
                 dbFilePathContainer.classList.add('hidden');
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
                 jobOptionsContainer.classList.remove('hidden');
-                // Trigger change to update credentials visibility based on selected engine
+                setDbNetworkPanelVisible(false);
+                updateDiscoverySelectionSummary('');
+                explorerFilterExt = null;
                 if (dbType) dbType.dispatchEvent(new Event('change'));
             } else if (currentJobType === 'folder') {
                 dbConfigContainer.classList.add('hidden');
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+                setDbNetworkPanelVisible(false);
                 dbFilePathContainer.classList.remove('hidden');
+                applyFolderSourcePathLabels();
                 jobOptionsContainer.classList.remove('hidden');
+                explorerFilterExt = null;
             } else if (currentJobType === 'sync') {
                 dbConfigContainer.classList.add('hidden');
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.add('hidden');
+                setDbNetworkPanelVisible(false);
                 dbFilePathContainer.classList.remove('hidden');
+                applyFolderSourcePathLabels();
                 jobOptionsContainer.classList.add('hidden'); // Ocultar retención y compresión
+                explorerFilterExt = null;
             }
         });
     });
@@ -838,24 +896,39 @@ function initJobFormValidation() {
     if (dbType) {
         dbType.addEventListener('change', () => {
             if (currentJobType !== 'db') return;
-            const t = dbType.value;
-            if (t === 'sqlite' || t === 'mdb') {
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
-                if (networkDetails) networkDetails.classList.add('hidden');
+            const tval = dbType.value;
+            const netPanel = document.getElementById('dbNetworkPanel');
+            const dbFilePathContainer = document.getElementById('dbFilePathContainer');
+            const networkDetails = document.getElementById('dbNetworkDetails');
+
+            if (!tval) {
+                if (netPanel) netPanel.classList.add('hidden');
                 if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
-            } else {
-                if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
-                if (networkDetails) networkDetails.classList.remove('hidden');
-                if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+                explorerFilterExt = null;
+                return;
             }
 
-            if (t === 'postgresql') {
+            if (tval === 'sqlite' || tval === 'mdb') {
+                if (netPanel) netPanel.classList.add('hidden');
+                if (dbFilePathContainer) {
+                    dbFilePathContainer.classList.remove('hidden');
+                    applyFileDbPathLabels();
+                }
+                explorerFilterExt = 'sqlite';
+            } else {
+                explorerFilterExt = null;
+                if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+                if (netPanel) netPanel.classList.remove('hidden');
+                if (networkDetails) networkDetails.setAttribute('open', '');
+            }
+
+            if (tval === 'postgresql') {
                 if (dbPort) dbPort.value = 5432;
                 if (dbUser) dbUser.value = 'postgres';
-            } else if (t === 'sqlserver') {
+            } else if (tval === 'sqlserver') {
                 if (dbPort) dbPort.value = 1433;
                 if (dbUser) dbUser.value = 'sa';
-            } else if (t === 'mysql') {
+            } else if (tval === 'mysql') {
                 if (dbPort) dbPort.value = 3306;
                 if (dbUser) dbUser.value = 'root';
             }
@@ -1235,6 +1308,11 @@ function initJobFormValidation() {
             isFormDirty = false;
         }
     });
+
+    document.getElementById('btnDiscoveryEditConnection')?.addEventListener('click', () => {
+        setDbNetworkPanelVisible(true);
+        document.getElementById('dbNetworkDetails')?.setAttribute('open', '');
+    });
 }
 
 async function handleEditJob(event) {
@@ -1271,6 +1349,33 @@ async function handleEditJob(event) {
 
     const form = document.getElementById('createJobForm');
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function syncEditModeWizardStep2Layout(extra) {
+    const dt = (extra.db_type || '').toLowerCase();
+    if (dt === 'sqlite' || dt === 'mdb') {
+        setDbNetworkPanelVisible(false);
+        const dbFilePathContainer = document.getElementById('dbFilePathContainer');
+        if (dbFilePathContainer) {
+            dbFilePathContainer.classList.remove('hidden');
+            applyFileDbPathLabels();
+        }
+        explorerFilterExt = 'sqlite';
+        updateDiscoverySelectionSummary('');
+        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
+        if (btnEdit) btnEdit.classList.add('hidden');
+        return;
+    }
+    if (['postgresql', 'mysql', 'sqlserver'].includes(dt)) {
+        setDbNetworkPanelVisible(true);
+        const nd = document.getElementById('dbNetworkDetails');
+        if (nd) nd.setAttribute('open', '');
+        const summary = `${dt} @ ${extra.db_host || ''}:${extra.db_port || ''}`;
+        updateDiscoverySelectionSummary(summary);
+        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
+        if (btnEdit) btnEdit.classList.remove('hidden');
+        explorerFilterExt = null;
+    }
 }
 
 function handleDeleteJob(event) {
@@ -1389,6 +1494,7 @@ function setFormEditMode(id, name, extra = {}, schedule) {
     if (destType) destType.dispatchEvent(new Event('change'));
     if (jobSched) jobSched.dispatchEvent(new Event('change'));
     updateScheduleStatusPanelVisibility();
+    syncEditModeWizardStep2Layout(extra);
 
     if (heading) {
         heading.innerHTML = `✏️ Editando Tarea: ${name}`;
@@ -1491,6 +1597,11 @@ function resetFormToCreateMode() {
     if (jobTypeCards.length > 0) {
         jobTypeCards[0].click();
     }
+
+    setDbNetworkPanelVisible(false);
+    updateDiscoverySelectionSummary('');
+    explorerFilterExt = null;
+    document.getElementById('dbNetworkDetails')?.removeAttribute('open');
 
     isFormDirty = false;
     
@@ -1981,45 +2092,81 @@ async function loadDiscovery() {
     const container = document.getElementById('discoveryContainer');
     if (!container) return;
 
+    const bigCard =
+        'discovery-card cursor-pointer border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl p-6 transition-all shadow-sm min-h-[112px] flex items-center';
+
+    container.innerHTML = '';
+
+    const localFileCard = document.createElement('div');
+    localFileCard.className = bigCard;
+    localFileCard.dataset.engine = 'sqlite';
+    localFileCard.dataset.name = 'filedb';
+    localFileCard.innerHTML = `
+        <div class="flex items-center gap-4 w-full">
+            <div class="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none shrink-0">
+                <i class="fa-solid fa-file-lines text-2xl"></i>
+            </div>
+            <div class="pointer-events-none text-left min-w-0">
+                <p class="text-base font-bold text-slate-800 dark:text-white">${t('engine_local_file')}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${t('label_sqlite_access')}</p>
+            </div>
+        </div>`;
+    container.appendChild(localFileCard);
+
     try {
         const response = await fetch('/api/v1/jobs/discovery');
         if (!response.ok) throw new Error(t('error_scan_network'));
         const services = await response.json();
 
-        services.forEach(svc => {
+        services.forEach((svc) => {
             const currentLang = getCurrentLanguage();
             const translatedName = translateDiscoveryEngineName(svc, currentLang);
             const detectedAtText = t('discovery_detected_at', currentLang);
             const card = document.createElement('div');
-            card.className = 'discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 dark:hover:border-brand-500 hover:bg-brand-50 rounded-lg p-4 transition-all shadow-sm min-h-[72px] flex items-center';
+            card.className = bigCard;
             card.dataset.engine = svc.engine;
             card.dataset.host = svc.host;
             card.dataset.port = svc.port;
             card.dataset.name = translatedName;
 
             card.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none">
-                        <i class="fa-solid fa-server"></i>
+                <div class="flex items-center gap-4 w-full">
+                    <div class="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 pointer-events-none shrink-0">
+                        <i class="fa-solid fa-server text-2xl"></i>
                     </div>
-                    <div class="pointer-events-none">
-                        <p class="text-sm font-semibold text-slate-800 dark:text-white">${translatedName}</p>
-                        <p class="text-xs text-brand-500 dark:text-brand-400 font-mono">${detectedAtText} ${svc.host}:${svc.port}</p>
+                    <div class="pointer-events-none text-left min-w-0">
+                        <p class="text-base font-bold text-slate-800 dark:text-white">${translatedName}</p>
+                        <p class="text-sm text-brand-600 dark:text-brand-400 font-mono truncate">${detectedAtText} ${svc.host}:${svc.port}</p>
                     </div>
-                </div>
-            `;
+                </div>`;
             container.appendChild(card);
         });
-
-        document.querySelectorAll('.discovery-card').forEach(card => {
-            card.addEventListener('click', handleDiscoveryClick);
-        });
-
     } catch (error) {
         console.error('Error en autodescubrimiento:', error);
-        document.querySelectorAll('.discovery-card').forEach(card => {
-            card.addEventListener('click', handleDiscoveryClick);
-        });
+    }
+
+    const manualCard = document.createElement('div');
+    manualCard.className = `${bigCard} border-dashed border-slate-400 dark:border-slate-500`;
+    manualCard.dataset.manual = 'true';
+    manualCard.innerHTML = `
+        <div class="flex items-center gap-4 w-full">
+            <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 pointer-events-none shrink-0">
+                <span class="text-3xl font-bold leading-none">+</span>
+            </div>
+            <div class="pointer-events-none text-left min-w-0">
+                <p class="text-base font-bold text-slate-800 dark:text-white">${t('discovery_add_manual_title')}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">${t('discovery_add_manual_hint')}</p>
+            </div>
+        </div>`;
+    container.appendChild(manualCard);
+
+    container.querySelectorAll('.discovery-card').forEach((card) => {
+        card.addEventListener('click', handleDiscoveryClick);
+    });
+
+    if (!document.getElementById('createJobForm')?.dataset.editingId) {
+        setDbNetworkPanelVisible(false);
+        updateDiscoverySelectionSummary('');
     }
 }
 
@@ -2045,14 +2192,13 @@ function translateDiscoveryEngineName(service, lang = getCurrentLanguage()) {
 
 function handleDiscoveryClick(event) {
     const card = event.currentTarget;
-    const engine = card.dataset.engine;
     const activeJobTypeCard = document.querySelector('.job-type-card.border-brand-500');
     const currentJobType = activeJobTypeCard ? activeJobTypeCard.dataset.jobType : 'db';
 
-    document.querySelectorAll('.discovery-card').forEach(c => {
-        c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
+    document.querySelectorAll('.discovery-card').forEach((c) => {
+        c.classList.remove('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-2', 'ring-brand-500');
     });
-    card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-1', 'ring-brand-500');
+    card.classList.add('border-brand-500', 'bg-brand-50', 'dark:bg-brand-500/10', 'ring-2', 'ring-brand-500');
 
     const dbTypeEl = document.getElementById('dbType');
     const dbHostEl = document.getElementById('dbHost');
@@ -2060,8 +2206,42 @@ function handleDiscoveryClick(event) {
     const dbUserEl = document.getElementById('dbUser');
     const dbNameEl = document.getElementById('dbName');
     const dbFilePathContainer = document.getElementById('dbFilePathContainer');
-    const dbCredentialsContainer = document.getElementById('dbCredentialsContainer');
-    const networkDetails = document.querySelector('details.group');
+    const networkDetails = document.getElementById('dbNetworkDetails');
+
+    if (card.dataset.manual === 'true') {
+        setDbNetworkPanelVisible(true);
+        if (networkDetails) networkDetails.setAttribute('open', '');
+        updateDiscoverySelectionSummary('');
+        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
+        if (btnEdit) btnEdit.classList.add('hidden');
+        if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+        explorerFilterExt = null;
+        return;
+    }
+
+    const engine = card.dataset.engine;
+
+    if (engine === 'sqlite' && currentJobType === 'db') {
+        if (dbTypeEl) {
+            dbTypeEl.value = 'sqlite';
+            dbTypeEl.dispatchEvent(new Event('change'));
+        }
+        if (dbHostEl) dbHostEl.value = '';
+        if (dbPortEl) dbPortEl.value = '';
+        setDbNetworkPanelVisible(false);
+        if (networkDetails) networkDetails.removeAttribute('open');
+        if (dbFilePathContainer) {
+            dbFilePathContainer.classList.remove('hidden');
+            applyFileDbPathLabels();
+        }
+        explorerFilterExt = 'sqlite';
+        updateDiscoverySelectionSummary(t('summary_selected_local_db'));
+        const btnEdit = document.getElementById('btnDiscoveryEditConnection');
+        if (btnEdit) btnEdit.classList.remove('hidden');
+        const dbFilePathEl = document.getElementById('dbFilePath');
+        if (dbFilePathEl) dbFilePathEl.focus();
+        return;
+    }
 
     if (engine === 'sqlite' || engine === 'folder' || engine === 'mdb') {
         if (dbTypeEl) {
@@ -2071,41 +2251,51 @@ function handleDiscoveryClick(event) {
         if (dbHostEl) dbHostEl.value = '';
         if (dbPortEl) dbPortEl.value = '';
 
-        if (dbCredentialsContainer) {
-            if (currentJobType === 'db') dbCredentialsContainer.classList.remove('hidden');
-            else dbCredentialsContainer.classList.add('hidden');
+        if (currentJobType === 'db') {
+            setDbNetworkPanelVisible(false);
+            if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+        } else {
+            setDbNetworkPanelVisible(false);
+            if (dbFilePathContainer) dbFilePathContainer.classList.remove('hidden');
+            applyFolderSourcePathLabels();
         }
-        if (networkDetails) networkDetails.classList.add('hidden');
-        if (dbFilePathContainer) {
-            if (currentJobType === 'db') dbFilePathContainer.classList.add('hidden');
-            else dbFilePathContainer.classList.remove('hidden');
-        }
+        if (networkDetails) networkDetails.removeAttribute('open');
+        explorerFilterExt = null;
 
         const dbFilePathEl = document.getElementById('dbFilePath');
         if (dbFilePathEl && currentJobType !== 'db') dbFilePathEl.focus();
-
-    } else {
-        if (dbTypeEl) {
-            dbTypeEl.value = engine;
-            dbTypeEl.dispatchEvent(new Event('change'));
-        }
-        if (dbHostEl) dbHostEl.value = card.dataset.host || '127.0.0.1';
-        if (dbPortEl) dbPortEl.value = card.dataset.port || '';
-
-        if (dbCredentialsContainer) dbCredentialsContainer.classList.remove('hidden');
-        if (networkDetails) networkDetails.classList.remove('hidden');
-        if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
-
-        if (dbUserEl) {
-            const lang = getCurrentLanguage();
-            if (engine === 'postgresql') dbUserEl.placeholder = t('ph_db_user', lang);
-            else if (engine === 'sqlserver') dbUserEl.placeholder = t('ph_db_user_sqlserver', lang);
-            else if (engine === 'mysql') dbUserEl.placeholder = t('ph_db_user_mysql', lang);
-            else dbUserEl.placeholder = t('label_user', lang);
-        }
-
-        if (dbNameEl) dbNameEl.focus();
+        updateDiscoverySelectionSummary('');
+        return;
     }
+
+    if (dbTypeEl) {
+        dbTypeEl.value = engine;
+        dbTypeEl.dispatchEvent(new Event('change'));
+    }
+    if (dbHostEl) dbHostEl.value = card.dataset.host || '127.0.0.1';
+    if (dbPortEl) dbPortEl.value = card.dataset.port || '';
+
+    setDbNetworkPanelVisible(false);
+    if (dbFilePathContainer) dbFilePathContainer.classList.add('hidden');
+    if (networkDetails) networkDetails.removeAttribute('open');
+    explorerFilterExt = null;
+
+    const host = card.dataset.host || '';
+    const port = card.dataset.port || '';
+    const name = card.dataset.name || engine;
+    updateDiscoverySelectionSummary(`${name} — ${host}:${port}`);
+    const btnEdit = document.getElementById('btnDiscoveryEditConnection');
+    if (btnEdit) btnEdit.classList.remove('hidden');
+
+    if (dbUserEl) {
+        const lang = getCurrentLanguage();
+        if (engine === 'postgresql') dbUserEl.placeholder = t('ph_db_user', lang);
+        else if (engine === 'sqlserver') dbUserEl.placeholder = t('ph_db_user_sqlserver', lang);
+        else if (engine === 'mysql') dbUserEl.placeholder = t('ph_db_user_mysql', lang);
+        else dbUserEl.placeholder = t('label_user', lang);
+    }
+
+    if (dbNameEl) dbNameEl.focus();
 }
 
 // ============================================================================
@@ -2380,6 +2570,15 @@ const i18n = {
         engine_sqlserver: "Microsoft SQL Server",
         engine_unknown: "Motor detectado",
         discovery_detected_at: "Detectado en",
+        hint_discovery_cards: "Elige un servidor detectado, un fichero local o añade manualmente la conexión.",
+        btn_discovery_edit_connection: "Editar conexión",
+        discovery_add_manual_title: "➕ Añadir servidor manualmente",
+        discovery_add_manual_hint: "Define host, puerto, motor y credenciales tú mismo.",
+        label_file_db_path: "Ruta del archivo",
+        hint_file_db_path_explorer: "Al explorar solo verás carpetas y archivos .db, .sqlite, .sqlite3, .mdb y .accdb.",
+        ph_file_db_path: "Ej: C:\\Datos\\mi_base.sqlite3",
+        summary_selected_local_db: "Fichero local (SQLite / Access)",
+        hint_db_file_path_folder: "Elige la carpeta o el archivo que quieres respaldar. Nosotros nos encargamos de empaquetarlo.",
         label_dest_dir: "Directorio de Destino",
         gdrive_not_linked: "Google Drive no vinculado",
         gdrive_connect_hint: "Conecta tu cuenta para realizar backups automáticos en la nube.",
@@ -2730,6 +2929,15 @@ const i18n = {
         engine_sqlserver: "Microsoft SQL Server",
         engine_unknown: "Detected engine",
         discovery_detected_at: "Detected at",
+        hint_discovery_cards: "Pick a detected server, a local database file, or add the connection manually.",
+        btn_discovery_edit_connection: "Edit connection",
+        discovery_add_manual_title: "➕ Add server manually",
+        discovery_add_manual_hint: "Set host, port, engine and credentials yourself.",
+        label_file_db_path: "Database file path",
+        hint_file_db_path_explorer: "The file browser only shows folders and .db, .sqlite, .sqlite3, .mdb, .accdb files.",
+        ph_file_db_path: "e.g. C:\\Data\\mydb.sqlite3",
+        summary_selected_local_db: "Local file (SQLite / Access)",
+        hint_db_file_path_folder: "Choose the folder or file to back up; we can package it for you.",
         label_dest_dir: "Destination Directory",
         gdrive_not_linked: "Google Drive not linked",
         gdrive_connect_hint: "Connect your account to run automatic cloud backups.",
@@ -3137,7 +3345,8 @@ if (destTypeInput) {
 let currentExplorerInput = null;
 let currentExplorerPath = "";
 
-async function openFileExplorer(inputId) {
+async function openFileExplorer(inputId, filterExt = null) {
+    explorerFilterExt = filterExt;
     currentExplorerInput = document.getElementById(inputId);
     const modal = document.getElementById('fileExplorerModal');
     modal.classList.remove('hidden');
@@ -3149,6 +3358,7 @@ function closeFileExplorer() {
     modal.classList.add('hidden');
     currentExplorerInput = null;
     currentExplorerPath = "";
+    explorerFilterExt = null;
 }
 
 async function renderExplorerPath(path) {
@@ -3160,7 +3370,7 @@ async function renderExplorerPath(path) {
     container.innerHTML = '<div class="flex justify-center items-center h-40"><i class="fa-solid fa-spinner fa-spin text-brand-500 text-2xl"></i></div>';
 
     try {
-        const data = await api.listDirectory(path);
+        const data = await api.listDirectory(path, explorerFilterExt || undefined);
 
         pathDisplay.textContent = data.current_path || t('label_this_pc');
         btnUp.disabled = !data.parent_path;
@@ -3208,7 +3418,12 @@ async function renderExplorerPath(path) {
     }
 }
 
-document.getElementById('btnBrowseSource')?.addEventListener('click', () => openFileExplorer('dbFilePath'));
+document.getElementById('btnBrowseSource')?.addEventListener('click', () => {
+    const activeJob = document.querySelector('.job-type-card.border-brand-500')?.dataset.jobType || 'db';
+    const dt = document.getElementById('dbType')?.value || '';
+    const fe = (activeJob === 'db' && (dt === 'sqlite' || dt === 'mdb')) ? 'sqlite' : null;
+    openFileExplorer('dbFilePath', fe);
+});
 document.getElementById('btnBrowseDest')?.addEventListener('click', () => openFileExplorer('destLocalPath'));
 
 document.getElementById('btnExplorerSelect')?.addEventListener('click', () => {
@@ -3469,6 +3684,13 @@ function showWizardStep(step) {
         if (btnPrev) btnPrev.classList.remove('hidden');
         if (btnNext) btnNext.classList.remove('hidden');
         if (btnSave) btnSave.classList.add('hidden');
+        const formEl = document.getElementById('createJobForm');
+        if (formEl && !formEl.dataset.editingId) {
+            const active = document.querySelector('.job-type-card.border-brand-500');
+            if (active?.dataset.jobType === 'db') {
+                setDbNetworkPanelVisible(false);
+            }
+        }
     } else if (step === 3) {
         if (s3) s3.classList.remove('hidden');
         if (btnPrev) btnPrev.classList.remove('hidden');
@@ -3563,14 +3785,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         }
 
-                        const selectedDbs = dbName && dbName.tagName.toLowerCase() === 'select'
-                            ? Array.from(dbName.selectedOptions).map(opt => opt.value).filter(Boolean)
-                            : [];
-                        if (!dbName || selectedDbs.length === 0) {
-                            if (dbName) showError(dbName, t('error_field_required') || 'Selecciona al menos una BD');
-                            step2Valid = false;
-                        } else if (dbName) {
-                            clearErrors(dbName);
+                        if (isFileEngine) {
+                            if (!dbFilePath || !dbFilePath.value.trim()) {
+                                if (dbFilePath) showError(dbFilePath, t('error_path_required') || 'Indica la ruta del archivo');
+                                step2Valid = false;
+                            } else if (dbFilePath) {
+                                clearErrors(dbFilePath);
+                            }
+                        } else {
+                            const selectedDbs = dbName && dbName.tagName.toLowerCase() === 'select'
+                                ? Array.from(dbName.selectedOptions).map(opt => opt.value).filter(Boolean)
+                                : [];
+                            if (!dbName || selectedDbs.length === 0) {
+                                if (dbName) showError(dbName, t('error_field_required') || 'Selecciona al menos una BD');
+                                step2Valid = false;
+                            } else if (dbName) {
+                                clearErrors(dbName);
+                            }
                         }
                     } else {
                         if (!dbFilePath || !dbFilePath.value.trim()) {

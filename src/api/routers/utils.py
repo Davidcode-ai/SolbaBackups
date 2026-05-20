@@ -5,13 +5,14 @@ import socket
 import string
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Ruta base compatible con modo frozen (PyInstaller) y modo script
 if getattr(sys, 'frozen', False):
     _GDRIVE_BASE_DIR = Path(sys.executable).parent
 else:
     _GDRIVE_BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -234,8 +235,16 @@ def get_drives():
     return {"drives": drives}
 
 @router.get("/list-dir")
-def list_dir(path: str = ""):
+def list_dir(
+    path: str = "",
+    filter_ext: Optional[str] = Query(
+        default=None,
+        description="Si es 'sqlite', solo carpetas y archivos .db/.sqlite/.sqlite3/.mdb/.accdb",
+    ),
+):
     """Devuelve el contenido de un directorio (carpetas y archivos)."""
+    sqlite_suffixes = (".db", ".sqlite", ".sqlite3", ".mdb", ".accdb")
+
     if not path:
         if os.name == 'nt':
             return {"folders": [{"name": d, "path": d} for d in get_drives()["drives"]], "files": []}
@@ -249,11 +258,16 @@ def list_dir(path: str = ""):
     try:
         folders = []
         files = []
+        fe = (filter_ext or "").strip().lower()
         for item in p.iterdir():
             try:
                 if item.is_dir():
                     folders.append({"name": item.name, "path": str(item)})
                 else:
+                    if fe == "sqlite":
+                        name_lower = item.name.lower()
+                        if not name_lower.endswith(sqlite_suffixes):
+                            continue
                     files.append({"name": item.name, "path": str(item)})
             except PermissionError:
                 pass # Ignorar archivos protegidos

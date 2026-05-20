@@ -339,9 +339,13 @@ class ApiClient {
      * @param {string} path - Ruta del directorio
      * @returns {Promise<Object>} Contenido { folders: [...], files: [...] }
      */
-    async listDirectory(path = "") {
+    async listDirectory(path = "", filterExt = null) {
         try {
-            const response = await fetch(`${this.baseUrl}/utils/list-dir?path=${encodeURIComponent(path)}`);
+            let url = `${this.baseUrl}/utils/list-dir?path=${encodeURIComponent(path)}`;
+            if (filterExt) {
+                url += `&filter_ext=${encodeURIComponent(filterExt)}`;
+            }
+            const response = await fetch(url);
             if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
             return await response.json();
         } catch (error) {

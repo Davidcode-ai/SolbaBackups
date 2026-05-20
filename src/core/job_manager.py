@@ -20,6 +20,7 @@ from pathlib import Path
 from src.db import crud
 from src.db.database import SessionLocal
 from src.processors.compressor import Compressor
+from src.core.folder_mirror import mirror_unidirectional
 from src.core.history_manager import HistoryManager
 
 log = logging.getLogger(__name__)
@@ -495,6 +496,7 @@ class JobManager:
             try:
                 async def pipeline_execution():
                     """Función interna que ejecuta el pipeline completo."""
+                    artifact_is_final_delivery = False
                     # REFACTORIZACIÓN DE EMERGENCIA: Fallback si el frontend falla
                     if job.db_name:
                         src_path = Path(job.db_name)
@@ -808,7 +810,7 @@ class JobManager:
                             # Wrap synchronous copytree in thread to avoid blocking event loop
                             await asyncio.to_thread(shutil.copytree, src_folder, dest_path, dirs_exist_ok=True)
                             dump_path = dest_path
-                            job.db_type = "sync" # Evita que el resto del pipeline lo comprima y mueva
+                            artifact_is_final_delivery = True
                         else:
                             # Directorio temporal de empaquetado para sincronización incremental
                             staging_dir = Path(tempfile.gettempdir()) / f"solba_pkg_{job.id}"
@@ -882,35 +884,70 @@ class JobManager:
                             dump_path = Path(archive_path_str)
 
                     elif job.db_type == "sync":
-                        # Inicializar dump_path para sync
-                        fd, dump_path_str = tempfile.mkstemp(suffix=".tmp")
-                        os.close(fd)
-                        dump_path = Path(dump_path_str)
+                        if not job.dest_local_path:
+                            raise ValueError(
+                                "La sincronización (espejo) requiere una carpeta de destino local."
+                            )
+                        if job.dest_type != "local":
+                            raise ValueError(
+                                "La sincronización (espejo) solo está disponible con destino 'Carpeta local'."
+                            )
+                        if getattr(job, "compress", True):
+                            raise ValueError(
+                                "La sincronización no admite compresión ZIP; desactiva comprimir en la tarea."
+                            )
 
                         if not job.db_name:
                             raise ValueError("Error crítico: El Frontend ha enviado una ruta de origen vacía.")
                         src_folder = Path(job.db_name)
                         if not src_folder.exists() or not src_folder.is_dir():
-                            raise FileNotFoundError(f"La carpeta origen {src_folder} no existe.")
-                            
-                        if dump_path.exists():
-                            dump_path.unlink()
-                            
-                        dest_sync_folder = Path(job.dest_local_path) / job.name if job.dest_local_path else Path.cwd() / "backups" / job.name
-                        history_manager.add_log(db, run.id, "INFO", f"Sincronizando carpeta (espejo): {src_folder} -> {dest_sync_folder}", stage="dump")
-                        
-                        # Usa copytree directo para hacer un espejo exacto, no pasa por Temp ni comprime.
-                        # Wrap synchronous copytree in thread to avoid blocking event loop
-                        await asyncio.to_thread(shutil.copytree, src_folder, dest_sync_folder, dirs_exist_ok=True)
-                        
+                            raise FileNotFoundError(
+                                f"La carpeta origen {src_folder} no existe o no es un directorio."
+                            )
+
+                        dest_sync_folder = (
+                            Path(job.dest_local_path).resolve()
+                            / _safe_filename_component(job.name, "mirror")
+                        )
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Espejo unidireccional (origen → destino): {src_folder} → {dest_sync_folder}",
+                            stage="dump",
+                        )
+
+                        def _mirror_log(msg: str) -> None:
+                            log.info("[mirror] %s", msg)
+
+                        copied, overwritten, deleted = await asyncio.to_thread(
+                            mirror_unidirectional,
+                            src_folder,
+                            dest_sync_folder,
+                            _mirror_log,
+                        )
+                        history_manager.add_log(
+                            db,
+                            run.id,
+                            "INFO",
+                            f"Espejo aplicado: nuevos={copied}, sobrescritos={overwritten}, "
+                            f"eliminados_en_destino={deleted}.",
+                            stage="dump",
+                        )
                         dump_path = dest_sync_folder
+                        artifact_is_final_delivery = True
 
                     else:
                         raise NotImplementedError(
                             f"El conector para el motor '{job.db_type}' no está implementado aún."
                         )
 
-                    dump_size = dump_path.stat().st_size
+                    if dump_path.is_dir():
+                        dump_size = sum(
+                            f.stat().st_size for f in dump_path.rglob("*") if f.is_file()
+                        )
+                    else:
+                        dump_size = dump_path.stat().st_size
                     history_manager.add_log(
                         db,
                         run.id,
@@ -922,7 +959,7 @@ class JobManager:
                     # 4. Comprimir el Archivo (condicional basado en job.compress)
                     should_compress = getattr(job, "compress", True)
                     
-                    if job.db_type != "sync" and should_compress:
+                    if not artifact_is_final_delivery and job.db_type != "sync" and should_compress:
                         history_manager.add_log(
                             db,
                             run.id,
@@ -940,7 +977,7 @@ class JobManager:
                             f"Compresión exitosa. Tamaño final: {file_size} bytes.",
                             stage="compress",
                         )
-                    elif job.db_type != "sync" and not should_compress:
+                    elif not artifact_is_final_delivery and job.db_type != "sync" and not should_compress:
                         # No comprimir: mover archivo a subcarpeta con nombre del backup
                         history_manager.add_log(
                             db,
@@ -989,7 +1026,9 @@ class JobManager:
                     )
 
                     # Formatear el nombre del archivo y renombrar el comprimido temporalmente
-                    if job.db_type != "sync":
+                    if artifact_is_final_delivery or job.db_type == "sync":
+                        final_dest = str(compressed_path)
+                    else:
                         timestamp = run.started_at.strftime("%Y%m%d_%H%M%S")
                         should_compress = getattr(job, "compress", True)
                         
@@ -1002,8 +1041,6 @@ class JobManager:
                         else:
                             # Ya está en la carpeta final, solo necesitamos la ruta
                             final_dest = str(compressed_path)
-                    else:
-                        final_dest = str(compressed_path)
 
                     if job.dest_type == "local":
                         from src.destinations.local import LocalDestination
@@ -1011,8 +1048,8 @@ class JobManager:
                         destination = LocalDestination()
                         dest_path_str = job.dest_local_path or str(Path.cwd() / "backups")
 
-                        # Subir archivo localmente
-                        if job.db_type != "sync":
+                        # Subir archivo localmente (omitir si ya quedó en destino: espejo o copia cruda)
+                        if job.db_type != "sync" and not artifact_is_final_delivery:
                             await destination.upload(compressed_path, dest_path_str)
 
                         history_manager.add_log(
@@ -1092,7 +1129,11 @@ class JobManager:
 
                     # Limpieza de archivos temporales
                     should_compress = getattr(job, "compress", True)
-                    if job.db_type != "sync" and should_compress:
+                    if (
+                        not artifact_is_final_delivery
+                        and job.db_type != "sync"
+                        and should_compress
+                    ):
                         if dump_path.exists():
                             dump_path.unlink()
                         if compressed_path.exists():

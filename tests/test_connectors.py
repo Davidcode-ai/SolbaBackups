@@ -15,53 +15,106 @@ from src.db.models import Job
 @pytest.mark.asyncio
 async def test_postgresql_extract_calls_pg_dump(mocker, tmp_path):
     """Verifica que PostgreSQLConnector invoca 'pg_dump' con los parámetros correctos."""
-    from src.connectors.postgresql import PostgreSQLConnector
+    import subprocess
+
+    from src.connectors.postgresql import PostgreSQLConnector, _windows_subprocess_flags
 
     job = Job(
-        id=1, name="PG Test", db_type="postgresql",
-        db_host="localhost", db_port=5432,
-        db_name="testdb", db_user="user", db_password="s3cr3t"
+        id=1,
+        name="PG Test",
+        db_type="postgresql",
+        db_host="localhost",
+        db_port=5432,
+        db_name="testdb",
+        db_user="user",
+        db_password="s3cr3t",
     )
     connector = PostgreSQLConnector()
     output_path = tmp_path / "dump.sql"
 
-    # Mockear asyncio.to_thread para que no ejecute nada real
+    mocker.patch("src.connectors.postgresql._find_pg_dump", return_value="pg_dump")
+
+    def make_popen(*args, **kwargs):
+        dump_file = kwargs.get("stdout")
+        mock_proc = MagicMock()
+
+        def communicate(timeout=None):
+            if dump_file is not None and hasattr(dump_file, "write"):
+                dump_file.write(b"-- pg_dump mock output\n")
+                if hasattr(dump_file, "flush"):
+                    dump_file.flush()
+            return (b"", None)
+
+        mock_proc.communicate = communicate
+        mock_proc.returncode = 0
+        mock_proc.kill = MagicMock()
+        return mock_proc
+
+    mock_popen = mocker.patch(
+        "src.connectors.postgresql.subprocess.Popen", side_effect=make_popen
+    )
+
     async def fake_to_thread(fn, *args, **kwargs):
-        fn()   # ejecuta el fn para que subprocess.run sea llamado
-    
-    mock_run = mocker.patch("subprocess.run")
-    mock_run.return_value = MagicMock(returncode=0)
+        fn(*args, **kwargs)
+
     mocker.patch("asyncio.to_thread", side_effect=fake_to_thread)
 
     result = await connector.extract(job, output_path)
 
     assert result is True
-    mock_run.assert_called_once()
-    call_args = mock_run.call_args[0][0]  # La lista de args del comando
-    assert call_args[0] == "pg_dump"
-    assert "-h" in call_args and "localhost" in call_args
-    assert "testdb" in call_args
-
-    # Verificar que la contraseña se pasa por env, NO en la línea de comandos
-    env_arg = mock_run.call_args[1].get("env", {})
+    assert output_path.exists() and output_path.stat().st_size > 0
+    mock_popen.assert_called_once()
+    cmd, popen_kwargs = mock_popen.call_args[0][0], mock_popen.call_args[1]
+    assert cmd[0] == "pg_dump"
+    assert "-h" in cmd and "localhost" in cmd
+    assert "-p" in cmd and "5432" in cmd
+    assert "-U" in cmd and "user" in cmd
+    assert cmd[cmd.index("-F") + 1] == "p"
+    assert "--no-password" in cmd
+    assert "testdb" in cmd
+    assert popen_kwargs.get("stderr") is subprocess.PIPE
+    assert popen_kwargs.get("creationflags") == _windows_subprocess_flags()
+    env_arg = popen_kwargs.get("env", {})
     assert env_arg.get("PGPASSWORD") == "s3cr3t"
-    assert "s3cr3t" not in " ".join(call_args)
+    assert "s3cr3t" not in " ".join(cmd)
 
 
 @pytest.mark.asyncio
 async def test_postgresql_extract_raises_on_failure(mocker, tmp_path):
     """Verifica que un fallo de pg_dump lanza una excepción."""
     from src.connectors.postgresql import PostgreSQLConnector
-    import subprocess
 
-    job = Job(id=1, name="PG Fail", db_type="postgresql",
-              db_host="localhost", db_name="testdb", db_user="user")
+    job = Job(
+        id=1,
+        name="PG Fail",
+        db_type="postgresql",
+        db_host="localhost",
+        db_name="testdb",
+        db_user="user",
+    )
     connector = PostgreSQLConnector()
 
-    def fake_run_fail():
-        raise subprocess.CalledProcessError(1, "pg_dump", stderr="Connection refused")
+    mocker.patch("src.connectors.postgresql._find_pg_dump", return_value="pg_dump")
 
-    mocker.patch("asyncio.to_thread", side_effect=lambda fn, *a, **k: fake_run_fail() or True)
+    def make_popen_fail(*args, **kwargs):
+        mock_proc = MagicMock()
+
+        def communicate(timeout=None):
+            return (b"Connection refused", None)
+
+        mock_proc.communicate = communicate
+        mock_proc.returncode = 1
+        mock_proc.kill = MagicMock()
+        return mock_proc
+
+    mocker.patch(
+        "src.connectors.postgresql.subprocess.Popen", side_effect=make_popen_fail
+    )
+
+    async def fake_to_thread(fn, *args, **kwargs):
+        fn(*args, **kwargs)
+
+    mocker.patch("asyncio.to_thread", side_effect=fake_to_thread)
 
     with pytest.raises(Exception) as exc_info:
         await connector.extract(job, tmp_path / "dump.sql")

@@ -888,27 +888,20 @@
                 <div id="wizardStep2" class="hidden space-y-8">
                     <div class="space-y-6 bg-slate-50 dark:bg-surface-950/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700/60">
                         <div id="dbConfigContainer" class="hidden space-y-6">
-                            <div class="space-y-4">
+                            <div id="dbDiscoverySection" class="space-y-4">
                                 <div class="flex flex-col gap-1">
-                                    <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="label_detected_engines">Servidores detectados</p>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400">Elige una opción para autocompletar host, puerto y motor.</p>
+                                    <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="label_detected_engines">Origen de datos</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="hint_discovery_cards">Elige un servidor detectado, un fichero local o añade manualmente la conexión.</p>
                                 </div>
-                                <div id="discoveryContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <div class="discovery-card cursor-pointer border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-950 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-lg p-4 transition-all" data-engine="sqlite" data-name="Fichero Local">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
-                                                <i class="fa-solid fa-file-lines"></i>
-                                            </div>
-                                            <div class="pointer-events-none">
-                                                <p class="text-sm font-semibold text-slate-800 dark:text-white" data-i18n="engine_local_file">Fichero Local</p>
-                                                <p class="text-xs text-slate-500 dark:text-slate-400" data-i18n="label_sqlite_access">SQLite / Access</p>
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div id="discoveryContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- Tarjetas generadas por loadDiscovery() -->
                                 </div>
+                                <p id="dbDiscoverySelectionSummary" class="hidden text-sm text-slate-600 dark:text-slate-300 font-medium"></p>
+                                <button type="button" id="btnDiscoveryEditConnection" class="hidden mt-1 text-sm font-bold text-brand-600 dark:text-brand-400 hover:underline" data-i18n="btn_discovery_edit_connection">Editar conexión</button>
                             </div>
 
-                            <details class="group border border-slate-300 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-surface-950">
+                            <div id="dbNetworkPanel" class="hidden space-y-5 pt-6 border-t border-slate-200 dark:border-slate-800">
+                            <details id="dbNetworkDetails" class="group border border-slate-300 dark:border-slate-800 rounded-lg bg-slate-50 dark:bg-surface-950">
                                 <summary class="cursor-pointer p-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors list-none flex items-center justify-between">
                                     <span class="flex items-center gap-2" data-i18n="title_advanced_network"><i class="fa-solid fa-network-wired"></i> Configuración Avanzada de Red</span>
                                     <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
@@ -923,7 +916,8 @@
                                                 <option value="postgresql">PostgreSQL</option>
                                                 <option value="mysql">MySQL / MariaDB</option>
                                                 <option value="sqlserver">Microsoft SQL Server</option>
-                                                <option value="sqlite" data-i18n="label_file_db">Fichero (SQLite/Access)</option>
+                                                <option value="sqlite" data-i18n="label_file_db">Fichero (SQLite)</option>
+                                                <option value="mdb">Microsoft Access (.mdb / .accdb)</option>
                                             </select>
                                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
                                                 <i class="fa-solid fa-chevron-down text-xs"></i>
@@ -949,9 +943,8 @@
                                     </div>
                                 </div>
                             </details>
-                        </div>
 
-                        <div id="dbCredentialsContainer" class="space-y-5 pt-6 border-t border-slate-200 dark:border-slate-800">
+                        <div id="dbCredentialsContainer" class="space-y-5 pt-2 border-t border-slate-200 dark:border-slate-800 md:border-t-0 md:pt-0 md:border-none">
                             <div class="flex flex-col gap-1 mb-2">
                                 <p class="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider" data-i18n="section_db_credentials">Acceso al Servidor</p>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">Primero valida usuario y contraseña. Luego lista las bases de datos activas.</p>
@@ -1007,16 +1000,18 @@
                                 <p class="text-[10px] text-brand-500 dark:text-brand-400 mt-2 font-medium" data-i18n="help_db_multiple">Tip: Mantén pulsado Ctrl para seleccionar varias de la lista.</p>
                             </div>
                         </div>
+                        </div>
+                        </div>
 
                         <div id="dbFilePathContainer" class="relative form-group hidden pt-6 border-t border-slate-200 dark:border-slate-800">
-                            <label for="dbFilePath" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_source_absolute_path">📁 Carpeta o Archivo de Origen</label>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Elige la carpeta o el archivo que quieres respaldar. Nosotros nos encargamos de empaquetarlo.</p>
+                            <label id="dbFilePathLabel" for="dbFilePath" class="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-1" data-i18n="label_source_absolute_path">📁 Carpeta o Archivo de Origen</label>
+                            <p id="dbFilePathHint" class="text-xs text-slate-500 dark:text-slate-400 mb-4" data-i18n="hint_db_file_path_folder">Elige la carpeta o el archivo que quieres respaldar. Nosotros nos encargamos de empaquetarlo.</p>
                             <div class="flex items-center gap-2">
                                 <input type="text" id="dbFilePath"
                                     class="flex-1 bg-white dark:bg-surface-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-lg p-3.5 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 shadow-sm"
                                     placeholder="Ej: C:\Backups\mi_base_datos.db o C:\MisArchivos" data-i18n-placeholder="ph_source_absolute_path">
                                 <button type="button" id="btnBrowseSource" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-3 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 whitespace-nowrap">
-                                    <i class="fa-regular fa-folder-open"></i> <span data-i18n="btn_explore">Buscar...</span>
+                                    <i class="fa-regular fa-folder-open"></i> <span data-i18n="btn_explore">Explorar</span>
                                 </button>
                             </div>
                         </div>
